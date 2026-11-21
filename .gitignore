@@ -1,0 +1,8 @@
+# Persönliche Trainingsdaten NICHT veröffentlichen (GitHub Pages ist öffentlich!)
+workout_data.csv
+*.csv
+*backup*.json
+
+.DS_Store
+node_modules/
+tools/node_modules/
