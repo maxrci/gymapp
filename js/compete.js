@@ -10,7 +10,7 @@ export const STAGE_NAMES = ['Respawn', 'Blutrünstig', 'Gnadenlos', 'Skrupellos'
 export const stageIndex = (weeks) => STAGE_MINS.reduce((a, m, i) => (weeks >= m ? i : a), 0);
 
 export const VISIBILITY = [
-  ['stats', 'Nur Zahlen', 'Andere sehen Liga-Punkte, Bestwerte, Streak und Challenges – keine Workouts.'],
+  ['stats', 'Nur Zahlen', 'Andere sehen Arena-Punkte, Bestwerte, Streak und Challenges – keine Workouts.'],
   ['summary', 'Übersicht', 'Zusätzlich deine Workouts mit Titel, Datum, Dauer, Volumen, Übungen und Rekorden.'],
   ['full', 'Komplett', 'Andere sehen deine Workouts vollständig mit allen Sätzen, Gewichten und Wiederholungen.'],
 ];

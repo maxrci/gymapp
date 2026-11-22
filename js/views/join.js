@@ -14,7 +14,7 @@ export function joinView({ code = '' }) {
   if (loggedIn()) {
     return { html: `${pageHead('Einladung', { back: '#/' })}<section class="card join-card">
       <p>Dieses Gerät ist bereits als <b>${esc(account().user?.name || '')}</b> angemeldet.</p>
-      <a class="btn primary block" href="#/league">Zur Liga</a></section>` };
+      <a class="btn primary block" href="#/arena">Zur Arena</a></section>` };
   }
   const iosHint = isIOS() && !isStandalone() ? `<div class="card hint">
       <div class="card-title">${icon('download')} Zuerst installieren</div>
@@ -46,7 +46,7 @@ export function joinView({ code = '' }) {
         try {
           const r = await redeemCode(f.elements.code.value, f.elements.device.value);
           toast(`Willkommen, ${r.user.name}!`);
-          location.hash = '#/league';
+          location.hash = '#/arena';
         } catch (err) { toast(err.message, 4000); btn.disabled = false; }
       });
     },

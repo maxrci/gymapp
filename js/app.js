@@ -25,7 +25,7 @@ const TABS = [
   ['training', 'Training', 'dumbbell'],
   ['stats', 'Statistik', 'chart'],
   ['exercises', 'Übungen', 'list'],
-  ['league', 'Liga', 'trophy'],
+  ['arena', 'Arena', 'trophy'],
   ['profile', 'Profil', 'user'],
 ];
 
@@ -44,8 +44,9 @@ function parseRoute() {
     case 'w': return { tab: 'home', view: workoutDetailView, params: { id: decodeURIComponent(b) } };
     case 'profile': return { tab: 'profile', view: profileView };
     case 'badges': return { tab: 'profile', view: badgesView };
-    case 'league': return { tab: 'league', view: leagueView, params: { tab: b || 'season' } };
-    case 'member': return { tab: 'league', view: memberView, params: { id: decodeURIComponent(b) } };
+    case 'arena':
+    case 'league': return { tab: 'arena', view: leagueView, params: { tab: b || 'season' } };
+    case 'member': return { tab: 'arena', view: memberView, params: { id: decodeURIComponent(b) } };
     case 'join': return { tab: 'profile', view: joinView, params: { code: decodeURIComponent(b) } };
     default: return { tab: 'home', view: homeView };
   }
@@ -68,7 +69,7 @@ function render({ keepScroll = true } = {}) {
 const rerender = () => render({ keepScroll: true });
 
 function renderTabbar() {
-  const tabs = TABS.filter(([k]) => k !== 'league' || loggedIn());
+  const tabs = TABS.filter(([k]) => k !== 'arena' || loggedIn());
   $('#tabbar').innerHTML = tabs.map(([k, l, ic]) => `<a href="#/${k}" data-tab="${k}">${icon(ic)}<span>${l}</span></a>`).join('');
   $('#tabbar').classList.toggle('six', tabs.length > 5);
 }

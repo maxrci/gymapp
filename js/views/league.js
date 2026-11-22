@@ -1,4 +1,4 @@
-// Liga: Saison (Fleiß), Ewige Tabelle, Challenges, Mitglieder + Mitglieds-Profil
+// Arena: Saison (Fleiß), Ewige Tabelle, Challenges, Mitglieder + Mitglieds-Profil
 
 import { pageHead, emptyState, kpi } from '../components.js';
 import { icon, chips, sheet, confirmDialog, toast } from '../ui.js';
@@ -10,12 +10,14 @@ import {
   ALLTIME, alltimeValue, CHALLENGE_TYPES, LEAGUE_RULES, VISIBILITY, STAGE_NAMES,
 } from '../compete.js';
 import { openChallengeEditor } from '../challengeEditor.js';
+import { startFight, chooseFight } from '../fight.js';
 
 const TABS = [['season', 'Saison'], ['alltime', 'Ewige Tabelle'], ['challenges', 'Challenges'], ['members', 'Mitglieder']];
 const ui = { cat: 'workouts', rel: false };
 let lastFetch = 0;
 
 const look = (m) => m?.look || {};
+const fightBtn = (id) => (id !== myId() ? `<button class="lg-fight" data-fight="${esc(id)}" aria-label="Kampf">${icon('bolt')}</button>` : '');
 const head = (m) => `<span class="lg-head">${fighterHead(m?.stage || 0, look(m))}</span>`;
 const member = (g, id) => g.members.find((m) => m.id === id);
 const nameOf = (g, id) => member(g, id)?.name || 'Unbekannt';
@@ -29,20 +31,20 @@ function refresh(rerender) {
 
 export function leagueView({ tab = 'season' }) {
   if (!loggedIn()) {
-    return { html: pageHead('Liga') + emptyState('users', 'Keine Gruppe', 'Melde dich mit deinem persönlichen Schlüssel an (Profil → Gruppe), um in der Liga anzutreten.', '<a class="btn primary" href="#/profile">Zum Profil</a>') };
+    return { html: pageHead('Arena') + emptyState('users', 'Keine Gruppe', 'Melde dich mit deinem persönlichen Schlüssel an (Profil → Gruppe), um in der Arena anzutreten.', '<a class="btn primary" href="#/profile">Zum Profil</a>') };
   }
   const g = cachedGroup();
-  const tabs = `<div class="tabs scroll">${TABS.map(([k, l]) => `<a class="tab ${k === tab ? 'on' : ''}" href="#/league/${k}">${l}</a>`).join('')}</div>`;
+  const tabs = `<div class="tabs scroll">${TABS.map(([k, l]) => `<a class="tab ${k === tab ? 'on' : ''}" href="#/arena/${k}">${l}</a>`).join('')}</div>`;
   if (!g) {
     return {
-      html: pageHead('Liga') + tabs + '<div class="chart-empty">Lade Gruppendaten…</div>',
+      html: pageHead('Arena') + tabs + '<div class="chart-empty">Lade Gruppendaten…</div>',
       mount: () => fetchGroup().then(() => window.dispatchEvent(new HashChangeEvent('hashchange'))).catch((e) => toast(e.message)),
     };
   }
   const views = { season, alltime, challenges, members };
   const v = (views[tab] || season)(g);
   return {
-    html: `${pageHead(g.group || 'Liga', { sub: `${g.members.length} Mitglieder` })}${tabs}${v.html}`,
+    html: `${pageHead(g.group || 'Arena', { sub: `${g.members.length} Mitglieder` })}${tabs}${v.html}`,
     mount: (root) => { v.mount?.(root); },
     handlers: { ...(v.handlers || {}) },
     clicks: { ...(v.clicks || {}) },
@@ -70,12 +72,13 @@ function season(g) {
           <b>${esc(m?.name || '')}</b><small>${num(r.points, 0)} P</small><div class="pod-base">${i + 1}</div></a>`;
       }).join('')}</div>
     </section>
+    ${g.members.length > 1 ? `<button class="btn fight-btn block lg" data-act="fightpick">${icon('bolt')} Arena-Kampf starten</button>` : ''}
     <section class="card">
       <div class="card-title">Rangliste</div>
       ${rows.map((r, i) => `<a class="lg-row ${r.id === me ? 'me' : ''}" href="#/member/${esc(r.id)}">
         <span class="lg-rank">${i + 1}</span>${head(member(g, r.id))}
         <span class="lg-main"><b>${esc(nameOf(g, r.id))}</b><small>${r.workouts} Workouts · ${r.goalWeeks} Wochenziele · ${r.prs} Rekorde${r.wins ? ` · ${r.wins} Siege` : ''}</small></span>
-        <span class="lg-val">${num(r.points, 0)}<small>P</small></span></a>`).join('')}
+        <span class="lg-val">${num(r.points, 0)}<small>P</small></span>${fightBtn(r.id)}</a>`).join('')}
       <p class="footnote">${esc(LEAGUE_RULES)}</p>
     </section>
     ${titles.length ? `<section class="card"><div class="card-title">${icon('trophy', 'gold')} Saison-Titel</div>
@@ -85,7 +88,17 @@ function season(g) {
       ${g.seasons.slice(0, 12).map((x) => `<div class="lg-row"><span class="lg-main"><b>${esc(fmtDate(x.from, { month: 'long', year: 'numeric' }))}</b>
         <small>${x.top.map((t, i) => `${i + 1}. ${esc(nameOf(g, t.id))} (${num(t.points, 0)})`).join(' · ')}</small></span>${icon('trophy', 'gold')}</div>`).join('')}
     </section>` : ''}`;
-  return { html };
+  return {
+    html,
+    handlers: {
+      fightpick: async () => {
+        const others = g.members.filter((m) => m.id !== me);
+        const id = others.length === 1 ? others[0].id : await sheet({ title: 'Gegner wählen', options: others.map((m) => ({ label: `${m.name} · ${STAGE_NAMES[m.stage]}`, value: m.id, icon: 'user' })) });
+        if (id) chooseFight(g, me, id);
+      },
+    },
+    clicks: { fight: (el) => startFight(g, me, el.dataset.fight, 'season') },
+  };
 }
 
 // ---------------- Ewige Tabelle ----------------
@@ -114,7 +127,8 @@ function alltime(g) {
       ${rows.map((r, i) => `<a class="lg-row ${r.m.id === me ? 'me' : ''}" href="#/member/${esc(r.m.id)}">
         <span class="lg-rank ${i < 3 && r.v ? `m${i + 1}` : ''}">${i + 1}</span>${head(r.m)}
         <span class="lg-main"><b>${esc(r.m.name)}</b><div class="bar"><i style="width:${r.v ? Math.max(3, (r.v / best) * 100) : 0}%"></i></div></span>
-        <span class="lg-val">${fmt(r.v)}</span></a>`).join('')}
+        <span class="lg-val">${fmt(r.v)}</span>${fightBtn(r.m.id)}</a>`).join('')}
+      <p class="footnote">Tippe auf ${icon('bolt', 'xs')}, um jemanden in dieser Kategorie zum Kampf herauszufordern – wer den besseren Wert hat, gewinnt.</p>
       ${cat.strength ? `<p class="footnote">Bestes geschätztes 1RM (Epley) mit der Langhantel aus allen Workouts.${rel ? ' Geteilt durch das Körpergewicht am Tag des Satzes – dafür muss jeder sein Gewicht im Profil eintragen.' : ''}${cat.key === 'big3' ? ' Big 3 = Bankdrücken + Kniebeuge + Kreuzheben.' : ''}</p>` : ''}
     </section>`;
   return {
@@ -122,6 +136,7 @@ function alltime(g) {
     clicks: {
       cat: (el, rr) => { ui.cat = el.dataset.cat; rr(); },
       arel: (el, rr) => { ui.rel = el.dataset.arel === '1'; rr(); },
+      fight: (el) => startFight(g, me, el.dataset.fight, cat.key, rel),
     },
   };
 }
@@ -222,8 +237,8 @@ function members(g) {
   const html = `<div class="set-group">${g.members.map((m) => `<a class="lg-row mem ${m.id === me ? 'me' : ''}" href="#/member/${esc(m.id)}">
       ${head(m)}<span class="lg-main"><b>${esc(m.name)}${m.role === 'admin' ? ' <em class="tag">Admin</em>' : ''}</b>
       <small>${esc(STAGE_NAMES[m.stage])} · ${m.streak} Wo. Streak · diese Woche ${m.thisWeek}/${m.goal}</small>
-      <small>${m.lastWorkout ? `Zuletzt ${esc(fmtRelDay(m.lastWorkout))}` : 'Noch kein Workout'} · ${icon('eye', 'xs')} ${esc(visLabel(m.visibility))}</small></span>${icon('right', 'muted')}</a>`).join('')}</div>`;
-  return { html };
+      <small>${m.lastWorkout ? `Zuletzt ${esc(fmtRelDay(m.lastWorkout))}` : 'Noch kein Workout'} · ${icon('eye', 'xs')} ${esc(visLabel(m.visibility))}</small></span>${fightBtn(m.id) || icon('right', 'muted')}</a>`).join('')}</div>`;
+  return { html, clicks: { fight: (el) => chooseFight(g, me, el.dataset.fight) } };
 }
 
 // ---------------- Mitglieds-Profil ----------------
@@ -231,7 +246,7 @@ const feeds = new Map();
 export function memberView({ id }) {
   const g = cachedGroup();
   const m = g && member(g, id);
-  if (!m) return { html: pageHead('Mitglied', { back: '#/league/members' }) + emptyState('user', 'Nicht gefunden', 'Dieses Mitglied gibt es nicht (mehr).') };
+  if (!m) return { html: pageHead('Mitglied', { back: '#/arena/members' }) + emptyState('user', 'Nicht gefunden', 'Dieses Mitglied gibt es nicht (mehr).') };
   const at = g.alltime[id] || { abs: {}, rel: {} };
   const f = feeds.get(id);
   const lifts = ['bench', 'squat', 'deadlift', 'ohp'].filter((k) => at.abs[k]);
@@ -241,7 +256,7 @@ export function memberView({ id }) {
       : f.workouts.length ? f.workouts.map((w) => memberWorkout(w)).join('') + (f.more ? '<button class="btn ghost block" data-act="morefeed">Mehr laden</button>' : '')
         : '<div class="chart-empty">Noch keine Workouts</div>';
   const html = `
-    ${pageHead(m.name, { back: '#/league/members', sub: `${esc(STAGE_NAMES[m.stage])}${m.role === 'admin' ? ' · Admin' : ''}` })}
+    ${pageHead(m.name, { back: '#/arena/members', sub: `${esc(STAGE_NAMES[m.stage])}${m.role === 'admin' ? ' · Admin' : ''}` })}
     <section class="card hero mem-hero st${m.stage}">
       <div class="hero-fig">${fighterFx(m.stage, { look: look(m), enter: nav.entering })}</div>
       <div class="hero-info">
@@ -250,6 +265,7 @@ export function memberView({ id }) {
         <small class="muted">Längste: ${m.longest} Wo. · Ziel ${m.goal}/Woche</small>
       </div>
     </section>
+    ${id !== myId() ? `<button class="btn fight-btn block lg" data-act="fight">${icon('bolt')} ${esc(m.name)} herausfordern</button>` : ''}
     <div class="kpis">
       ${kpi('Workouts', num(at.workouts || 0, 0), null, 'dumbbell')}
       ${kpi('Volumen', fmtVolume(at.volume || 0), null, 'layers')}
@@ -271,7 +287,7 @@ export function memberView({ id }) {
   return {
     html,
     mount: (root) => { if (!f) load(0, () => window.dispatchEvent(new HashChangeEvent('hashchange'))); },
-    handlers: { morefeed: (_, rr) => load(f.workouts[f.workouts.length - 1].start, rr) },
+    handlers: { morefeed: (_, rr) => load(f.workouts[f.workouts.length - 1].start, rr), fight: () => chooseFight(g, myId(), id) },
     clicks: { wopen: (el) => el.closest('.mw').classList.toggle('open') },
   };
 }

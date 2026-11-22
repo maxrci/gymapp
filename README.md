@@ -44,7 +44,7 @@ Alle Daten bleiben lokal auf dem Gerät (IndexedDB).
 - **Körpergewicht-Verlauf** (Profil → Körpergewicht) und Umschalter **kg / × KG**: Kraft absolut oder relativ
   zum damaligen Körpergewicht (Übungsdetails, Statistik → Kraft, Rekorde).
 
-## Gruppen-Server (Liga, Challenges, Accounts)
+## Gruppen-Server (Arena, Challenges, Accounts)
 
 Im Branch `distribution` gibt es zusätzlich einen kleinen Server, den jede Freundesgruppe selbst betreiben kann –
 auf einem Raspberry Pi daheim oder einem Cloud-Server. Er liefert die App aus und synchronisiert Workouts.
@@ -52,7 +52,7 @@ auf einem Raspberry Pi daheim oder einem Cloud-Server. Er liefert die App aus un
 - **Accounts ohne Passwort**: Der Admin legt Mitglieder an und verschickt einen persönlichen Einmal-Schlüssel
   (1 Schlüssel pro Gerät, 7 Tage gültig). Keine offene Registrierung.
 - **Offline-first-Sync** zwischen Handy und Server, auch über mehrere Geräte.
-- **Liga** (monatliche Saison, Punkte für Fleiß), **Ewige Tabelle** (Workouts, Volumen, Trainingszeit, Cardio,
+- **Arena**: animierte 5-Sekunden-Kämpfe der Kämpfer (wer im gewählten Wert besser ist, gewinnt), monatliche Saison (Punkte für Fleiß), **Ewige Tabelle** (Workouts, Volumen, Trainingszeit, Cardio,
   Streak, Maximalkraft absolut und pro Körpergewicht), **Challenges** zum Anlegen, Einladen und Mitmachen.
 - **Sichtbarkeit in 3 Stufen**: nur Zahlen, Workout-Übersicht oder komplette Workouts.
 - Technik: Node.js ≥ 22.13 mit eingebautem SQLite, keine weiteren Pakete; Docker Compose mit Cloudflare Tunnel
