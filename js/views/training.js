@@ -1,4 +1,4 @@
-import { state, deleteRoutine, saveRoutine, saveSettings } from '../store.js';
+import { state, deleteRoutine, saveRoutine } from '../store.js';
 import { pageHead, emptyState } from '../components.js';
 import { icon, sheet, confirmDialog } from '../ui.js';
 import { esc, fmtRelDay, uid, num } from '../utils.js';
@@ -8,9 +8,26 @@ import { defaultTitle } from './home.js';
 import { aiOn, nextWorkout, stagnation } from '../ai.js';
 import { bodyMap, mountBodyMaps } from '../bodymap.js';
 import { lineChart, SERIES } from '../charts.js';
-import { poseSVG } from '../poses.js';
+import { mountPose } from '../poses.js';
 import { stageFor } from '../gamification.js';
-import { weekStreaks } from '../stats.js';
+import { weekStreaks, idx } from '../stats.js';
+import { startOfWeek } from '../utils.js';
+import { cardioKind, MOBILITY_RE } from '../compete.js';
+
+// Wochenzahlen für die Kacheln
+function weekNumbers() {
+  const { asc, ex, wStats } = idx();
+  const from = startOfWeek(Date.now());
+  let cardio = 0, mob = 0, gym = 0;
+  for (const x of ex.values()) {
+    const ck = cardioKind(x.name, x.type);
+    const mb = MOBILITY_RE.test(x.name);
+    if (!ck && !mb) continue;
+    for (const s of x.sessions) if (s.date >= from) { if (mb) mob += s.duration / 60; else cardio += s.duration / 60; }
+  }
+  for (const w of asc) if (w.start >= from && wStats.get(w.id)?.volume > 0) gym++;
+  return { cardio: Math.round(cardio), mob: Math.round(mob), gym };
+}
 import { openCardioSetup, openMobilitySetup, hasGuided, resumeGuided } from '../guided.js';
 
 const pctCls = (r) => (r >= 0.8 ? 'good' : r >= 0.5 ? 'warn' : 'crit');
@@ -25,7 +42,7 @@ function coachHtml() {
   const rmVals = Object.fromEntries(Object.entries(nw.readiness).map(([m, v]) => [m, v.readiness]));
   return `
     <section class="card coach">
-      <div class="coach-head"><span class="ai-badge">AI</span><b>Nächstes Training</b></div>
+      <div class="coach-head"><span class="ai-badge">AI</span><b>Nächstes Training</b><span class="demo-tag sm">DEMO</span></div>
       <div class="coach-when">${esc(nw.whenText)}</div>
       <div class="coach-goal">${esc(nw.goalText)}</div>
       <div class="coach-best">
@@ -76,35 +93,32 @@ export function trainingView() {
 
   const stg = stageFor(weekStreaks().current).index;
   const stagData = ai ? stagnation().filter((s) => s.status !== 'progress').slice(0, 8) : [];
+  const wk = weekNumbers();
 
   const html = `
     ${pageHead('Training')}
     ${hasGuided() ? `<button class="card resume-card" data-act="resume">${icon('play')}<div><b>Geführte Einheit fortsetzen</b><small>Deine letzte Cardio-/Mobility-Einheit läuft noch</small></div></button>` : ''}
-    <label class="card ai-toggle ${ai ? 'on' : ''}">
-      <span class="ai-badge lg">AI</span>
-      <div><b>AI-Mode</b><small>${ai ? 'Aktiv: Gewichts- & Wiederholungsvorschläge, Erholung, Stagnation' : 'Aus – keine Vorschläge oder Analysen'}</small></div>
-      <input type="checkbox" class="switch" data-ai ${ai ? 'checked' : ''}>
-    </label>
-    ${ai && state.workouts.length ? coachHtml() : ''}
-    <section class="quick">
-      <button class="btn primary block lg" data-act="start">${icon('plus')} Leeres Workout starten</button>
-      <button class="btn ghost block" data-act="past">${icon('calendar')} Vergangenes Workout nachtragen</button>
-    </section>
-    <h2 class="section-title">Geführt</h2>
-    <div class="guided-grid">
-      <button class="guided-tile cardio" data-act="cardio"><div class="gt-fig">${poseSVG('run', { stage: stg, t: 0.2 })}</div><b>Cardio</b><small>Intervalle & Grundlage</small></button>
-      <button class="guided-tile mobility" data-act="mobility"><div class="gt-fig">${poseSVG('wgs', { stage: stg, t: 0.5 })}</div><b>Mobility</b><small>Geführte Routinen</small></button>
+    <div class="train-tiles">
+      <button class="t-tile gym" data-act="gym"><i class="tt-fx"></i><div class="tt-fig" data-tfig="ohp"></div><b>Gym</b><small>Stärker als gestern</small><em>${wk.gym ? `Woche: ${wk.gym}×` : 'Routinen'}</em></button>
+      <button class="t-tile cardio" data-act="cardio"><i class="tt-fx"></i><div class="tt-fig" data-tfig="sprint"></div><b>Cardio</b><small>Lauf allen davon</small><em>${wk.cardio ? `Woche: ${wk.cardio} Min.` : 'Intervalle'}</em></button>
+      <button class="t-tile mobility" data-act="mobility"><i class="tt-fx"></i><div class="tt-fig" data-tfig="splits"></div><b>Mobility</b><small>Geschmeidig wie ein Ninja</small><em>${wk.mob ? `Woche: ${wk.mob} Min.` : 'Geführt'}</em></button>
     </div>
-    <div class="section-row"><h2 class="section-title">Routinen</h2><button class="link-btn" data-act="new">${icon('plus', 'xs')} Neu</button></div>
+    ${ai && state.workouts.length ? coachHtml() : ''}
+    <div class="section-row" id="gym-list"><h2 class="section-title">${icon('dumbbell')} Gym-Workouts</h2><button class="link-btn" data-act="new">${icon('plus', 'xs')} Neu</button></div>
     ${rs.length ? cards : emptyState('layers', 'Noch keine Routinen', 'Routinen sind Vorlagen für deine Workouts (z. B. Push, Pull, Beine).',
       `<button class="btn primary" data-act="new">Routine erstellen</button>${state.workouts.length ? '<button class="btn ghost" data-act="auto">Aus Verlauf erstellen</button>' : ''}`)}
     ${rs.length && state.workouts.length ? '<button class="btn ghost block" data-act="auto">Fehlende Routinen aus Verlauf erstellen</button>' : ''}
+    <section class="quick bottom">
+      <button class="btn primary block lg" data-act="start">${icon('plus')} Leeres Workout starten</button>
+      <button class="btn ghost block" data-act="past">${icon('calendar')} Vergangenes Workout nachtragen</button>
+    </section>
   `;
   const find = (el) => state.routines.find((r) => r.id === el.dataset.id);
   return {
     html,
     mount: (root) => {
-      root.querySelector('[data-ai]')?.addEventListener('change', (e) => saveSettings({ aiMode: e.target.checked }));
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      root.querySelectorAll('[data-tfig]').forEach((h) => mountPose(h, h.dataset.tfig, { stage: Math.max(stg, 3), speed: reduce ? 0 : h.dataset.tfig === 'sprint' ? 1 : 0.8 }));
       mountBodyMaps(root);
       stagData.forEach((s, i) => {
         const host = root.querySelector(`[data-stag="${i}"]`);
@@ -113,6 +127,7 @@ export function trainingView() {
     },
     handlers: {
       start: () => startWorkout({ title: defaultTitle() }),
+      gym: () => document.getElementById('gym-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
       past: () => logPastWorkout(),
       new: () => editRoutine(null),
       auto: () => routinesFromHistory(),

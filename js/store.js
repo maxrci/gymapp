@@ -15,6 +15,7 @@ export const DEFAULT_SETTINGS = {
   aiMode: false,           // AI-Vorschläge (lokaler Algorithmus)
   prEffects: true,         // PR-Einblendung + Feuer-Zeile
   prSound: true,           // Power-up-Sound bei PR
+  prScream: true,          // Kampfschrei bei PR
   voice: true,             // Sprachansagen in geführten Einheiten
   hrMax: null,             // max. Herzfrequenz für Puls-Zonen
   cardio: {},              // Geräte-Kalibrierung

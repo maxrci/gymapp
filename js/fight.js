@@ -6,19 +6,39 @@ import { unlockAudio, powerUpSound } from './fx.js';
 import { state } from './store.js';
 import { sheet, icon } from './ui.js';
 import { esc, num, fmtVolume } from './utils.js';
-import { ALLTIME, alltimeValue } from './compete.js';
+import { ALLTIME, alltimeValue, KINGS, exKey, MOBILITY_RE } from './compete.js';
+import { startShowdown } from './showdown.js';
 
 export const DURATION = 5000;
 
 // ---------- Kategorien ----------
-export const FIGHT_CATS = [{ key: 'season', label: 'Saison-Punkte' }, ...ALLTIME];
+export const FIGHT_CATS = [
+  { key: 'season', label: 'Saison-Punkte' },
+  ...KINGS.map((k) => ({ key: `king:${k.key}`, label: `${k.label} (Saison)`, king: k })),
+  ...ALLTIME,
+];
+const kingOf = (key) => FIGHT_CATS.find((c) => c.key === key)?.king;
+
+export function kingValue(st, k) {
+  if (!st) return 0;
+  return k === 'gym' ? st.gym || 0 : k === 'cardio' ? st.cardio || 0 : st.mobility || 0;
+}
+export function fmtKing(k, st) {
+  if (!st) return '–';
+  if (k === 'gym') return st.gym ? `${fmtVolume(st.gym)} · ${st.gymN} Workouts` : '–';
+  if (k === 'cardio') return st.cardio ? `${num(st.kmEq, 0)} km-Äq. · Ø ${num(st.watt, 0)} W` : '–';
+  return st.mobility ? `${num(st.mobility, 0)} Min.` : '–';
+}
 
 export function catValue(g, id, key, rel) {
   if (key === 'season') return g.season.rows.find((r) => r.id === id)?.points || 0;
+  const k = kingOf(key);
+  if (k) return kingValue(g.kings?.season?.[id], k.key);
   return alltimeValue(g.alltime[id] || { abs: {}, rel: {} }, key, rel);
 }
-export function fmtCat(key, v, rel) {
+export function fmtCat(key, v, rel, g, id) {
   const cat = FIGHT_CATS.find((c) => c.key === key) || {};
+  if (cat.king && g) return fmtKing(cat.king.key, g.kings?.season?.[id]);
   if (!v) return '–';
   if (key === 'season') return `${num(v, 0)} P`;
   if (rel) return `${num(v, 2)} × KG`;
@@ -33,7 +53,7 @@ export const catLabel = (key, rel) => `${FIGHT_CATS.find((c) => c.key === key)?.
 
 // Kategorie wählen und Kampf starten
 export async function chooseFight(g, aId, bId) {
-  const key = await sheet({ title: 'Worin wird gekämpft?', options: FIGHT_CATS.map((c) => ({ label: c.label, value: c.key, icon: c.strength ? 'weight' : c.key === 'season' ? 'trophy' : 'bolt' })) });
+  const key = await sheet({ title: 'Worin wird gekämpft?', options: FIGHT_CATS.map((c) => ({ label: c.label, value: c.key, icon: c.king ? c.king.icon : c.strength ? 'weight' : c.key === 'season' ? 'trophy' : 'bolt' })) });
   if (!key) return;
   let rel = false;
   if (FIGHT_CATS.find((c) => c.key === key)?.strength) {
@@ -88,10 +108,64 @@ const seg = (t, a, b) => clamp((t - a) / (b - a));
 const easeOut = (u) => 1 - (1 - u) ** 3;
 const easeIn = (u) => u * u * u;
 
+// Könige-Kategorie mit allen oder zwei Kämpfern
+export function startKingShowdown(g, kingKey, ids, period = 'season') {
+  const k = KINGS.find((x) => x.key === kingKey);
+  const st = g.kings?.[period] || {};
+  const people = ids.map((id) => g.members.find((m) => m.id === id)).filter(Boolean)
+    .map((m) => ({ id: m.id, name: m.name, look: m.look || {}, stage: m.stage, value: kingValue(st[m.id], kingKey), text: fmtKing(kingKey, st[m.id]) }));
+  if (people.length < 2) return;
+  const pl = { month: 'Dieser Monat', season: 'Saison', all: 'Ewig' }[period];
+  startShowdown({ kind: k.anim, title: k.label, sub: pl, people });
+}
+
+// Kampf in einer bestimmten Übung (aus dem Übungs-Vergleich)
+export function startExerciseFight(g, aId, bId, name, rel = false) {
+  const k = exKey(name);
+  const A = g.members.find((m) => m.id === aId), B = g.members.find((m) => m.id === bId);
+  const ba = g.exercises?.[aId]?.[k], bb = g.exercises?.[bId]?.[k];
+  if (!A || !B) return;
+  const t = ba?.t || bb?.t;
+  const isW = t === 'weight' || t === 'weighted_bw';
+  const val = (b) => (!b ? 0 : isW ? (rel ? b.rel : b.e) : t === 'cardio' ? b.d : t === 'duration' ? b.sec : b.mr);
+  const txt = (b) => { const v = val(b); if (!v) return '–'; return isW ? (rel ? `${num(v, 2)} × KG` : `${num(v, 1)} kg`) : t === 'cardio' ? `${num(v, 2)} km` : t === 'duration' ? `${Math.round(v / 60)} Min.` : `${num(v, 0)} Wdh.`; };
+  const people = [[A, ba], [B, bb]].map(([m, b]) => ({ id: m.id, name: m.name, look: m.look || {}, stage: m.stage, value: val(b), text: txt(b) }));
+  const kind = isW || t === 'bodyweight' ? 'lift' : t === 'cardio' ? 'race' : MOBILITY_RE.test(name) ? 'stretch' : 'race';
+  startShowdown({ kind, title: name, sub: isW ? (rel ? 'Bestes 1RM ÷ Körpergewicht' : 'Bestes geschätztes 1RM') : '', people });
+}
+
+// ---------- Vorschläge: zu jedem Freund eine Kategorie, in der er/sie vorne liegt ----------
+export function fightSuggestions(g, me) {
+  const cands = [];
+  for (const c of FIGHT_CATS) {
+    cands.push({ key: c.key, rel: false });
+    if (c.strength) cands.push({ key: c.key, rel: true });
+  }
+  const vals = cands.map((c) => ({ ...c, v: Object.fromEntries(g.members.map((m) => [m.id, catValue(g, m.id, c.key, c.rel)])) }));
+  const friends = g.members.filter((m) => m.id !== me);
+  const used = new Set();
+  const ck = (c) => `${c.key}|${c.rel}`;
+  const leads = (f) => vals.filter((c) => c.v[f.id] > 0 && g.members.every((m) => m.id === f.id || c.v[f.id] > c.v[m.id]));
+  const margin = (c, id) => { const others = g.members.filter((m) => m.id !== id).map((m) => c.v[m.id]); const second = Math.max(0, ...others); return second ? c.v[id] / second : 99; };
+  const out = [];
+  for (const f of [...friends].sort((a, b) => leads(a).length - leads(b).length)) {
+    let pool = leads(f).map((c) => ({ c, how: 'lead' }));
+    if (!pool.length) pool = vals.filter((c) => c.v[f.id] > (c.v[me] || 0)).map((c) => ({ c, how: 'beats' }));
+    if (!pool.length) continue; // überall hinten
+    pool.sort((a, b) => margin(b.c, f.id) - margin(a.c, f.id));
+    const pick = pool.find((x) => !used.has(ck(x.c))) || pool[0];
+    used.add(ck(pick.c));
+    out.push({ friend: f, key: pick.c.key, rel: pick.c.rel, how: pick.how, va: pick.c.v[me] || 0, vb: pick.c.v[f.id] });
+  }
+  return friends.map((f) => out.find((x) => x.friend.id === f.id)).filter(Boolean);
+}
+
 export function startFight(g, aId, bId, key, rel = false) {
   const A = g.members.find((m) => m.id === aId);
   const B = g.members.find((m) => m.id === bId);
   if (!A || !B) return;
+  const k = kingOf(key);
+  if (k) return startKingShowdown(g, k.key, [aId, bId], 'season');
   const va = catValue(g, aId, key, rel);
   const vb = catValue(g, bId, key, rel);
   const winner = va > vb ? 'a' : vb > va ? 'b' : null;

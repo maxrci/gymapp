@@ -26,6 +26,8 @@ export function startOfMonth(ts) {
   return new Date(d.getFullYear(), d.getMonth(), 1).getTime();
 }
 export const addMonths = (ts, n) => { const d = new Date(ts); return new Date(d.getFullYear(), d.getMonth() + n, 1).getTime(); };
+export const startOfYear = (ts) => new Date(new Date(ts).getFullYear(), 0, 1).getTime();
+export const addYears = (ts, n) => new Date(new Date(ts).getFullYear() + n, 0, 1).getTime();
 const dayKey = (ts) => { const d = new Date(ts); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; };
 
 // Körpergewicht zu einem Zeitpunkt
@@ -46,6 +48,80 @@ export const LIFTS = {
 
 // Übungsnamen tolerant vergleichen („Liegestütz“ = „Liegestütze“, Groß/Klein, Leerzeichen)
 export const exKey = (n) => String(n || '').toLowerCase().replace(/ä/g, 'a').replace(/ö/g, 'o').replace(/ü/g, 'u').replace(/ß/g, 'ss').replace(/[^a-z0-9()]/g, '').replace(/(e|en|n)(?=\(|$)/, '');
+
+// ---------- Cardio & Mobility ----------
+export const MOBILITY_RE = /mobility|dehn|stretch|yoga|pilates|faszien|beweglich/i;
+export const PILATES_RE = /pilates|yoga/i;
+const CARDIO_KINDS = [
+  ['sprint', /sprint/i], ['walk', /gehen|walk|spazier|wander/i], ['run', /lauf|jogg|run|treadmill/i],
+  ['bike', /radfahr|fahrrad|ergometer|spinning|bike|cycling|\brad\b/i], ['row', /rudermaschine|rudergerät|rower|carido|rudern|rundern|row/i],
+  ['elliptical', /crosstrainer|ellipt/i], ['swim', /schwimm|swim/i], ['stairs', /stepper|treppe|stair/i],
+  ['rope', /seilspring|jump ?rope/i], ['generic', /cardio|zone ?2|hiit|ausdauer/i],
+];
+// Art der Cardio-Einheit (nur für Distanz-/Zeit-Übungen, Mobility zählt nicht)
+export function cardioKind(name, type) {
+  if (type !== 'cardio' && type !== 'duration') return null;
+  if (MOBILITY_RE.test(name)) return null;
+  for (const [k, re] of CARDIO_KINDS) if (re.test(name)) return k;
+  return type === 'cardio' ? 'generic' : null;
+}
+// Leistungsmodell: mechanische Arbeit in kJ, damit Rad, Laufen, Rudern & Co. vergleichbar sind.
+// Laufen ≈ 1,05 kJ pro kg und km, Rad ≈ 22 kJ/km, Rudern ≈ 50 kJ/km; ohne Distanz zählt eine typische Leistung × Zeit.
+const KM_KJ = { run: (bw) => 1.05 * bw, sprint: (bw) => 1.05 * bw, walk: (bw) => 0.55 * bw, bike: () => 22, row: () => 50, elliptical: () => 35, swim: () => 250 };
+const WATT = { run: 210, sprint: 450, walk: 60, bike: 140, row: 170, elliptical: 140, swim: 150, stairs: 160, rope: 200, generic: 140 };
+export const KM_EQ_KJ = 79; // 1 km Laufen bei 75 kg
+export function cardioWork(kind, km, sec, bw) {
+  if (!kind) return 0;
+  let kj = km > 0 && KM_KJ[kind] ? km * KM_KJ[kind](bw || 75) : ((sec || 0) * (WATT[kind] || 140)) / 1000;
+  if (sec > 0) kj = Math.min(kj, sec * 0.6); // max. Ø 600 W
+  return kj;
+}
+
+// ---------- Könige (Workout, Cardio, Mobility) ----------
+export const KINGS = [
+  { key: 'gym', label: 'Workout-König', short: 'Workout', icon: 'dumbbell', anim: 'lift', desc: 'Gesamtvolumen im Gym (kg × Wdh.)' },
+  { key: 'cardio', label: 'Cardio-König', short: 'Cardio', icon: 'bolt', anim: 'race', desc: 'Gesamtleistung aller Cardio-Einheiten – Rad, Laufen, Rudern usw. werden über die geleistete Arbeit vergleichbar gemacht.' },
+  { key: 'mobility', label: 'Mobility-König', short: 'Mobility', icon: 'repeat', anim: 'stretch', desc: 'Minuten Mobility, Dehnen, Yoga und Pilates' },
+];
+export function kingStats(sums, bwLog, from = 0, to = Infinity) {
+  const r = { gym: 0, gymN: 0, cardio: 0, csec: 0, ckm: 0, mobility: 0, mobN: 0 };
+  for (const w of sums) {
+    if (w.start < from || w.start >= to) continue;
+    const bw = bwAt(w.start, bwLog);
+    let mob = false;
+    for (const x of w.ex || []) {
+      if (MOBILITY_RE.test(x.n) && (x.t === 'duration' || x.t === 'cardio' || x.sec)) { r.mobility += (x.sec || 0) / 60; mob = true; continue; }
+      const k = cardioKind(x.n, x.t);
+      if (k) { r.cardio += cardioWork(k, x.d || 0, x.sec || 0, bw); r.csec += x.sec || 0; r.ckm += x.d || 0; }
+    }
+    if (!mob && w.mob) { r.mobility += (w.dur || 0) / 60; mob = true; }
+    if (mob) r.mobN++;
+    if ((w.vol || 0) > 0) { r.gym += w.vol; r.gymN++; }
+  }
+  r.kmEq = r.cardio / KM_EQ_KJ;
+  r.watt = r.csec ? (r.cardio * 1000) / r.csec : 0;
+  return r;
+}
+
+// ---------- Bestwerte pro Übung (für den Übungs-Vergleich) ----------
+export function exerciseBests(sums, bwLog) {
+  const out = {};
+  for (const w of sums) {
+    const bw = bwAt(w.start, bwLog);
+    for (const x of w.ex || []) {
+      const k = exKey(x.n);
+      const b = out[k] || (out[k] = { n: x.n, t: x.t, e: 0, rel: 0, w: 0, mr: 0, d: 0, sec: 0, v: 0, r: 0, c: 0, last: 0 });
+      b.c++;
+      b.last = Math.max(b.last, w.start);
+      b.v += x.v || 0; b.r += x.r || 0;
+      if ((x.e || 0) > b.e) b.e = x.e;
+      if (bw && x.e && x.e / bw > b.rel) b.rel = x.e / bw;
+      b.w = Math.max(b.w, x.w || 0); b.mr = Math.max(b.mr, x.mr || 0); b.d = Math.max(b.d, x.d || 0); b.sec = Math.max(b.sec, x.sec || 0);
+    }
+  }
+  for (const b of Object.values(out)) { b.e = +b.e.toFixed(1); b.rel = +b.rel.toFixed(3); b.v = Math.round(b.v); }
+  return out;
+}
 
 // ---------- Rekorde zählen (aus dem gesamten Verlauf eines Nutzers) ----------
 export function prMap(sums) {
@@ -89,9 +165,9 @@ export function streakInfo(sums, goal = 3, now = Date.now()) {
   return { current: cur, longest, goal, goalWeeks: [...counts.keys()].filter(ok), stage: stageIndex(cur), thisWeek: counts.get(nowW) || 0 };
 }
 
-// ---------- Liga (Fleiß, monatliche Saison) ----------
+// ---------- Arena-Saison (Fleiß): 1 Jahr, jeder Monat wird einzeln gewonnen ----------
 export const LEAGUE_POINTS = { workout: 10, goalWeek: 30, pr: 5, win: 50, finish: 10 };
-export const LEAGUE_RULES = 'Punkte: 10 pro Workout (max. 2 pro Tag) · 30 pro erreichtem Wochenziel · 5 pro Rekord · 50 pro Challenge-Sieg · 10 pro beendeter Challenge.';
+export const LEAGUE_RULES = 'Eine Saison dauert ein Kalenderjahr. Jeden Monat gibt es einen Monatssieger, das Jahr gewinnt, wer über alle Monate die meisten Punkte sammelt. Punkte: 10 pro Workout (max. 2 pro Tag) · 30 pro erreichtem Wochenziel · 5 pro Rekord · 50 pro Challenge-Sieg · 10 pro beendeter Challenge.';
 
 // Woche zählt für den Monat, in dem ihr Donnerstag liegt
 const weekMonth = (wk) => startOfMonth(wk + 3 * DAY);

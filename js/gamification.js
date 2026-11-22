@@ -3,6 +3,7 @@
 import { state } from './store.js';
 import { idx, weekStreaks } from './stats.js';
 import { startOfWeek, sum, DAY, num, fmtVolume } from './utils.js';
+import { cardioKind, PILATES_RE } from './compete.js';
 
 // Killstreak-Stufen (1 Woche mit erreichtem Wochenziel ≈ 2,5 Kills)
 export const STAGES = [
@@ -27,16 +28,36 @@ export function stageFor(streak) {
   };
 }
 
+// EP-Regeln (auch für die Anzeige)
+export const EP = { workout: 100, set: 4, pr: 50, goalWeek: 250, cardioMin: 2, pilatesMin: 2 };
+export const EP_RULES = `${EP.workout} EP pro Workout · ${EP.set} EP pro Arbeitssatz · ${EP.pr} EP pro Rekord · ${EP.goalWeek} EP pro erreichtem Wochenziel · ${EP.cardioMin} EP pro Cardio-Minute · ${EP.pilatesMin} EP pro Pilates-/Yoga-Minute · Bonus-EP für Streak-Stufen`;
+
+// Minuten Cardio und Pilates/Yoga aus allen Einheiten
+export function enduranceMinutes() {
+  const { ex } = idx();
+  let cardio = 0, pilates = 0;
+  for (const x of ex.values()) {
+    const p = PILATES_RE.test(x.name);
+    const c = !p && cardioKind(x.name, x.type);
+    if (!p && !c) continue;
+    const min = sum(x.sessions, (s) => s.duration) / 60;
+    if (p) pilates += min; else cardio += min;
+  }
+  return { cardio, pilates };
+}
+
 export function profileStats() {
   const { asc, wStats, prs } = idx();
   const st = weekStreaks();
   const totalVol = sum(asc, (w) => wStats.get(w.id).volume);
   const sets = sum(asc, (w) => wStats.get(w.id).sets);
   const stageEp = STAGES.filter((x) => x.min > 0 && st.longest >= x.min).reduce((a, x) => a + x.ep, 0);
-  const xp = asc.length * 100 + sets * 4 + prs.length * 50 + st.goalWeeks * 250 + stageEp;
+  const mins = enduranceMinutes();
+  const enduranceEp = Math.round(mins.cardio * EP.cardioMin + mins.pilates * EP.pilatesMin);
+  const xp = asc.length * EP.workout + sets * EP.set + prs.length * EP.pr + st.goalWeeks * EP.goalWeek + stageEp + enduranceEp;
   const lvl = levelFor(xp);
   const power = Math.round(Math.sqrt(totalVol) * 10 + prs.length * 25 + st.current * 150 + st.longest * 50);
-  return { st, totalVol, sets, xp, ...lvl, power, prs: prs.length, stage: stageFor(st.current) };
+  return { st, totalVol, sets, xp, ...lvl, power, prs: prs.length, stage: stageFor(st.current), enduranceEp, mins };
 }
 
 const T = (L) => Math.round(300 * L ** 1.7);

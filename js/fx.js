@@ -101,6 +101,65 @@ export function powerUpSound() {
   });
 }
 
+// Kampfschrei („HAAAAA!“): synthetische Stimme – Sägezahn mit Vibrato, Verzerrung und Vokal-Formanten (a)
+export function battleCry(delay = 0) {
+  const c = unlockAudio();
+  if (!c || state.settings.prSound === false || state.settings.prScream === false) return;
+  const t0 = c.currentTime + delay;
+  const T = 1.9;
+  const out = c.createGain();
+  out.gain.setValueAtTime(0.0001, t0);
+  out.gain.exponentialRampToValueAtTime(0.55, t0 + 0.09);
+  out.gain.linearRampToValueAtTime(0.75, t0 + T - 0.35);
+  out.gain.exponentialRampToValueAtTime(0.0001, t0 + T);
+  // Hall (kurzes Echo) für Arena-Gefühl
+  const dl = c.createDelay(); dl.delayTime.value = 0.11;
+  const fb = c.createGain(); fb.gain.value = 0.28;
+  out.connect(c.destination);
+  out.connect(dl).connect(fb).connect(dl);
+  fb.connect(c.destination);
+  // Stimmquelle: zwei leicht verstimmte Sägezähne
+  const pitch = (o, mul) => {
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(190 * mul, t0);
+    o.frequency.exponentialRampToValueAtTime(300 * mul, t0 + 0.28);
+    o.frequency.linearRampToValueAtTime(320 * mul, t0 + T - 0.5);
+    o.frequency.exponentialRampToValueAtTime(410 * mul, t0 + T - 0.1);
+  };
+  const o1 = c.createOscillator(); pitch(o1, 1);
+  const o2 = c.createOscillator(); pitch(o2, 1.012);
+  // Vibrato + Zittern
+  const vib = c.createOscillator(); vib.frequency.value = 6.5;
+  const vibG = c.createGain(); vibG.gain.value = 9;
+  vib.connect(vibG); vibG.connect(o1.frequency); vibG.connect(o2.frequency);
+  const jit = c.createOscillator(); jit.type = 'square'; jit.frequency.value = 23;
+  const jitG = c.createGain(); jitG.gain.value = 4;
+  jit.connect(jitG); jitG.connect(o1.frequency);
+  // Rauheit: Verzerrung
+  const ws = c.createWaveShaper();
+  const curve = new Float32Array(1024);
+  for (let i = 0; i < 1024; i++) { const x = (i / 511.5) - 1; curve[i] = Math.tanh(x * 3.2); }
+  ws.curve = curve;
+  const src = c.createGain(); src.gain.value = 0.5;
+  o1.connect(src); o2.connect(src);
+  src.connect(ws);
+  // Atem/Rauschen
+  const len = Math.floor(c.sampleRate * T);
+  const buf = c.createBuffer(1, len, c.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  const n = c.createBufferSource(); n.buffer = buf;
+  const nG = c.createGain(); nG.gain.value = 0.22;
+  n.connect(nG).connect(ws);
+  // Formanten für „A“
+  for (const [f, q, g] of [[780, 7, 1], [1180, 9, 0.7], [2500, 11, 0.35], [3400, 12, 0.18]]) {
+    const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = q;
+    const gg = c.createGain(); gg.gain.value = g * 2.2;
+    ws.connect(bp).connect(gg).connect(out);
+  }
+  for (const x of [o1, o2, vib, jit, n]) { x.start(t0); x.stop(t0 + T + 0.05); }
+}
+
 // Sprachansage (falls aktiviert)
 export function speak(text) {
   if (!state.settings.voice || !('speechSynthesis' in window)) return;
@@ -129,6 +188,7 @@ export function prPopup({ exercise, detail, stage = 3 }) {
     <div class="pr-text"><div class="pr-title">NEUER REKORD!</div><div class="pr-ex">${esc(exercise)}</div><div class="pr-detail">${esc(detail)}</div></div>`;
   document.body.appendChild(el);
   powerUpSound();
+  battleCry(0.05);
   navigator.vibrate?.([60, 40, 60, 40, 200]);
   requestAnimationFrame(() => el.classList.add('show'));
   popTimer = setTimeout(() => {

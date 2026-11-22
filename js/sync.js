@@ -5,6 +5,7 @@ import { state, hooks, applyRemote, saveSettings, onChange } from './store.js';
 import { idx } from './stats.js';
 import { toast } from './ui.js';
 import { demoApi, demoGroup, setSummarizer } from './demo.js';
+import { cardioKind, MOBILITY_RE } from './compete.js';
 
 const LS = 'gymlog-srv';
 const LS_GROUP = 'gymlog-group';
@@ -21,8 +22,8 @@ export const srv = { available: false, info: null, syncing: false, error: '', li
 const emit = () => srv.listeners.forEach((f) => f());
 export const onSync = (f) => srv.listeners.add(f);
 export const loggedIn = () => !!S.token;
-// DEMO: Arena mit 2 NPCs, solange man bei keinem Server angemeldet ist
-export const demoOn = () => !S.token && !srv.available && state.settings.arenaDemo !== false;
+// DEMO: Arena mit 2 NPCs, solange man nicht bei einem Gruppen-Server angemeldet ist
+export const demoOn = () => !S.token && state.settings.arenaDemo !== false;
 export const account = () => ({ user: S.user, group: S.group, lastSync: S.lastSync, pending: pendingCount() });
 export const isAdmin = () => S.user?.role === 'admin';
 export const myId = () => S.user?.id || (demoOn() ? 'me' : undefined);
@@ -139,13 +140,13 @@ export function summarizer() {
     const ws = wStats.get(w.id) || {};
     let km = 0, csec = 0;
     const exl = (byW.get(w.id) || []).map(({ x, s }) => {
-      const cardio = x.type === 'cardio' || (x.type === 'duration' && x.name !== 'Mobility');
+      const cardio = !!cardioKind(x.name, x.type);
       if (cardio) { km += x.type === 'cardio' ? s.distance : 0; csec += s.duration; }
       return { n: x.name, t: x.type, v: Math.round(s.volume), s: s.workSets, r: s.reps, mr: s.maxReps, e: +s.bestE1rm.toFixed(2), w: s.maxWeight, d: +s.distance.toFixed(3), sec: Math.round(s.duration) };
     });
     return {
       start: w.start, end: w.end, title: w.title, vol: Math.round(ws.volume || 0), sets: ws.sets || 0, reps: ws.reps || 0,
-      dur: Math.round(ws.duration || 0), km: +km.toFixed(3), cmin: Math.round(csec / 60), mob: w.exercises.some((e) => e.name === 'Mobility') ? 1 : 0, ex: exl,
+      dur: Math.round(ws.duration || 0), km: +km.toFixed(3), cmin: Math.round(csec / 60), mob: w.exercises.some((e) => MOBILITY_RE.test(e.name)) ? 1 : 0, ex: exl,
     };
   };
 }

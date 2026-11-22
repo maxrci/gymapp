@@ -372,12 +372,19 @@ export function heatmap(host, { from, to, days, cell = 13, gap = 3 }) {
   host.classList.add('chart', 'heat-wrap');
   const start = startOfWeek(from);
   const weeks = Math.ceil((startOfDay(to) - start) / DAY / 7 + 0.01);
-  const padL = 22, padT = 16;
+  const padL = 2, padT = 16;
   const W = padL + weeks * (cell + gap);
   const H = padT + 7 * (cell + gap);
+  // Wochentage als feste Spalte links (scrollt nicht mit)
+  const row = document.createElement('div');
+  row.className = 'heat-row';
+  host.appendChild(row);
+  const axis = el('svg', { width: 24, height: H, viewBox: `0 0 24 ${H}`, class: 'heat-days' });
+  row.appendChild(axis);
+  WEEKDAYS.forEach((d, i) => axisText(axis, 0, padT + i * (cell + gap) + cell - 2, d, 'start'));
   const scroller = document.createElement('div');
   scroller.className = 'heat-scroll';
-  host.appendChild(scroller);
+  row.appendChild(scroller);
   const svg = el('svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}` });
   scroller.appendChild(svg);
 
@@ -386,7 +393,6 @@ export function heatmap(host, { from, to, days, cell = 13, gap = 3 }) {
   const th = [q(0.25), q(0.5), q(0.75)];
   const level = (v) => (!v ? 0 : v <= th[0] ? 1 : v <= th[1] ? 2 : v <= th[2] ? 3 : 4);
 
-  [0, 2, 4].forEach((wd) => axisText(svg, 0, padT + wd * (cell + gap) + cell - 2, WEEKDAYS[wd], 'start'));
   let lastMonth = -1;
   for (let w = 0; w < weeks; w++) {
     const ws = addDays(start, w * 7);

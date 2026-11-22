@@ -8,7 +8,7 @@ import {
 import { fighterFx } from './fighter.js';
 import { poseSVG, mountPose } from './poses.js';
 import { stageFor } from './gamification.js';
-import { icon, overlay, formDialog, confirmDialog, toast } from './ui.js';
+import { icon, overlay, formDialog, confirmDialog, toast, sheet } from './ui.js';
 import { tick as tickSound, phaseStart, finishFanfare, speak, unlockAudio } from './fx.js';
 import { esc, fmtClock, num, uid } from './utils.js';
 
@@ -316,11 +316,15 @@ async function onClick(e) {
   }
   if (a === 'exit') {
     const t = elapsed();
-    if (t < 60) {
-      if (await confirmDialog('Einheit abbrechen?', 'Abbrechen', true)) { S = null; persist(); close(); }
-      return;
-    }
-    if (await confirmDialog('Einheit jetzt beenden und speichern?', 'Beenden & speichern')) finish(true);
+    const v = await sheet({
+      title: 'Einheit beenden?',
+      options: [
+        ...(t >= 60 ? [{ label: 'Beenden & speichern', value: 'save', icon: 'check' }] : []),
+        { label: 'Verwerfen (nicht speichern)', value: 'discard', icon: 'trash', danger: true },
+      ],
+    });
+    if (v === 'save') finish(true);
+    if (v === 'discard') { S = null; persist(); close(); toast('Einheit verworfen'); }
   }
 }
 

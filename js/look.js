@@ -4,6 +4,7 @@
 export const HAIR = [
   ['schwarz', 'Schwarz', '#1d1d22'],
   ['braun', 'Braun', '#5b3a24'],
+  ['blond', 'Blond', '#e9c46a'],
   ['rot', 'Rot', '#b8322a'],
   ['blau', 'Blau', '#2f5fd0'],
   ['lila', 'Lila', '#6c3fb8'],

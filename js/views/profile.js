@@ -12,7 +12,8 @@ import { openAvatarEditor } from '../avatar.js';
 import { openBodyweight } from '../bwEditor.js';
 import { bwLog } from '../body.js';
 import { groupSection, groupHandlers } from '../group.js';
-import { loggedIn, resetCursor, srv } from '../sync.js';
+import { loggedIn, resetCursor } from '../sync.js';
+import { openTickets, ticketBadge } from '../tickets.js';
 
 let persisted = null;
 
@@ -27,8 +28,8 @@ export function profileView() {
 
   const row = (act, ic, label, value = '', danger = false) => `<button class="set-item ${danger ? 'danger' : ''}" data-act="${act}">
     <span class="si-ic">${icon(ic)}</span><span class="si-l">${esc(label)}</span><span class="si-v">${value}</span>${icon('right', 'muted')}</button>`;
-  const toggle = (key, ic, label) => `<label class="set-item">
-    <span class="si-ic">${icon(ic)}</span><span class="si-l">${esc(label)}</span>
+  const toggle = (key, ic, label, extra = '') => `<label class="set-item">
+    <span class="si-ic">${icon(ic)}</span><span class="si-l">${esc(label)}${extra}</span>
     <input type="checkbox" class="switch" data-toggle="${key}" ${s[key] ? 'checked' : ''}></label>`;
 
   const html = `
@@ -55,11 +56,12 @@ export function profileView() {
     <div class="list-label">Motivation & AI</div>
     <div class="set-group">
       <a class="set-item" href="#/badges"><span class="si-ic">${icon('medal')}</span><span class="si-l">Level & Abzeichen</span><span class="si-v">Lvl ${profileStats().level}</span>${icon('right', 'muted')}</a>
-      ${toggle('aiMode', 'bolt', 'AI-Mode (Vorschläge & Analyse)')}
+      ${toggle('aiMode', 'bolt', 'AI-Mode', ' <em class="tag demo">DEMO</em><small class="si-sub">Vorschläge für Gewichte & Wdh., Erholung, Stagnation, Balance-Analyse</small>')}
       ${toggle('introAnim', 'flame', 'Start-Animation beim Öffnen')}
-      ${loggedIn() || srv.available ? '' : toggle('arenaDemo', 'trophy', 'Arena-Demo mit 2 NPCs')}
+      ${loggedIn() ? '' : toggle('arenaDemo', 'trophy', 'Arena-Demo mit 2 NPCs')}
       ${toggle('prEffects', 'trophy', 'PR-Animation & Feuer-Satz')}
       ${toggle('prSound', 'flame', 'Power-up-Sound bei PR')}
+      ${toggle('prScream', 'volume', 'Kampfschrei bei PR')}
       ${toggle('voice', 'info', 'Sprachansagen (Cardio/Mobility)')}
       ${row('hr', 'target', 'Max. Herzfrequenz', s.hrMax ? `${s.hrMax} bpm` : 'nicht gesetzt')}
     </div>
@@ -83,6 +85,9 @@ export function profileView() {
       ${row('restore', 'repeat', 'Backup wiederherstellen')}
       ${row('routines', 'layers', 'Routinen aus Verlauf erstellen')}
     </div>
+    <div class="list-label">Feedback</div>
+    <div class="set-group">${row('tickets', 'note', 'Wünsche & Fehler melden', ticketBadge())}</div>
+
     <div class="list-label">Gefahrenzone</div>
     <div class="set-group">${row('wipe', 'trash', 'Alle Daten löschen', '', true)}</div>
 
@@ -113,6 +118,7 @@ export function profileView() {
       routines: routinesFromHistory,
       ...groupHandlers,
       bw: () => openBodyweight(),
+      tickets: () => openTickets(),
       avatar: () => openAvatarEditor(),
       rest: async () => {
         const v = await sheet({ title: 'Standard-Pausenzeit', options: [0, 30, 60, 90, 120, 150, 180, 240, 300].map((x) => ({ label: x ? fmtClock(x) : 'Aus', value: String(x), active: x === s.restDefault })) });

@@ -27,19 +27,19 @@ const UPPER = ['Brust', 'Rücken', 'Schultern', 'Bizeps', 'Trizeps', 'Unterarme'
 const LOWER = ['Quadrizeps', 'Beinbeuger', 'Gesäß', 'Waden', 'Adduktoren', 'Abduktoren', 'Unterer Rücken'];
 
 const RATIOS = [
-  { id: 'pushpull', title: 'Drücken vs. Ziehen', a: 'Push', b: 'Pull', aK: ['hpush', 'vpush'], bK: ['hpull', 'vpull'], ideal: [0.42, 0.52],
+  { id: 'pushpull', title: 'Drücken : Ziehen', a: 'Drücken', b: 'Ziehen', aK: ['hpush', 'vpush'], bK: ['hpull', 'vpull'], ideal: [0.42, 0.52],
     tipA: 'Mehr Zugübungen (Rudern, Latzug, Klimmzüge)', tipB: 'Mehr Drückübungen (Bank-, Schulterdrücken)', info: 'Ein leichtes Plus beim Ziehen schützt die Schultern.' },
-  { id: 'horiz', title: 'Horizontal: Bankdrücken vs. Rudern', a: 'Drücken', b: 'Rudern', aK: ['hpush'], bK: ['hpull'], ideal: [0.4, 0.52],
+  { id: 'horiz', title: 'Bankdrücken : Rudern', a: 'Bankdrücken', b: 'Rudern', aK: ['hpush'], bK: ['hpull'], ideal: [0.4, 0.52],
     tipA: 'Mehr Rudervarianten', tipB: 'Mehr Brust-/Bankdrückvolumen' },
-  { id: 'vert', title: 'Vertikal: Schulterdrücken vs. Klimmzug/Latzug', a: 'Drücken', b: 'Ziehen', aK: ['vpush'], bK: ['vpull'], ideal: [0.35, 0.52],
+  { id: 'vert', title: 'Überkopf : Latzug', a: 'Überkopf', b: 'Latzug', aK: ['vpush'], bK: ['vpull'], ideal: [0.35, 0.52],
     tipA: 'Mehr Klimmzüge/Latzug', tipB: 'Mehr Überkopfdrücken' },
-  { id: 'ul', title: 'Oberkörper vs. Unterkörper', a: 'Oberkörper', b: 'Unterkörper', muscles: [UPPER, LOWER], ideal: [0.5, 0.65],
+  { id: 'ul', title: 'Oberkörper : Beine', a: 'Oberkörper', b: 'Beine', muscles: [UPPER, LOWER], ideal: [0.5, 0.65],
     tipA: 'Mehr Beintraining (Kniebeuge, Beinpresse, Beinbeuger)', tipB: 'Mehr Oberkörpertraining', info: 'Ziel: Beine machen mindestens ca. 35 % deiner Sätze aus.' },
-  { id: 'kh', title: 'Beine: Knie- vs. hüftdominant', a: 'Quadrizeps', b: 'Beinbeuger/Gesäß', aK: ['knee'], bK: ['hip'], ideal: [0.45, 0.6],
+  { id: 'kh', title: 'Knie : Hüfte', a: 'Knie', b: 'Hüfte', aK: ['knee'], bK: ['hip'], ideal: [0.45, 0.6],
     tipA: 'Mehr Beinbeuger, rumänisches Kreuzheben, Hip Thrust', tipB: 'Mehr Kniebeugen, Beinpresse, Beinstrecken', info: 'Starke Beinbeuger schützen das Knie.' },
-  { id: 'delts', title: 'Schulter: vorne vs. hinten', a: 'Vordere', b: 'Hintere', aK: ['vpush', 'front'], bK: ['rear'], ideal: [0.4, 0.6],
+  { id: 'delts', title: 'Schulter vorne : hinten', a: 'Vorne', b: 'Hinten', aK: ['vpush', 'front'], bK: ['rear'], ideal: [0.4, 0.6],
     tipA: 'Mehr Face Pulls / Reverse Butterfly', tipB: 'Mehr Überkopfdrücken', info: 'Bankdrücken belastet die vordere Schulter zusätzlich.' },
-  { id: 'arms', title: 'Arme: Bizeps vs. Trizeps', a: 'Bizeps', b: 'Trizeps', muscles: [['Bizeps'], ['Trizeps']], ideal: [0.4, 0.55],
+  { id: 'arms', title: 'Bizeps : Trizeps', a: 'Bizeps', b: 'Trizeps', muscles: [['Bizeps'], ['Trizeps']], ideal: [0.4, 0.55],
     tipA: 'Mehr Trizepsübungen', tipB: 'Mehr Curls' },
 ];
 

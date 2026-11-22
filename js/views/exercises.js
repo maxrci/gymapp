@@ -11,10 +11,14 @@ import { poseSVG, poseFor, mountPose } from '../poses.js';
 import { stageFor } from '../gamification.js';
 import { weekStreaks } from '../stats.js';
 import { esc, num, fmtVolume, fmtKg, fmtDate, fmtRelDay, fmtPct, fmtClock, fmtCompact } from '../utils.js';
+import { cachedGroup, loggedIn, demoOn, myId } from '../sync.js';
+import { exKey } from '../compete.js';
+import { fighterHead } from '../fighter.js';
+import { startExerciseFight } from '../fight.js';
 
-const ui = { muscle: '', sort: 'count', q: '', range: 'all', metric: null, metricFor: null, hist: 10 };
+const ui = { muscle: '', sort: 'count', q: '', range: 'all', metric: null, metricFor: null, hist: 10, gxRel: false };
 
-export function exercisesView() {
+export function exercisesView({ embed = false } = {}) {
   const { ex } = idx();
   const names = allExerciseNames();
   const items = names.map((n) => {
@@ -37,7 +41,7 @@ export function exercisesView() {
   };
 
   const html = `
-    ${pageHead('Übungen', { actions: `<button class="icon-btn" data-act="new" aria-label="Neue Übung">${icon('plus')}</button>` })}
+    ${embed ? `<div class="section-row"><h2 class="section-title">Deine Übungen</h2><button class="link-btn" data-act="new">${icon('plus', 'xs')} Neu</button></div>` : pageHead('Übungen', { actions: `<button class="icon-btn" data-act="new" aria-label="Neue Übung">${icon('plus')}</button>` })}
     <div class="search sticky">${icon('search')}<input type="search" placeholder="${items.length} Übungen durchsuchen" value="${esc(ui.q)}" data-search autocomplete="off"></div>
     <div class="chips scroll">${[['', 'Alle'], ...muscles.map((m) => [m, m])].map(([v, l]) => `<button class="chip ${v === ui.muscle ? 'on' : ''}" data-muscle="${esc(v)}">${esc(l)}</button>`).join('')}</div>
     <div class="filter-row">${chips([['count', 'Häufigste'], ['last', 'Zuletzt'], ['az', 'A–Z']], ui.sort, 'data-sort')}</div>
@@ -93,7 +97,7 @@ export function exerciseDetailView({ name }) {
   const x = ex.get(name);
   const meta = exerciseMeta(name);
   const type = x?.type || meta.type;
-  const back = '#/exercises';
+  const back = '#/arena/exercises';
   const menuBtn = `<button class="icon-btn" data-act="menu">${icon('more')}</button>`;
   const sub = `${esc(meta.primary)}${meta.secondary?.length ? ` · ${esc(meta.secondary.join(', '))}` : ''} · ${esc(TYPES[type]?.label || '')}`;
   if (!x || !x.count) {
@@ -148,6 +152,7 @@ export function exerciseDetailView({ name }) {
     ${pageHead(name, { back, actions: menuBtn, sub })}
     <div class="card demo"><div data-demo></div></div>
     <div class="kpis">${kpis}</div>
+    ${groupCompare(name, type)}
     ${aiOn() ? aiCard(x) : ''}
     <div class="filter-row">${chips(RANGES, ui.range, 'data-range')}</div>
     <section class="card">
@@ -190,8 +195,39 @@ export function exerciseDetailView({ name }) {
       range: (el, rr) => { ui.range = el.dataset.range; rr(); },
       metric: (el, rr) => { ui.metric = el.dataset.metric; rr(); },
       rel: relClick,
+      gxrel: (el, rr) => { ui.gxRel = el.dataset.gxrel === '1'; rr(); },
+      gxfight: (el) => {
+        const g = cachedGroup();
+        if (g) startExerciseFight(g, myId(), el.dataset.gxfight, name, ui.gxRel);
+      },
     },
   };
+}
+
+// ---------- Vergleich mit der Gruppe ----------
+function groupCompare(name, type) {
+  if (!loggedIn() && !demoOn()) return '';
+  const g = cachedGroup();
+  if (!g?.exercises) return '';
+  const k = exKey(name);
+  const me = myId();
+  const isW = type === 'weight' || type === 'weighted_bw';
+  const relOn = isW && ui.gxRel;
+  const val = (b) => (!b ? 0 : isW ? (relOn ? b.rel : b.e) : type === 'cardio' ? b.d : type === 'duration' ? b.sec : b.mr);
+  const fmt = (v) => (!v ? '–' : isW ? (relOn ? `${num(v, 2)} × KG` : `${num(v, 1)} kg`) : type === 'cardio' ? `${num(v, 2)} km` : type === 'duration' ? fmtClock(v) : `${num(v, 0)} Wdh.`);
+  const rows = g.members.map((m) => ({ m, b: g.exercises[m.id]?.[k] })).filter((r) => r.b).map((r) => ({ ...r, v: val(r.b) })).sort((a, b) => b.v - a.v);
+  if (rows.length < 2 && !rows.some((r) => r.m.id !== me)) return `<section class="card"><div class="card-title">${icon('users')} Vergleich in der Arena</div><p class="footnote">Noch niemand sonst aus ${g.demo ? 'der Demo-Arena' : 'deiner Gruppe'} hat diese Übung trainiert.</p></section>`;
+  const top = rows[0]?.v || 1;
+  const label = isW ? (relOn ? 'Bestes 1RM ÷ Körpergewicht' : 'Bestes geschätztes 1RM') : type === 'cardio' ? 'Längste Distanz' : type === 'duration' ? 'Längste Dauer' : 'Meiste Wiederholungen';
+  return `<section class="card">
+    <div class="card-title">${icon('users')} Vergleich in der Arena <small>${esc(label)}</small></div>
+    ${isW ? `<div class="rel-row"><div class="rel-switch"><button class="${relOn ? '' : 'on'}" data-gxrel="0">kg</button><button class="${relOn ? 'on' : ''}" data-gxrel="1">× KG</button></div></div>` : ''}
+    ${rows.map((r, i) => `<div class="lg-row ${r.m.id === me ? 'me' : ''}">
+      <span class="lg-rank ${i < 3 && r.v ? `m${i + 1}` : ''}">${i + 1}</span><span class="lg-head">${fighterHead(r.m.stage || 0, r.m.look || {})}</span>
+      <span class="lg-main"><b>${esc(r.m.name)}</b><div class="bar"><i style="width:${r.v ? Math.max(3, (r.v / top) * 100) : 0}%"></i></div><small>${r.b.c}× trainiert</small></span>
+      <span class="lg-val">${esc(fmt(r.v))}</span>${r.m.id !== me && r.v ? `<button class="lg-fight" data-gxfight="${esc(r.m.id)}" aria-label="Kampf">${icon('bolt')}</button>` : ''}</div>`).join('')}
+    <p class="footnote">Verglichen wird über den Übungsnamen. Tippe auf ${icon('bolt', 'xs')} für einen Kampf in dieser Übung.</p>
+  </section>`;
 }
 
 async function exerciseMenu(name, type) {
