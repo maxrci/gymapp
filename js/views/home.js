@@ -1,13 +1,14 @@
 import { state } from '../store.js';
 import { idx } from '../stats.js';
-import { pageHead, workoutCard } from '../components.js';
+import { workoutCard } from '../components.js';
 import { icon } from '../ui.js';
 import { esc, fmtVolume, startOfWeek, weekday, WEEKDAYS, fmtDate, fmtDurShort, num } from '../utils.js';
 import { startWorkout } from '../workout.js';
 import { importCSVFlow, startFromRoutine } from '../actions.js';
 import { fighterFx } from '../fighter.js';
 import { nav } from '../nav.js';
-import { profileStats, weeklyQuests, achievements, STAGES } from '../gamification.js';
+import { profileStats, achievements, STAGES } from '../gamification.js';
+import { weeklyGoals, openGoalEditor } from '../goals.js';
 import { aiOn, nextWorkout } from '../ai.js';
 
 let limit = 15;
@@ -28,8 +29,6 @@ export function homeView() {
   const stage = P.stage;
   const goal = st.goal;
   const today = weekday(now);
-  const hour = new Date().getHours();
-  const greet = hour < 11 ? 'Guten Morgen' : hour < 18 ? 'Hallo' : 'Guten Abend';
 
   // Streak-Status dieser Woche
   let alert = '';
@@ -64,17 +63,16 @@ export function homeView() {
       <button class="btn ghost block" data-act="start">${icon('plus')} Erstes Workout starten</button>
     </div>` : '';
 
-  const quests = ws.length ? weeklyQuests() : [];
-  const questHtml = quests.length ? `<section class="card">
-      <div class="card-title">Wochen-Aufgaben <small>${quests.filter((q) => q.value >= q.target).length}/${quests.length} erledigt</small></div>
-      ${quests.map((q) => {
+  const goals = ws.length ? weeklyGoals() : [];
+  const goalsHtml = goals.length ? `<section class="card">
+      <div class="card-title">Wochenziele <small>${goals.filter((q) => q.value >= q.target).length}/${goals.length} erreicht</small><button class="link-btn sm" data-act="goals">${icon('edit', 'xs')}</button></div>
+      ${goals.map((q) => {
         const done = q.value >= q.target;
-        const f = q.fmt || ((v) => num(v, 0));
         return `<div class="quest ${done ? 'done' : ''}">
           <span class="q-ic">${icon(done ? 'check' : q.icon)}</span>
-          <div class="q-main"><div class="q-top"><b>${esc(q.title)}</b><span>+${q.xp} EP</span></div>
+          <div class="q-main"><div class="q-top"><b>${esc(q.title)}</b>${q.streak ? '<span>Streak</span>' : ''}</div>
           <div class="bar"><i style="width:${Math.min(100, (q.value / q.target) * 100)}%"></i></div>
-          <small>${esc(f(Math.min(q.value, q.target)))} / ${esc(f(q.target))}${q.hint ? ` · ${esc(q.hint)}` : ''}</small></div>
+          <small>${esc(q.text)}</small></div>
         </div>`;
       }).join('')}
     </section>` : '';
@@ -101,7 +99,7 @@ export function homeView() {
   const routines = state.routines.slice(0, 8).map((r) => `<button class="quick-chip" data-act="routine" data-id="${esc(r.id)}">${icon('play', 'xs')} ${esc(r.name)}</button>`).join('');
 
   const html = `
-    ${pageHead(`${greet}!`, { sub: esc(fmtDate(now, { weekday: 'long', day: 'numeric', month: 'long' })) })}
+    <div class="home-top"></div>
     ${onboarding}
     ${hero}
     ${ws.length ? `<section class="card week-card">
@@ -118,7 +116,7 @@ export function homeView() {
       <button class="btn primary block lg" data-act="start">${icon('plus')} Leeres Workout starten</button>
       ${routines ? `<div class="quick-row">${routines}</div>` : ''}
     </section>
-    ${questHtml}
+    ${goalsHtml}
     ${ach.length ? `<a class="card badge-teaser" href="#/badges">
       <div class="bt-icons">${achDone.slice(-4).map((a) => `<span>${icon(a.icon)}</span>`).join('')}</div>
       <div><b>Abzeichen</b><small>${achDone.length} von ${ach.length} freigeschaltet</small></div>${icon('right', 'muted')}</a>` : ''}
@@ -130,6 +128,7 @@ export function homeView() {
     handlers: {
       start: () => startWorkout({ title: defaultTitle() }),
       import: importCSVFlow,
+      goals: () => openGoalEditor(),
       more: (_, rerender) => { limit += 20; rerender(); },
       routine: (el) => {
         const r = state.routines.find((x) => x.id === el.dataset.id);

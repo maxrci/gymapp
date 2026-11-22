@@ -110,33 +110,3 @@ export function achievements() {
     return { ...a, value: v, done: v >= a.target, progress: Math.min(1, v / a.target) };
   });
 }
-
-// ---------- Wochen-Aufgaben ----------
-const MAIN = ['Brust', 'Rücken', 'Schultern', 'Bizeps', 'Trizeps', 'Bauch', 'Quadrizeps', 'Beinbeuger', 'Gesäß', 'Waden'];
-
-export function weeklyQuests() {
-  const { asc, wStats } = idx();
-  const st = weekStreaks();
-  const wk = startOfWeek(Date.now());
-  const thisWeek = asc.filter((w) => w.start >= wk);
-  const prsWeek = sum(thisWeek, (w) => wStats.get(w.id).prs.length);
-  const volWeek = sum(thisWeek, (w) => wStats.get(w.id).volume);
-  // Vernachlässigte Muskelgruppe der letzten 14 Tage
-  const since = Date.now() - 14 * DAY;
-  const m14 = Object.fromEntries(MAIN.map((m) => [m, 0]));
-  for (const w of asc) if (w.start >= since) for (const [m, v] of Object.entries(wStats.get(w.id).muscles)) if (m in m14) m14[m] += v;
-  const weak = MAIN.reduce((a, m) => (m14[m] < m14[a] ? m : a), MAIN[0]);
-  const weakWeek = sum(thisWeek, (w) => wStats.get(w.id).muscles[weak] || 0);
-  // Volumenziel: Ø der letzten 8 Wochen + 5 %
-  const last8 = asc.filter((w) => w.start >= wk - 56 * DAY && w.start < wk);
-  const avg = sum(last8, (w) => wStats.get(w.id).volume) / 8;
-  const volTarget = Math.max(5000, Math.round((avg * 1.05) / 1000) * 1000);
-  const extra = thisWeek.filter((w) => w.exercises.some((e) => e.name === 'Mobility') || /cardio|mobility/i.test(w.title)).length;
-  return [
-    { icon: 'target', title: `Wochenziel: ${st.goal} Workouts`, value: st.thisCount, target: st.goal, xp: 250 },
-    { icon: 'trophy', title: 'Stelle einen neuen Rekord auf', value: Math.min(prsWeek, 1), target: 1, xp: 50 },
-    { icon: 'layers', title: `${weak} stärken: 6 Sätze`, value: Math.min(6, Math.round(weakWeek)), target: 6, xp: 80, hint: 'Am wenigsten trainiert in den letzten 14 Tagen' },
-    { icon: 'weight', title: `${fmtVolume(volTarget)} Volumen bewegen`, value: Math.round(volWeek), target: volTarget, xp: 100, fmt: fmtVolume },
-    { icon: 'repeat', title: '1× Cardio oder Mobility (geführt)', value: Math.min(extra, 1), target: 1, xp: 60 },
-  ];
-}
