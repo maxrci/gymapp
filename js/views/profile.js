@@ -41,13 +41,14 @@ export function profileView() {
 
     <div class="list-label">Darstellung</div>
     <div class="seg" role="radiogroup">
-      ${[['light', '☀️ Hell'], ['dark', '🌙 Dunkel'], ['system', '⚙️ System']].map(([v, l]) => `<button class="seg-btn ${s.theme === v ? 'on' : ''}" data-theme-set="${v}">${l}</button>`).join('')}
+      ${[['light', 'Hell'], ['dark', 'Dunkel'], ['system', 'System']].map(([v, l]) => `<button class="seg-btn ${s.theme === v ? 'on' : ''}" data-theme-set="${v}">${l}</button>`).join('')}
     </div>
 
     <div class="list-label">Motivation & AI</div>
     <div class="set-group">
-      <a class="set-item" href="#/badges"><span class="si-ic">🏅</span><span class="si-l">Level & Abzeichen</span><span class="si-v">Lvl ${profileStats().level}</span>${icon('right', 'muted')}</a>
+      <a class="set-item" href="#/badges"><span class="si-ic">${icon('medal')}</span><span class="si-l">Level & Abzeichen</span><span class="si-v">Lvl ${profileStats().level}</span>${icon('right', 'muted')}</a>
       ${toggle('aiMode', 'bolt', 'AI-Mode (Vorschläge & Analyse)')}
+      ${toggle('introAnim', 'flame', 'Start-Animation beim Öffnen')}
       ${toggle('prEffects', 'trophy', 'PR-Animation & Feuer-Satz')}
       ${toggle('prSound', 'flame', 'Power-up-Sound bei PR')}
       ${toggle('voice', 'info', 'Sprachansagen (Cardio/Mobility)')}
@@ -92,7 +93,7 @@ export function profileView() {
       try {
         if (persisted === null && navigator.storage?.persisted) persisted = await navigator.storage.persisted();
         const est = await navigator.storage?.estimate?.();
-        p.textContent = `${persisted ? '✓ Dauerhafter Speicher aktiv' : 'Speicher: Standard'}${est ? ` · ${num(est.usage / 1048576, 1)} MB belegt` : ''}`;
+        p.textContent = `${persisted ? 'Dauerhafter Speicher aktiv' : 'Speicher: Standard'}${est ? ` · ${num(est.usage / 1048576, 1)} MB belegt` : ''}`;
       } catch { p.textContent = ''; }
     },
     handlers: {

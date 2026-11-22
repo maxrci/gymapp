@@ -3,6 +3,7 @@ import { profileStats, achievements, STAGES } from '../gamification.js';
 import { fighterSVG, fighterFx } from '../fighter.js';
 import { nav } from '../nav.js';
 import { esc, num } from '../utils.js';
+import { icon } from '../ui.js';
 
 export function badgesView() {
   const P = profileStats();
@@ -13,17 +14,17 @@ export function badgesView() {
     ${pageHead('Level & Abzeichen', { back: '#/profile' })}
     <section class="card level-card">
       <div class="lv-ring" style="--p:${Math.round(P.levelProgress * 100)}"><b>${P.level}</b><small>Level</small></div>
-      <div><b>${num(P.xp, 0)} XP</b><small>Noch ${num(P.xpToNext, 0)} XP bis Level ${P.level + 1}</small>
-      <small class="muted">XP: 100 pro Workout · 4 pro Satz · 50 pro Rekord · 250 pro erreichtem Wochenziel</small></div>
+      <div><b>${num(P.xp, 0)} EP</b><small>Noch ${num(P.xpToNext, 0)} EP bis Level ${P.level + 1}</small>
+      <small class="muted">EP: 100 pro Workout · 4 pro Satz · 50 pro Rekord · 250 pro erreichtem Wochenziel · Bonus-EP pro Killstreak-Stufe</small></div>
     </section>
-    <h2 class="section-title">Kämpfer-Stufen</h2>
+    <h2 class="section-title">Killstreaks</h2>
     <div class="stage-row">${STAGES.map((st, i) => `<div class="stage ${i <= P.stage.index ? 'got' : ''} ${i === P.stage.index ? 'cur' : ''}">
-      ${i === P.stage.index ? fighterFx(i, { enter: nav.entering }) : fighterSVG(i)}<b>${esc(st.name)}</b><small>${st.min ? `${st.min}+ Wochen` : 'Start'}</small></div>`).join('')}</div>
-    <p class="footnote">Die Stufe richtet sich nach deiner Streak: aufeinanderfolgende Wochen, in denen du dein Wochenziel (${P.st.goal} Workouts) erreichst. Längste Streak: ${P.st.longest} Wochen.</p>
+      ${i === P.stage.index ? fighterFx(i, { enter: nav.entering }) : fighterSVG(i)}<b>${esc(st.name)}</b><small>${st.min ? `${st.min}+ Wo. · +${num(st.ep, 0)} EP` : 'Start'}</small></div>`).join('')}</div>
+    <p class="footnote">Deine Killstreak sind die Wochen in Folge, in denen du dein Wochenziel (${P.st.goal} Workouts) erreichst. Längste Streak: ${P.st.longest} Wochen.</p>
     <h2 class="section-title">Abzeichen <small class="muted">${done.length}/${ach.length}</small></h2>
     ${groups.map(([t, list]) => `<div class="list-label">${t}</div><div class="badge-grid">${list.map((a) => `
       <div class="badge ${a.done ? 'done' : ''}">
-        <span class="b-ic">${a.icon}</span><b>${esc(a.title)}</b><small>${esc(a.desc)}</small>
+        <span class="b-ic">${icon(a.icon)}</span><b>${esc(a.title)}</b><small>${esc(a.desc)}</small>
         ${a.done ? '' : `<div class="bar"><i style="width:${Math.round(a.progress * 100)}%"></i></div>`}
       </div>`).join('')}</div>`).join('')}
   `;

@@ -233,7 +233,7 @@ export function nextWorkout() {
   if (!best) return null;
   if (trainedToday) {
     when = Math.max(now + best.hours * 3.6e6, startOfDay(now + DAY) + 9 * 3.6e6);
-    whenText = `Heute schon trainiert 💪 Nächstes Training: ${relDay(when)}`;
+    whenText = `Heute schon trainiert. Nächstes Training: ${relDay(when)}`;
   } else if (streakDays >= 3 && st.needed < st.daysLeft) {
     when = startOfDay(now + DAY) + 9 * 3.6e6;
     whenText = `${streakDays} Tage am Stück trainiert – heute Ruhetag, morgen weiter.`;
@@ -250,7 +250,7 @@ export function nextWorkout() {
       ? `Wochenziel diese Woche nicht mehr erreichbar (${st.thisCount}/${st.goal}).`
       : st.needed === st.daysLeft ? `Für dein Wochenziel musst du ab heute täglich trainieren (${st.needed} fehlen).`
         : `Noch ${st.needed} Workout${st.needed > 1 ? 's' : ''} in ${st.daysLeft} Tagen für dein Wochenziel.`;
-  } else goalText = 'Wochenziel erreicht – alles Weitere ist Bonus! 🔥';
+  } else goalText = 'Wochenziel erreicht – alles Weitere ist Bonus.';
   return { best, list, when, whenText, goalText, readiness: rm, streakDays };
 }
 

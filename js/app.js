@@ -14,6 +14,7 @@ import { badgesView } from './views/badges.js';
 import { applyTheme } from './theme.js';
 import { resumeGuided } from './guided.js';
 import { nav } from './nav.js';
+import { showIntro } from './intro.js';
 
 const TABS = [
   ['home', 'Start', 'home'],
@@ -128,6 +129,7 @@ async function main() {
 
   render({ keepScroll: false });
   document.body.classList.add('ready');
+  showIntro();
   resumeGuided();
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {

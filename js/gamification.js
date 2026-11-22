@@ -4,13 +4,16 @@ import { state } from './store.js';
 import { idx, weekStreaks } from './stats.js';
 import { startOfWeek, sum, DAY, num, fmtVolume } from './utils.js';
 
+// Killstreak-Stufen (1 Woche mit erreichtem Wochenziel ≈ 2,5 Kills)
 export const STAGES = [
-  { min: 0, name: 'Erschöpft', text: 'Zeit aufzustehen – erreiche dein Wochenziel!' },
-  { min: 2, name: 'Rekrut', text: 'Der Anfang ist gemacht.' },
-  { min: 4, name: 'Kämpfer', text: 'Deine Disziplin zahlt sich aus.' },
-  { min: 8, name: 'Elite-Kämpfer', text: 'Deine Aura wird sichtbar.' },
-  { min: 16, name: 'Goldener Krieger', text: 'Unaufhaltsam – goldene Energie!' },
-  { min: 30, name: 'Legende', text: 'Legendärer Status. Blitze umgeben dich.' },
+  { min: 0, name: 'Respawn', ep: 0, text: 'Neue Runde – erreiche dein Wochenziel und starte die Streak.' },
+  { min: 2, name: 'Blutrünstig', ep: 250, text: 'Die Streak läuft.' },
+  { min: 4, name: 'Gnadenlos', ep: 500, text: 'Woche für Woche – keine Ausreden.' },
+  { min: 6, name: 'Skrupellos', ep: 1000, text: 'Deine Aura wird sichtbar.' },
+  { min: 8, name: 'Unnachgiebig', ep: 1500, text: 'Nichts bringt dich aus dem Rhythmus.' },
+  { min: 10, name: 'Brutal', ep: 2000, text: 'Goldene Energie.' },
+  { min: 12, name: 'Nuklear', ep: 5000, text: 'Taktische Atombombe gezündet.' },
+  { min: 13, name: 'Unaufhaltsam', ep: 1000, text: 'Über Nuklear hinaus – jede weitere Woche zählt.' },
 ];
 
 export function stageFor(streak) {
@@ -29,7 +32,8 @@ export function profileStats() {
   const st = weekStreaks();
   const totalVol = sum(asc, (w) => wStats.get(w.id).volume);
   const sets = sum(asc, (w) => wStats.get(w.id).sets);
-  const xp = asc.length * 100 + sets * 4 + prs.length * 50 + st.goalWeeks * 250;
+  const stageEp = STAGES.filter((x) => x.min > 0 && st.longest >= x.min).reduce((a, x) => a + x.ep, 0);
+  const xp = asc.length * 100 + sets * 4 + prs.length * 50 + st.goalWeeks * 250 + stageEp;
   const lvl = levelFor(xp);
   const power = Math.round(Math.sqrt(totalVol) * 10 + prs.length * 25 + st.current * 150 + st.longest * 50);
   return { st, totalVol, sets, xp, ...lvl, power, prs: prs.length, stage: stageFor(st.current) };
@@ -84,19 +88,19 @@ const tiers = (id, icon, title, key, targets, fmt = (v) => num(v, 0), desc) =>
   targets.map((t, i) => ({ id: `${id}${t}`, icon, title: `${title} ${['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'][i]}`, desc: desc(fmt(t)), key, target: t, tier: i }));
 
 export const ACHIEVEMENTS = [
-  ...tiers('w', '🏋️', 'Eisern', 'workouts', [1, 10, 50, 100, 250, 500, 1000], undefined, (t) => `${t} Workouts absolviert`),
-  ...tiers('v', '🪨', 'Tonnage', 'volume', [100000, 500000, 1000000, 2500000, 5000000], (v) => fmtVolume(v), (t) => `${t} Gesamtvolumen bewegt`),
-  ...tiers('p', '🏆', 'Rekordjäger', 'prs', [10, 50, 100, 250, 500], undefined, (t) => `${t} persönliche Rekorde`),
-  ...tiers('s', '🔥', 'Unaufhaltsam', 'longest', [2, 4, 8, 16, 30, 52], undefined, (t) => `${t} Wochen in Folge das Wochenziel erreicht`),
-  { id: 'early', icon: '🌅', title: 'Frühaufsteher', desc: 'Workout vor 7 Uhr gestartet', key: 'early', target: 1 },
-  { id: 'late', icon: '🦉', title: 'Nachteule', desc: 'Workout nach 21 Uhr gestartet', key: 'late', target: 1 },
-  { id: 'long', icon: '⏳', title: 'Marathon-Session', desc: 'Ein Workout über 2 Stunden', key: 'long', target: 1 },
-  { id: 'sets30', icon: '⚙️', title: 'Satz-Maschine', desc: '30 Arbeitssätze in einem Workout', key: 'maxSets', target: 30 },
-  { id: 'vol20', icon: '🚛', title: 'Schwertransport', desc: '20 t Volumen in einem Workout', key: 'maxVol', target: 20000 },
-  { id: 'cardio100', icon: '🚴', title: 'Ausdauer-Ass', desc: '100 km Cardio insgesamt', key: 'cardioKm', target: 100 },
-  { id: 'allround', icon: '🧩', title: 'Allrounder', desc: '10 Muskelgruppen in einer Woche trainiert', key: 'allroundWeeks', target: 1 },
-  { id: 'mob10', icon: '🧘', title: 'Geschmeidig', desc: '10 Mobility-Einheiten', key: 'mobility', target: 10 },
-  { id: 'year', icon: '📅', title: 'Ganzjährig', desc: 'In jedem Monat eines Jahres trainiert', key: 'fullYear', target: 1 },
+  ...tiers('w', 'dumbbell', 'Eisern', 'workouts', [1, 10, 50, 100, 250, 500, 1000], undefined, (t) => `${t} Workouts absolviert`),
+  ...tiers('v', 'weight', 'Tonnage', 'volume', [100000, 500000, 1000000, 2500000, 5000000], (v) => fmtVolume(v), (t) => `${t} Gesamtvolumen bewegt`),
+  ...tiers('p', 'trophy', 'Rekordjäger', 'prs', [10, 50, 100, 250, 500], undefined, (t) => `${t} persönliche Rekorde`),
+  ...STAGES.filter((x) => x.min > 0).map((x) => ({ id: `ks${x.min}`, icon: 'flame', title: x.name, desc: `${x.min} Wochen Streak · +${num(x.ep, 0)} EP`, key: 'longest', target: x.min, tier: 0 })),
+  { id: 'early', icon: 'sun', title: 'Frühaufsteher', desc: 'Workout vor 7 Uhr gestartet', key: 'early', target: 1 },
+  { id: 'late', icon: 'moon', title: 'Nachteule', desc: 'Workout nach 21 Uhr gestartet', key: 'late', target: 1 },
+  { id: 'long', icon: 'clock', title: 'Marathon-Session', desc: 'Ein Workout über 2 Stunden', key: 'long', target: 1 },
+  { id: 'sets30', icon: 'layers', title: 'Satz-Maschine', desc: '30 Arbeitssätze in einem Workout', key: 'maxSets', target: 30 },
+  { id: 'vol20', icon: 'weight', title: 'Schwertransport', desc: '20 t Volumen in einem Workout', key: 'maxVol', target: 20000 },
+  { id: 'cardio100', icon: 'bolt', title: 'Ausdauer-Ass', desc: '100 km Cardio insgesamt', key: 'cardioKm', target: 100 },
+  { id: 'allround', icon: 'target', title: 'Allrounder', desc: '10 Muskelgruppen in einer Woche trainiert', key: 'allroundWeeks', target: 1 },
+  { id: 'mob10', icon: 'repeat', title: 'Geschmeidig', desc: '10 Mobility-Einheiten', key: 'mobility', target: 10 },
+  { id: 'year', icon: 'calendar', title: 'Ganzjährig', desc: 'In jedem Monat eines Jahres trainiert', key: 'fullYear', target: 1 },
 ];
 
 export function achievements() {
@@ -129,10 +133,10 @@ export function weeklyQuests() {
   const volTarget = Math.max(5000, Math.round((avg * 1.05) / 1000) * 1000);
   const extra = thisWeek.filter((w) => w.exercises.some((e) => e.name === 'Mobility') || /cardio|mobility/i.test(w.title)).length;
   return [
-    { icon: '🎯', title: `Wochenziel: ${st.goal} Workouts`, value: st.thisCount, target: st.goal, xp: 250 },
-    { icon: '🏆', title: 'Stelle einen neuen Rekord auf', value: Math.min(prsWeek, 1), target: 1, xp: 50 },
-    { icon: '🧩', title: `${weak} stärken: 6 Sätze`, value: Math.min(6, Math.round(weakWeek)), target: 6, xp: 80, hint: 'Am wenigsten trainiert in den letzten 14 Tagen' },
-    { icon: '🪨', title: `${fmtVolume(volTarget)} Volumen bewegen`, value: Math.round(volWeek), target: volTarget, xp: 100, fmt: fmtVolume },
-    { icon: '🧘', title: '1× Cardio oder Mobility (geführt)', value: Math.min(extra, 1), target: 1, xp: 60 },
+    { icon: 'target', title: `Wochenziel: ${st.goal} Workouts`, value: st.thisCount, target: st.goal, xp: 250 },
+    { icon: 'trophy', title: 'Stelle einen neuen Rekord auf', value: Math.min(prsWeek, 1), target: 1, xp: 50 },
+    { icon: 'layers', title: `${weak} stärken: 6 Sätze`, value: Math.min(6, Math.round(weakWeek)), target: 6, xp: 80, hint: 'Am wenigsten trainiert in den letzten 14 Tagen' },
+    { icon: 'weight', title: `${fmtVolume(volTarget)} Volumen bewegen`, value: Math.round(volWeek), target: volTarget, xp: 100, fmt: fmtVolume },
+    { icon: 'repeat', title: '1× Cardio oder Mobility (geführt)', value: Math.min(extra, 1), target: 1, xp: 60 },
   ];
 }

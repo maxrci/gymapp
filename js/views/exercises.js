@@ -6,6 +6,9 @@ import { pageHead, kpi, fmtSet, setBadge, emptyState } from '../components.js';
 import { icon, chips, sheet, formDialog, toast, confirmDialog } from '../ui.js';
 import { createExerciseDialog } from '../picker.js';
 import { aiOn, suggest, repRange, increment } from '../ai.js';
+import { poseSVG, poseFor, mountPose } from '../poses.js';
+import { stageFor } from '../gamification.js';
+import { weekStreaks } from '../stats.js';
 import { esc, num, fmtVolume, fmtKg, fmtDate, fmtRelDay, fmtPct, fmtClock, fmtCompact } from '../utils.js';
 
 const ui = { muscle: '', sort: 'count', q: '', range: 'all', metric: null, metricFor: null, hist: 10 };
@@ -17,6 +20,7 @@ export function exercisesView() {
     const x = ex.get(n);
     return { name: n, meta: exerciseMeta(n), x, count: x?.count || 0, last: x?.last || 0 };
   });
+  const stg = stageFor(weekStreaks().current).index;
   const muscles = MUSCLES.filter((m) => items.some((i) => i.meta.primary === m));
   const filtered = items.filter((i) => !ui.muscle || i.meta.primary === ui.muscle);
   filtered.sort(ui.sort === 'az' ? (a, b) => a.name.localeCompare(b.name, 'de')
@@ -38,7 +42,7 @@ export function exercisesView() {
     <div class="filter-row">${chips([['count', 'Häufigste'], ['last', 'Zuletzt'], ['az', 'A–Z']], ui.sort, 'data-sort')}</div>
     <div class="ex-list">
       ${filtered.map((i) => `<a class="ex-row" href="#/ex/${encodeURIComponent(i.name)}" data-name="${esc(i.name.toLowerCase())}">
-        <div class="ex-avatar">${esc(i.name.slice(0, 1))}</div>
+        <div class="ex-avatar pose-av">${poseSVG(poseFor(i.name), { stage: stg })}</div>
         <div class="ex-titles"><div class="ex-name">${esc(i.name)}</div>
         <div class="ex-sub">${esc(i.meta.primary)}${i.count ? ` · ${i.count}× · ${esc(fmtRelDay(i.last))}` : ' · noch nicht trainiert'}</div></div>
         ${right(i)}
@@ -93,8 +97,9 @@ export function exerciseDetailView({ name }) {
   const sub = `${esc(meta.primary)}${meta.secondary?.length ? ` · ${esc(meta.secondary.join(', '))}` : ''} · ${esc(TYPES[type]?.label || '')}`;
   if (!x || !x.count) {
     return {
-      html: pageHead(name, { back, actions: menuBtn, sub }) + emptyState('dumbbell', 'Noch keine Daten', 'Sobald du diese Übung trainierst, erscheinen hier Verlauf, Rekorde und Diagramme.'),
+      html: pageHead(name, { back, actions: menuBtn, sub }) + `<div class="card demo"><div data-demo></div></div>` + emptyState('dumbbell', 'Noch keine Daten', 'Sobald du diese Übung trainierst, erscheinen hier Verlauf, Rekorde und Diagramme.'),
       handlers: { menu: () => exerciseMenu(name, type) },
+      mount: (root) => mountPose(root.querySelector('[data-demo]'), poseFor(name), { stage: stageFor(weekStreaks().current).index }),
     };
   }
   if (ui.metricFor !== name) { ui.metricFor = name; ui.metric = primaryMetric(x); ui.hist = 10; }
@@ -139,6 +144,7 @@ export function exerciseDetailView({ name }) {
 
   const html = `
     ${pageHead(name, { back, actions: menuBtn, sub })}
+    <div class="card demo"><div data-demo></div></div>
     <div class="kpis">${kpis}</div>
     ${aiOn() ? aiCard(x) : ''}
     <div class="filter-row">${chips(RANGES, ui.range, 'data-range')}</div>
@@ -161,6 +167,7 @@ export function exerciseDetailView({ name }) {
   return {
     html,
     mount: (root) => {
+      mountPose(root.querySelector('[data-demo]'), poseFor(name), { stage: stageFor(weekStreaks().current).index });
       lineChart(root.querySelector('[data-chart="main"]'), {
         series: [{ name: ui.metric, points: pts, color: SERIES[0] }],
         yFmt: axisFmt(ui.metric),

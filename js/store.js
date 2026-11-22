@@ -19,6 +19,7 @@ export const DEFAULT_SETTINGS = {
   hrMax: null,             // max. Herzfrequenz für Puls-Zonen
   cardio: {},              // Geräte-Kalibrierung
   lastDevice: 'treadmill',
+  introAnim: true,         // Start-Animation beim Öffnen
 };
 
 export const state = {

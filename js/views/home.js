@@ -34,10 +34,10 @@ export function homeView() {
   // Streak-Status dieser Woche
   let alert = '';
   if (ws.length) {
-    if (st.thisDone) alert = `<div class="streak-alert ok">✓ Wochenziel erreicht – deine Streak wächst auf <b>${st.current}</b> Wochen!</div>`;
-    else if (st.needed > st.daysLeft) alert = `<div class="streak-alert lost">✕ Diese Woche ist das Ziel nicht mehr erreichbar (${st.thisCount}/${goal}). Nächste Woche neu angreifen!</div>`;
-    else if (st.needed === st.daysLeft) alert = `<div class="streak-alert danger">⚠ Streak in Gefahr! Noch <b>${st.needed}</b> Workout${st.needed > 1 ? 's' : ''} in ${st.daysLeft} Tag${st.daysLeft > 1 ? 'en' : ''} – jeden Tag zählt.</div>`;
-    else alert = `<div class="streak-alert info">🔥 Noch <b>${st.needed}</b> Workout${st.needed > 1 ? 's' : ''} in ${st.daysLeft} Tagen, um deine Streak zu halten.</div>`;
+    if (st.thisDone) alert = `<div class="streak-alert ok">${icon('check', 'xs')} Wochenziel erreicht – deine Streak wächst auf <b>${st.current}</b> Wochen!</div>`;
+    else if (st.needed > st.daysLeft) alert = `<div class="streak-alert lost">${icon('x', 'xs')} Diese Woche ist das Ziel nicht mehr erreichbar (${st.thisCount}/${goal}). Nächste Woche neu angreifen!</div>`;
+    else if (st.needed === st.daysLeft) alert = `<div class="streak-alert danger">${icon('flame', 'xs')} Streak in Gefahr! Noch <b>${st.needed}</b> Workout${st.needed > 1 ? 's' : ''} in ${st.daysLeft} Tag${st.daysLeft > 1 ? 'en' : ''} – jeden Tag zählt.</div>`;
+    else alert = `<div class="streak-alert info">${icon('flame', 'xs')} Noch <b>${st.needed}</b> Workout${st.needed > 1 ? 's' : ''} in ${st.daysLeft} Tagen, um deine Streak zu halten.</div>`;
   }
 
   const hero = ws.length ? `<section class="card hero st${stage.index}">
@@ -46,7 +46,7 @@ export function homeView() {
         <small>Stufe ${stage.index + 1}/${STAGES.length}</small>
         <h3>${esc(stage.name)}</h3>
         <div class="hero-streak">${icon('flame')}<b>${st.current}</b><span>Wochen Streak</span></div>
-        ${stage.next ? `<div class="hero-next"><div class="bar"><i style="width:${Math.round(stage.progress * 100)}%"></i></div><small>Noch ${stage.toNext} Woche${stage.toNext > 1 ? 'n' : ''} bis <b>${esc(stage.next.name)}</b></small></div>` : '<small class="hero-max">Höchste Stufe erreicht! ⚡</small>'}
+        ${stage.next ? `<div class="hero-next"><div class="bar"><i style="width:${Math.round(stage.progress * 100)}%"></i></div><small>Noch ${stage.toNext} Woche${stage.toNext > 1 ? 'n' : ''} bis <b>${esc(stage.next.name)}</b></small></div>` : '<small class="hero-max">Höchste Stufe erreicht</small>'}
         <div class="hero-power"><small>Kampfkraft</small><b>${num(P.power, 0)}</b>${P.power > 9000 ? '<span class="over9000">ÜBER 9000!</span>' : ''}</div>
       </div>
       <a class="hero-level" href="#/badges"><span>Lvl ${P.level}</span><div class="bar"><i style="width:${Math.round(P.levelProgress * 100)}%"></i></div></a>
@@ -58,7 +58,7 @@ export function homeView() {
     </div>` : '';
 
   const onboarding = !ws.length ? `<div class="card onboarding">
-      <h3>Willkommen bei GymLog 👋</h3>
+      <h3>Willkommen bei GymLog</h3>
       <p>Importiere deine bisherigen Workouts als CSV, damit deine komplette Historie in den Statistiken auftaucht.</p>
       <button class="btn primary block" data-act="import">${icon('upload')} CSV importieren</button>
       <button class="btn ghost block" data-act="start">${icon('plus')} Erstes Workout starten</button>
@@ -71,8 +71,8 @@ export function homeView() {
         const done = q.value >= q.target;
         const f = q.fmt || ((v) => num(v, 0));
         return `<div class="quest ${done ? 'done' : ''}">
-          <span class="q-ic">${done ? '✅' : q.icon}</span>
-          <div class="q-main"><div class="q-top"><b>${esc(q.title)}</b><span>+${q.xp} XP</span></div>
+          <span class="q-ic">${icon(done ? 'check' : q.icon)}</span>
+          <div class="q-main"><div class="q-top"><b>${esc(q.title)}</b><span>+${q.xp} EP</span></div>
           <div class="bar"><i style="width:${Math.min(100, (q.value / q.target) * 100)}%"></i></div>
           <small>${esc(f(Math.min(q.value, q.target)))} / ${esc(f(q.target))}${q.hint ? ` · ${esc(q.hint)}` : ''}</small></div>
         </div>`;
@@ -120,7 +120,7 @@ export function homeView() {
     </section>
     ${questHtml}
     ${ach.length ? `<a class="card badge-teaser" href="#/badges">
-      <div class="bt-icons">${achDone.slice(-5).map((a) => `<span>${a.icon}</span>`).join('')}</div>
+      <div class="bt-icons">${achDone.slice(-4).map((a) => `<span>${icon(a.icon)}</span>`).join('')}</div>
       <div><b>Abzeichen</b><small>${achDone.length} von ${ach.length} freigeschaltet</small></div>${icon('right', 'muted')}</a>` : ''}
     ${installHint}
     ${ws.length ? `<h2 class="section-title">Verlauf</h2>${feed}${more}` : ''}

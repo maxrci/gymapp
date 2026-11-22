@@ -1,46 +1,50 @@
-// Geführte Einheiten (Cardio & Mobility) im Vollbild – Timer läuft automatisch weiter
+// Geführte Einheiten (Cardio & Mobility) im Vollbild – der Kämpfer macht vor, der Timer läuft automatisch
 
 import { state, saveWorkout, saveSettings } from './store.js';
 import { weekStreaks } from './stats.js';
 import {
   CARDIO, DEVICES, ZONES, MOBILITY, MOVES, deviceSettings, hrText, mobilityPhases, programDuration, cardioBase,
 } from './programs.js';
-import { fighterSVG, fighterFx } from './fighter.js';
+import { fighterFx } from './fighter.js';
+import { poseSVG, mountPose } from './poses.js';
 import { stageFor } from './gamification.js';
 import { icon, overlay, formDialog, confirmDialog, toast } from './ui.js';
 import { tick as tickSound, phaseStart, finishFanfare, speak, unlockAudio } from './fx.js';
 import { esc, fmtClock, num, uid } from './utils.js';
 
 const KEY = 'gymlog-guided';
-let S = null;        // laufende Session
+const BREATH = 10; // Sekunden pro Atemzyklus: 4 ein, 6 aus
+const ZONE_SPEED = { 1: 0.7, 2: 0.85, 3: 1, 4: 1.25, 5: 1.5 };
+let S = null;
 let root = null;
 let timer = null;
 let lastIdx = -1;
 let lastSec = -1;
 let wake = null;
-let msgIdx = 0;
+let anim = null;
+
+const stage = () => stageFor(weekStreaks().current).index;
 
 // ---------------- Auswahl: Cardio ----------------
 export function openCardioSetup() {
   let device = state.settings.lastDevice || 'treadmill';
   const opts = {};
   const o = overlay('', 'guided-setup');
+  const st = stage();
   const draw = () => {
     const progs = CARDIO.filter((p) => !p.devices || p.devices.includes(device));
     o.innerHTML = `
-      <div class="panel-head"><button class="icon-btn" data-close>${icon('x')}</button><div class="panel-title">Cardio geführt</div><button class="link-btn" data-calib>Gerät</button></div>
+      <div class="panel-head"><button class="icon-btn" data-close>${icon('x')}</button><div class="panel-title">Cardio</div><button class="link-btn" data-calib>Gerät</button></div>
       <div class="panel-body">
-        <div class="list-label">Gerät</div>
-        <div class="device-grid">${Object.entries(DEVICES).map(([k, d]) => `<button class="device ${k === device ? 'on' : ''}" data-dev="${k}"><span>${d.icon}</span>${esc(d.label)}</button>`).join('')}</div>
-        <p class="footnote">Die Einstellungen werden aus deinem Grundlagentempo berechnet (${esc(baseText(device))}). Über „Gerät“ oben anpassen.</p>
-        <div class="list-label">Programm</div>
+        <div class="device-grid">${Object.entries(DEVICES).map(([k, d]) => `<button class="device ${k === device ? 'on' : ''}" data-dev="${k}">${poseSVG(d.pose, { stage: st, t: 0.25 })}<span>${esc(d.label)}</span></button>`).join('')}</div>
+        <p class="footnote">Grundtempo: ${esc(baseText(device))} – über „Gerät“ anpassen.</p>
         ${progs.map((p) => {
           const v = opts[p.id] ?? p.def;
           const ph = p.build(v);
           return `<div class="card prog-card">
-            <div class="prog-head"><span class="prog-ic">${p.icon}</span><div><b>${esc(p.title)}</b><small>${fmtClock(programDuration(ph))} min · ${ph.filter((x) => x.kind === 'hard').length || 'keine'} harte Phasen</small></div></div>
-            <p>${esc(p.desc)}</p>
+            <div class="prog-head"><b>${esc(p.title)}</b><span>${Math.round(programDuration(ph) / 60)} min</span></div>
             <div class="prog-strip">${ph.map((x) => `<i class="z${x.zone}" style="flex:${x.dur}"></i>`).join('')}</div>
+            <p>${esc(p.desc)}</p>
             ${p.options ? `<div class="chips">${p.options.map((v2) => `<button class="chip ${v2 === v ? 'on' : ''}" data-opt="${p.id}:${v2}">${v2} ${p.optLabel || 'min'}</button>`).join('')}</div>` : ''}
             <button class="btn primary block" data-start="${p.id}">${icon('play', 'xs')} Starten</button>
           </div>`;
@@ -55,20 +59,20 @@ export function openCardioSetup() {
     const op = e.target.closest('[data-opt]');
     if (op) { const [id, v] = op.dataset.opt.split(':'); opts[id] = +v; draw(); return; }
     if (e.target.closest('[data-calib]')) { await calibrate(device); draw(); return; }
-    const st = e.target.closest('[data-start]');
-    if (st) {
-      const p = CARDIO.find((x) => x.id === st.dataset.start);
+    const stb = e.target.closest('[data-start]');
+    if (stb) {
+      const p = CARDIO.find((x) => x.id === stb.dataset.start);
       const v = opts[p.id] ?? p.def;
       await saveSettings({ lastDevice: device });
       o.close();
-      start({ kind: 'cardio', programId: p.id, opt: v, device, title: `${p.title}${p.options ? ` ${v}${p.optLabel ? ` ${p.optLabel}` : ' min'}` : ''}`, phases: p.build(v) });
+      start({ kind: 'cardio', programId: p.id, opt: v, device, title: `${p.title}${p.options ? ` · ${v} ${p.optLabel || 'min'}` : ''}`, phases: p.build(v) });
     }
   });
 }
 
 function baseText(dev) {
   const b = cardioBase(dev);
-  if (dev === 'treadmill') return `${num(b.speed, 1)} km/h, ${num(b.incline, 1)} %`;
+  if (dev === 'treadmill') return `${num(b.speed, 1)} km/h, ${num(b.incline, 1)} % Steigung`;
   if (dev === 'bike') return `${b.watts} W / Stufe ${b.level}`;
   if (dev === 'elliptical') return `Stufe ${b.level}`;
   return `${Math.floor(b.split / 60)}:${String(b.split % 60).padStart(2, '0')} /500 m`;
@@ -77,16 +81,16 @@ function baseText(dev) {
 async function calibrate(dev) {
   const b = cardioBase(dev);
   const F = {
-    treadmill: [['speed', 'Grundlagentempo (km/h) – locker, du kannst noch reden', b.speed], ['incline', 'Steigung (%)', b.incline]],
-    bike: [['watts', 'Grundlagen-Leistung (Watt)', b.watts], ['level', 'Grundlagen-Stufe', b.level], ['rpm', 'Trittfrequenz (U/min)', b.rpm]],
+    treadmill: [['speed', 'Grundtempo in km/h (locker, du kannst noch reden)', b.speed], ['incline', 'Steigung in %', b.incline]],
+    bike: [['watts', 'Grundlagen-Leistung in Watt', b.watts], ['level', 'Grundlagen-Stufe', b.level], ['rpm', 'Trittfrequenz (U/min)', b.rpm]],
     elliptical: [['level', 'Grundlagen-Stufe', b.level], ['spm', 'Schritte pro Minute', b.spm]],
-    rower: [['split', 'Grundlagentempo in Sekunden pro 500 m (z. B. 150 = 2:30)', b.split], ['spm', 'Schlagzahl (SPM)', b.spm]],
+    rower: [['split', 'Grundtempo in Sekunden pro 500 m (150 = 2:30)', b.split], ['spm', 'Schlagzahl (SPM)', b.spm]],
   }[dev];
   const res = await formDialog({
     title: `${DEVICES[dev].label} einstellen`,
     fields: [
       ...F.map(([name, label, value]) => ({ name, label, value, inputmode: 'decimal' })),
-      { name: 'hrMax', label: 'Max. Herzfrequenz (optional, für Puls-Zonen)', value: state.settings.hrMax ?? '', inputmode: 'numeric' },
+      { name: 'hrMax', label: 'Max. Herzfrequenz (optional)', value: state.settings.hrMax ?? '', inputmode: 'numeric' },
     ],
   });
   if (!res) return;
@@ -99,25 +103,26 @@ async function calibrate(dev) {
 
 // ---------------- Auswahl: Mobility ----------------
 export function openMobilitySetup() {
+  const st = stage();
   const o = overlay(`
-    <div class="panel-head"><button class="icon-btn" data-close>${icon('x')}</button><div class="panel-title">Mobility geführt</div><span style="width:40px"></span></div>
+    <div class="panel-head"><button class="icon-btn" data-close>${icon('x')}</button><div class="panel-title">Mobility</div><span style="width:40px"></span></div>
     <div class="panel-body">
-      <p class="footnote">Die App führt dich automatisch durch alle Übungen – inklusive Seitenwechsel und Vorbereitungszeit. Du musst nichts abhaken.</p>
+      <p class="footnote">Der Timer führt dich durch alle Übungen, inklusive Seitenwechsel. Du musst nichts abhaken.</p>
       ${MOBILITY.map((p) => {
         const ph = mobilityPhases(p);
         return `<div class="card prog-card">
-          <div class="prog-head"><span class="prog-ic">${p.icon}</span><div><b>${esc(p.title)}</b><small>${Math.round(programDuration(ph) / 60)} min · ${p.moves.length} Übungen</small></div></div>
+          <div class="prog-head"><b>${esc(p.title)}</b><span>${Math.round(programDuration(ph) / 60)} min</span></div>
+          <div class="move-thumbs">${p.moves.map((m) => `<figure>${poseSVG(MOVES[m.id][1], { stage: st, t: 0.5 })}<figcaption>${esc(MOVES[m.id][0])}</figcaption></figure>`).join('')}</div>
           <p>${esc(p.desc)}</p>
-          <div class="move-chips">${p.moves.map((m) => `<span>${MOVES[m.id][1]} ${esc(MOVES[m.id][0])}</span>`).join('')}</div>
           <button class="btn primary block" data-start="${p.id}">${icon('play', 'xs')} Starten</button>
         </div>`;
       }).join('')}
     </div>`, 'guided-setup');
   o.addEventListener('click', (e) => {
     if (e.target.closest('[data-close]')) return o.close();
-    const st = e.target.closest('[data-start]');
-    if (st) {
-      const p = MOBILITY.find((x) => x.id === st.dataset.start);
+    const stb = e.target.closest('[data-start]');
+    if (stb) {
+      const p = MOBILITY.find((x) => x.id === stb.dataset.start);
       o.close();
       start({ kind: 'mobility', programId: p.id, title: p.title, phases: mobilityPhases(p) });
     }
@@ -136,7 +141,8 @@ function start(cfg) {
 export function resumeGuided() {
   try {
     const s = JSON.parse(localStorage.getItem(KEY) || 'null');
-    if (s && s.phases) { S = s; open(); return true; }
+    if (s && s.phases && s.phases.every((p) => p.kind !== 'move' || p.pose)) { S = s; open(); return true; }
+    localStorage.removeItem(KEY);
   } catch { /* ignore */ }
   return false;
 }
@@ -152,7 +158,7 @@ function locate(t) {
   let acc = 0;
   for (let i = 0; i < S.phases.length; i++) {
     const p = S.phases[i];
-    if (t < acc + p.dur) return { i, p, into: t - acc, left: acc + p.dur - t, startAt: acc };
+    if (t < acc + p.dur) return { i, p, into: t - acc, left: acc + p.dur - t };
     acc += p.dur;
   }
   return null;
@@ -176,6 +182,7 @@ function open() {
 function close() {
   clearInterval(timer);
   timer = null;
+  anim?.stop();
   wake?.release?.(); wake = null;
   root?.classList.remove('open');
   const r = root;
@@ -189,89 +196,66 @@ async function acquireWake() {
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && root) { acquireWake(); update(); } });
 
-const MSG = {
-  hard: ['Alles geben! 🔥', 'Du bist stärker als du denkst!', 'Atmen – und durchziehen!', 'Genau hier wirst du besser!', 'Power-Level steigt! ⚡'],
-  recover: ['Stark! Jetzt locker bleiben.', 'Puls runter, Atmung beruhigen.', 'Gleich geht\'s wieder los.'],
-  base: ['Schön gleichmäßig bleiben.', 'Zone 2 baut deine Ausdauer-Basis.', 'Locker, aber konstant.', 'Du machst das super!'],
-  warmup: ['Locker einrollen …', 'Langsam auf Betriebstemperatur kommen.'],
-  cool: ['Fast geschafft – auslaufen.', 'Hervorragende Arbeit heute!'],
-  move: ['Tief und ruhig atmen.', 'Nicht wippen – sanft halten.', 'Spannung loslassen.', 'Gut so!'],
-  prep: ['Position einnehmen.'], switch: ['Seite wechseln.'],
-};
-
-function phaseInfoHtml(p, cur) {
-  if (S.kind === 'cardio') {
-    const ds = deviceSettings(S.device, p.zone, p.fixed);
-    return `<div class="g-settings">${ds.items.map((x) => `<div><small>${esc(x.label)}</small><b>${esc(x.value)}</b></div>`).join('')}</div>
-      <div class="g-zone"><span class="zdot z${p.zone}"></span>${esc(ZONES[p.zone].name)} · ${esc(ZONES[p.zone].feel)} · ${esc(hrText(p.zone))}</div>`;
-  }
-  return `<div class="g-move">
-      <div class="g-emoji">${p.emoji}</div>
-      ${p.side ? `<div class="g-side">${esc(p.side)}</div>` : ''}
-      <div class="g-name">${esc(p.name)}</div>
-      <p class="g-cue">${esc(p.cue)}</p>
-      ${p.kind === 'move' ? '<div class="breath"><i></i><span>Atmen</span></div>' : ''}
-    </div>`;
+function phaseTitle(p) {
+  if (S.kind === 'cardio') return p.label;
+  if (p.kind === 'prep') return `Gleich: ${p.name}`;
+  if (p.kind === 'switch') return 'Seite wechseln';
+  return p.name;
 }
 
 function nextText(i) {
   const n = S.phases[i + 1];
-  if (!n) return 'Danach: Geschafft! 🎉';
+  if (!n) return 'Danach: geschafft';
   if (S.kind === 'cardio') {
     const ds = deviceSettings(S.device, n.zone, n.fixed);
-    return `Danach: ${n.label} · ${fmtClock(n.dur)} · ${ds.items.slice(0, 2).map((x) => x.value).join(' · ')}`;
+    return `Danach: ${n.label} · ${fmtClock(n.dur)} · ${ds.items[0].value}`;
   }
   const nn = n.kind === 'prep' || n.kind === 'switch' ? S.phases[i + 2] || n : n;
   return `Danach: ${nn.name}${nn.side ? ` (${nn.side})` : ''}`;
 }
 
-function phaseTitle(p) {
-  if (S.kind === 'cardio') return p.label;
-  const count = new Set(S.phases.map((x) => x.idx)).size;
-  if (p.kind === 'prep') return 'Vorbereiten';
-  if (p.kind === 'switch') return 'Seite wechseln';
-  return `Übung ${p.idx + 1} von ${count}`;
-}
-
 function structure(loc) {
   const { i, p } = loc;
-  const stage = stageFor(weekStreaks().current).index;
-  const hard = p.kind === 'hard';
-  const kindCls = S.kind === 'cardio' ? `z${p.zone} k-${p.kind}` : `mob k-${p.kind}`;
-  root.className = `guided open ${kindCls}`;
+  const breathe = S.kind === 'mobility' && p.kind === 'move';
+  const cls = S.kind === 'cardio' ? `z${p.zone} k-${p.kind}` : `mob k-${p.kind}`;
+  root.className = `guided open ${cls} ${S.pausedAt ? 'paused' : ''}`;
+  const sub = S.kind === 'cardio' ? `${DEVICES[S.device].label}` : 'Mobility';
   root.innerHTML = `
     <div class="g-bg"></div>
-    ${hard ? '<div class="g-flames"><i></i><i></i><i></i><i></i><i></i></div>' : ''}
     <div class="g-top">
       <button class="icon-btn" data-g="exit" aria-label="Beenden">${icon('x')}</button>
-      <div class="g-title">${esc(S.title)}<small>${S.kind === 'cardio' ? `${DEVICES[S.device].icon} ${esc(DEVICES[S.device].label)}` : '🧘 Mobility'}</small></div>
-      <button class="icon-btn" data-g="voice" aria-label="Sprachansage">${state.settings.voice ? '🔊' : '🔈'}</button>
+      <div class="g-title">${esc(S.title)}<small>${esc(sub)} · noch <span data-l="rem">0:00</span></small></div>
+      <button class="icon-btn" data-g="voice" aria-label="Sprachansage">${icon(state.settings.voice ? 'volume' : 'mute')}</button>
     </div>
-    <div class="g-track">
-      <div class="g-segs">${S.phases.map((x, k) => `<i class="${S.kind === 'cardio' ? `z${x.zone}` : `m-${x.kind}`} ${k < i ? 'past' : k === i ? 'now' : ''}" style="flex:${x.dur}"></i>`).join('')}</div>
-      <div class="g-runner" data-l="runner">${S.kind === 'cardio' ? DEVICES[S.device].icon : '🧘'}</div>
-    </div>
+    <div class="g-segs">${S.phases.map((x, k) => `<i class="${S.kind === 'cardio' ? `z${x.zone}` : `m-${x.kind}`} ${k < i ? 'past' : k === i ? 'now' : ''}" style="flex:${x.dur}"></i>`).join('')}</div>
     <div class="g-main">
-      <div class="g-phase">${esc(phaseTitle(p))}</div>
+      <div class="g-phase">${esc(phaseTitle(p))}${p.side ? ` <span class="g-side">${esc(p.side)}</span>` : ''}</div>
+      <div class="g-figure ${p.kind === 'hard' ? 'hot' : ''}" data-l="fig"></div>
       <div class="g-ring">
-        <svg viewBox="0 0 240 240"><circle cx="120" cy="120" r="106" class="g-ring-bg"/><circle cx="120" cy="120" r="106" class="g-ring-fg" data-l="ring" pathLength="1000"/></svg>
+        ${breathe ? `<div class="breath-big" style="animation-delay:-${(loc.into % BREATH).toFixed(2)}s"></div>` : ''}
+        <svg viewBox="0 0 240 240"><circle cx="120" cy="120" r="108" class="g-ring-bg"/><circle cx="120" cy="120" r="108" class="g-ring-fg" data-l="ring" pathLength="1000"/></svg>
         <div class="g-ring-in">
-          ${hard && S.kind === 'cardio' ? `<div class="g-mini-fighter">${fighterSVG(Math.max(3, stage), { powerUp: true })}</div>` : ''}
           <div class="g-time" data-l="left">0:00</div>
-          <div class="g-sub">${S.kind === 'cardio' ? esc(ZONES[p.zone].short) : p.kind === 'move' ? 'halten' : p.kind === 'prep' ? 'vorbereiten' : 'wechseln'}</div>
+          <div class="g-sub" data-l="sub">${S.kind === 'cardio' ? esc(ZONES[p.zone].short) : p.kind === 'prep' ? 'Position einnehmen' : p.kind === 'switch' ? 'Wechseln' : 'Einatmen'}</div>
         </div>
       </div>
-      ${phaseInfoHtml(p, loc)}
-      <div class="g-msg" data-l="msg"></div>
+      ${S.kind === 'cardio'
+        ? `<div class="g-settings">${deviceSettings(S.device, p.zone, p.fixed).items.slice(0, 2).map((x) => `<div><small>${esc(x.label)}</small><b>${esc(x.value)}</b></div>`).join('')}</div>
+           <div class="g-zone">${esc(ZONES[p.zone].name)} · ${esc(hrText(p.zone))}</div>`
+        : `<p class="g-cue">${esc(p.cue)}</p>`}
     </div>
     <div class="g-bottom">
       <div class="g-next">${esc(nextText(i))}</div>
-      <div class="g-totals"><span>Vergangen <b data-l="el">0:00</b></span><span>Verbleibend <b data-l="rem">0:00</b></span></div>
       <div class="g-ctrl">
-        <button class="btn ghost" data-g="pause">${S.pausedAt ? `${icon('play')} Weiter` : '❚❚ Pause'}</button>
-        <button class="btn ghost" data-g="skip">Überspringen ⏭</button>
+        <button class="btn ghost" data-g="pause">${S.pausedAt ? `${icon('play')} Weiter` : `${icon('pause')} Pause`}</button>
+        <button class="btn ghost" data-g="skip">${icon('skip')} Weiter</button>
       </div>
     </div>`;
+  anim?.stop();
+  const fig = root.querySelector('[data-l="fig"]');
+  const poseId = S.kind === 'cardio' ? DEVICES[S.device].pose : p.pose;
+  const speed = S.pausedAt ? 0 : S.kind === 'cardio' ? ZONE_SPEED[p.zone] : p.kind === 'move' ? 1 : 0.4;
+  anim = mountPose(fig, poseId, { stage: stage(), speed });
 }
 
 function update() {
@@ -283,7 +267,6 @@ function update() {
   if (loc.i !== lastIdx) {
     const first = lastIdx === -1;
     lastIdx = loc.i;
-    msgIdx = 0;
     structure(loc);
     if (!first) {
       phaseStart();
@@ -298,27 +281,16 @@ function update() {
   }
   const secLeft = Math.ceil(loc.left);
   root.querySelector('[data-l="left"]').textContent = fmtClock(secLeft);
-  root.querySelector('[data-l="el"]').textContent = fmtClock(t);
   root.querySelector('[data-l="rem"]').textContent = fmtClock(T - t);
   root.querySelector('[data-l="ring"]').style.strokeDashoffset = String(1000 * (loc.into / loc.p.dur));
-  const runner = root.querySelector('[data-l="runner"]');
-  runner.style.left = `calc(${(t / T) * 100}% - 14px)`;
-  // Countdown-Töne in den letzten 3 Sekunden
+  if (S.kind === 'mobility' && loc.p.kind === 'move') {
+    root.querySelector('[data-l="sub"]').textContent = loc.into % BREATH < 4 ? 'Einatmen' : 'Ausatmen';
+  }
   if (secLeft !== lastSec) {
     lastSec = secLeft;
     if (secLeft <= 3 && secLeft >= 1 && !S.pausedAt) tickSound();
-    if (Math.abs(t - T / 2) < 0.6 && !S.half) { S.half = true; speak('Halbzeit! Weiter so.'); }
-    if (loc.p.kind === 'hard' && secLeft === 10 && loc.p.dur >= 30) speak('Noch 10 Sekunden!');
-  }
-  const pool = MSG[loc.p.kind] || MSG.base;
-  const mi = Math.floor(loc.into / 12) % pool.length;
-  const msgEl = root.querySelector('[data-l="msg"]');
-  if (msgEl && msgEl.dataset.i !== String(mi)) {
-    msgEl.dataset.i = mi;
-    msgEl.classList.remove('pop');
-    void msgEl.offsetWidth;
-    msgEl.textContent = loc.p.kind === 'hard' && loc.left < 30 ? `Nur noch ${Math.ceil(loc.left)} Sekunden! 💥` : pool[mi];
-    msgEl.classList.add('pop');
+    if (Math.abs(t - T / 2) < 0.6 && !S.half) { S.half = true; speak('Halbzeit.'); }
+    if (loc.p.kind === 'hard' && secLeft === 10 && loc.p.dur >= 30) speak('Noch 10 Sekunden.');
   }
 }
 
@@ -339,7 +311,7 @@ async function onClick(e) {
   }
   if (a === 'voice') {
     await saveSettings({ voice: !state.settings.voice });
-    b.textContent = state.settings.voice ? '🔊' : '🔈';
+    b.innerHTML = icon(state.settings.voice ? 'volume' : 'mute');
     if (state.settings.voice) speak('Sprachansage an.');
   }
   if (a === 'exit') {
@@ -348,21 +320,20 @@ async function onClick(e) {
       if (await confirmDialog('Einheit abbrechen?', 'Abbrechen', true)) { S = null; persist(); close(); }
       return;
     }
-    const v = await confirmDialog('Einheit jetzt beenden und speichern?', 'Beenden & speichern');
-    if (v) finish(true);
+    if (await confirmDialog('Einheit jetzt beenden und speichern?', 'Beenden & speichern')) finish(true);
   }
 }
 
 async function finish(early = false) {
   if (!S) return;
   clearInterval(timer);
+  anim?.stop();
   const t = Math.min(elapsed(), total());
   const done = S;
   S = null;
   persist();
   finishFanfare();
-  speak(early ? 'Gut gemacht!' : 'Geschafft! Hervorragende Arbeit!');
-  // Distanz schätzen (Laufband: Geschwindigkeit × Zeit)
+  speak(early ? 'Gut gemacht!' : 'Geschafft! Starke Leistung!');
   let dist = null;
   if (done.kind === 'cardio' && done.device === 'treadmill') {
     let acc = 0, km = 0;
@@ -373,22 +344,15 @@ async function finish(early = false) {
     }
     dist = Math.round(km * 100) / 100;
   }
-  const stage = stageFor(weekStreaks().current).index;
   root.className = 'guided open done';
   root.innerHTML = `
     <div class="g-bg"></div>
     <div class="g-finish">
-      <div class="confetti-rain">${Array.from({ length: 24 }, (_, k) => `<i style="left:${(k * 4.2) % 100}%;animation-delay:${(k % 8) * 0.15}s"></i>`).join('')}</div>
-      <div class="g-fin-fighter">${fighterFx(stage, { enter: true, powerUp: true })}</div>
-      <h2>${early ? 'Gut gemacht!' : 'Geschafft! 🎉'}</h2>
-      <p>${esc(done.title)}</p>
-      <div class="kpis three">
-        <div class="kpi"><small>Dauer</small><b>${fmtClock(t)}</b></div>
-        ${done.kind === 'cardio' ? `<div class="kpi"><small>Harte Phasen</small><b>${done.phases.filter((p) => p.kind === 'hard').length}</b></div>` : `<div class="kpi"><small>Übungen</small><b>${new Set(done.phases.map((p) => p.idx)).size}</b></div>`}
-        <div class="kpi"><small>${done.kind === 'cardio' ? 'Gerät' : 'Typ'}</small><b>${done.kind === 'cardio' ? DEVICES[done.device].icon : '🧘'}</b></div>
-      </div>
+      <div class="g-fin-fighter">${fighterFx(stage(), { enter: true, powerUp: true })}</div>
+      <h2>${early ? 'Gut gemacht!' : 'Geschafft!'}</h2>
+      <p>${esc(done.title)} · ${fmtClock(t)}</p>
       ${done.kind === 'cardio' ? `<label class="field"><span>Distanz in km (optional${dist ? ', geschätzt' : ''})</span><input data-dist inputmode="decimal" value="${dist ?? ''}" placeholder="z. B. 5,2"></label>` : ''}
-      <button class="btn primary block lg" data-fin="save">Workout speichern</button>
+      <button class="btn primary block lg" data-fin="save">Speichern</button>
       <button class="btn danger-ghost block" data-fin="discard">Nicht speichern</button>
     </div>`;
   root.onclick = async (e) => {
@@ -408,7 +372,7 @@ async function finish(early = false) {
         }],
       };
       await saveWorkout(w);
-      toast('Einheit gespeichert 💪');
+      toast('Einheit gespeichert');
       close();
       location.hash = `#/w/${w.id}`;
     } else if (await confirmDialog('Einheit verwerfen?', 'Verwerfen', true)) close();

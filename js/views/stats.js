@@ -146,7 +146,7 @@ function overview() {
     lineChart(root.querySelector('[data-chart="acwr"]'), {
       series: [{ name: 'Belastung', points: acwr, color: SERIES[0] }], area: false, dots: false,
       band: { from: 0.8, to: 1.3, label: 'optimal' }, yFmt: (v) => num(v, 1),
-      tipFmt: (p) => `<div class="tt-h">${esc(fmtDate(p.x))}</div><div class="tt-r"><b>${num(p.y, 2)}</b> ${p.y > 1.5 ? '⚠ sehr hoch' : p.y > 1.3 ? '◐ erhöht' : p.y < 0.8 ? '↓ Entlastung' : '✓ optimal'}</div>`,
+      tipFmt: (p) => `<div class="tt-h">${esc(fmtDate(p.x))}</div><div class="tt-r"><b>${num(p.y, 2)}</b> ${p.y > 1.5 ? 'sehr hoch' : p.y > 1.3 ? 'erhöht' : p.y < 0.8 ? 'Entlastung' : 'optimal'}</div>`,
     });
     const dens = bs.map((b) => {
       const l = b.items.filter((w) => wStats.get(w.id).duration >= 600 && wStats.get(w.id).volume > 0);
@@ -499,21 +499,21 @@ function review(y, list) {
   for (const w of list) wd[weekday(w.start)]++;
   const favDay = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'][wd.indexOf(Math.max(...wd))];
   return `<section class="card review">
-    <div class="card-title">✨ Dein Jahr ${y}</div>
+    <div class="card-title">Dein Jahr ${y}</div>
     <div class="review-grid">
-      <div><span>🏋️</span><b>${list.length}</b><small>Workouts</small></div>
-      <div><span>🏆</span><b>${yPrs.length}</b><small>1RM-Rekorde</small></div>
-      <div><span>❤️</span><b class="trunc">${esc(fav[0])}</b><small>Lieblingsübung · ${fav[1]} Sätze</small></div>
-      <div><span>📅</span><b>${favDay}</b><small>Lieblingstag</small></div>
-      <div><span>🚀</span><b>${esc(MONTHS[bestM[0]])}</b><small>Stärkster Monat · ${fmtVolume(bestM[1])}</small></div>
-      <div><span>⏳</span><b>${fmtDurShort(wStats.get(longest.id).duration)}</b><small>Längstes Workout</small></div>
-      ${gain && gain.d > 0 ? `<div class="wide"><span>📈</span><b>+${num(gain.d, 1)} kg</b><small>Größter Kraftzuwachs: ${esc(gain.name)} (${num(gain.a, 1)} → ${num(gain.b, 1)} kg 1RM)</small></div>` : ''}
+      <div><span>${icon('dumbbell')}</span><b>${list.length}</b><small>Workouts</small></div>
+      <div><span>${icon('trophy')}</span><b>${yPrs.length}</b><small>1RM-Rekorde</small></div>
+      <div><span>${icon('heart')}</span><b class="trunc">${esc(fav[0])}</b><small>Lieblingsübung · ${fav[1]} Sätze</small></div>
+      <div><span>${icon('calendar')}</span><b>${favDay}</b><small>Lieblingstag</small></div>
+      <div><span>${icon('rocket')}</span><b>${esc(MONTHS[bestM[0]])}</b><small>Stärkster Monat · ${fmtVolume(bestM[1])}</small></div>
+      <div><span>${icon('clock')}</span><b>${fmtDurShort(wStats.get(longest.id).duration)}</b><small>Längstes Workout</small></div>
+      ${gain && gain.d > 0 ? `<div class="wide"><span>${icon('chart')}</span><b>+${num(gain.d, 1)} kg</b><small>Größter Kraftzuwachs: ${esc(gain.name)} (${num(gain.a, 1)} → ${num(gain.b, 1)} kg 1RM)</small></div>` : ''}
     </div>
   </section>`;
 }
 
 // ---------------- Balance ----------------
-const LVL_TXT = { ok: '✓ Ausgewogen', mild: '◐ Leichte Disbalance', strong: '⚠ Deutliche Disbalance', none: '– Zu wenig Daten' };
+const LVL_TXT = { ok: 'Ausgewogen', mild: 'Leichte Disbalance', strong: 'Deutliche Disbalance', none: 'Zu wenig Daten' };
 
 function balanceBar(share, ideal, aLabel, bLabel) {
   const pos = Math.max(2, Math.min(98, share * 100));
@@ -550,7 +550,7 @@ function balance() {
 
   const html = `
     <div class="card bal-summary ${issues ? 'warn' : 'ok'}">
-      <span>${issues ? '⚠' : '✓'}</span>
+      <span>${icon(issues ? 'info' : 'check')}</span>
       <div><b>${issues ? `${issues} Auffälligkeit${issues > 1 ? 'en' : ''} gefunden` : 'Dein Training ist ausgewogen'}</b>
       <small>Analyse auf Basis deiner Arbeitssätze im gewählten Zeitraum und deiner besten 1RM-Werte.</small></div>
     </div>
@@ -563,15 +563,15 @@ function balance() {
       <div class="bal-head"><b>${esc(r.title)}</b><span class="bal-lvl ${r.level}">${LVL_TXT[r.level]}</span></div>
       ${r.level === 'none' ? '<p class="footnote">Zu wenige passende Sätze im Zeitraum.</p>' : balanceBar(r.share, r.ideal, r.a, r.b)}
       ${r.level !== 'none' ? `<div class="bal-nums"><span>${esc(r.a)}: <b>${num(r.perWeekA, 1)}</b> Sätze/Wo.${r.vA != null ? ` · ${fmtVolume(r.vA)}` : ''}</span><span>${esc(r.b)}: <b>${num(r.perWeekB, 1)}</b> Sätze/Wo.${r.vB != null ? ` · ${fmtVolume(r.vB)}` : ''}</span></div>` : ''}
-      ${r.tip ? `<div class="bal-tip">💡 ${esc(r.tip)}</div>` : ''}
+      ${r.tip ? `<div class="bal-tip">${esc(r.tip)}</div>` : ''}
       ${r.info ? `<p class="footnote">${esc(r.info)}</p>` : ''}
     </section>`).join('')}
     <h2 class="section-title">Kraft-Balance <small class="muted">(Gewicht)</small></h2>
-    ${sb.ratios.map((r) => r.missing ? `<section class="card bal none"><div class="bal-head"><b>${esc(nameOf(r.a))} : ${esc(nameOf(r.b))}</b><span class="bal-lvl none">– fehlt</span></div><p class="footnote">${[r.A, r.B].some((l) => l?.stale) ? `Keine Daten aus den letzten 12 Monaten für ${esc([r.A, r.B].filter((l) => l?.stale).map((l) => l.name).join(', '))}.` : 'Dafür werden beide Übungen mit Langhantel benötigt.'}</p></section>` : `<section class="card bal ${r.level}">
+    ${sb.ratios.map((r) => r.missing ? `<section class="card bal none"><div class="bal-head"><b>${esc(nameOf(r.a))} : ${esc(nameOf(r.b))}</b><span class="bal-lvl none">fehlt</span></div><p class="footnote">${[r.A, r.B].some((l) => l?.stale) ? `Keine Daten aus den letzten 12 Monaten für ${esc([r.A, r.B].filter((l) => l?.stale).map((l) => l.name).join(', '))}.` : 'Dafür werden beide Übungen mit Langhantel benötigt.'}</p></section>` : `<section class="card bal ${r.level}">
       <div class="bal-head"><b>${esc(r.A.label)} : ${esc(r.B.label)}</b><span class="bal-lvl ${r.level}">${LVL_TXT[r.level]}</span></div>
       <div class="bal-ratio"><b>${num(r.value, 2)}</b><small>${num(r.A.e1rm, 1)} kg ÷ ${num(r.B.e1rm, 1)} kg (1RM)</small></div>
       ${scaleBar(r.value, r.ideal, r.range)}
-      ${r.tip ? `<div class="bal-tip">💡 ${esc(r.tip)}</div>` : ''}
+      ${r.tip ? `<div class="bal-tip">${esc(r.tip)}</div>` : ''}
       <p class="footnote">${esc(r.text)} Basis: bestes 1RM der letzten 12 Monate.</p>
     </section>`).join('')}
     <h2 class="section-title">Kraft im Verhältnis zum Körpergewicht</h2>

@@ -14,6 +14,8 @@ import { setLoad } from './stats.js';
 import { aiOn, suggest } from './ai.js';
 import { unlockAudio, restDoneSound, prPopup } from './fx.js';
 import { stageFor } from './gamification.js';
+import { fighterFx } from './fighter.js';
+import { poseSVG, poseFor } from './poses.js';
 import { weekStreaks } from './stats.js';
 import { e1rm } from './utils.js';
 
@@ -246,7 +248,7 @@ function exerciseHtml(e, i) {
   const colHead = cols.map((c) => `<span>${type === 'weighted_bw' && c === 'weight' ? '+KG' : COL_LABEL[c]}</span>`).join('');
   return `<section class="ex-card" data-ex="${i}">
     <div class="ex-head">
-      <div class="ex-avatar">${esc(e.name.slice(0, 1))}</div>
+      <div class="ex-avatar pose-av">${poseSVG(poseFor(e.name), { stage: stageFor(weekStreaks().current).index })}</div>
       <div class="ex-titles">
         <button class="ex-name" data-act="ex-info">${esc(e.name)}</button>
         <div class="ex-sub">${esc(meta.primary)}${m !== 'edit' ? ` · <button class="rest-chip" data-act="ex-rest">${icon('timer', 'xs')} ${rest ? fmtClock(rest) : 'Aus'}</button>` : ''}</div>
@@ -321,7 +323,7 @@ function updateRestBar() {
 function restDone() {
   restDoneSound();
   navigator.vibrate?.([200, 100, 200]);
-  toast('Pause vorbei – nächster Satz! 💪');
+  toast('Pause vorbei – nächster Satz');
 }
 
 // ---------- Live-Rekorde ----------
@@ -639,7 +641,7 @@ export function showSummary(w) {
   const o = overlay(`
     <div class="summary">
       <div class="summary-hero">
-        <div class="confetti">🎉</div>
+        <div class="summary-fighter">${fighterFx(stageFor(weekStreaks().current).index, { enter: true, powerUp: true })}</div>
         <h2>Starkes Training!</h2>
         <p>Das war dein <b>${s?.n ?? ''}.</b> Workout</p>
       </div>

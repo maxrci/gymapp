@@ -5,6 +5,9 @@ import { LIBRARY, MUSCLES, TYPES, inferExercise } from './library.js';
 import { idx } from './stats.js';
 import { esc, fmtRelDay } from './utils.js';
 import { icon, overlay, formDialog, toast } from './ui.js';
+import { poseSVG, poseFor } from './poses.js';
+import { stageFor } from './gamification.js';
+import { weekStreaks } from './stats.js';
 
 export function pickExercises({ multi = true, title = 'Übung hinzufügen' } = {}) {
   return new Promise((resolve) => {
@@ -15,6 +18,7 @@ export function pickExercises({ multi = true, title = 'Übung hinzufügen' } = {
       return { name: n, meta: exerciseMeta(n), count: x?.count || 0, last: x?.last || 0 };
     }).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'de'));
 
+    const stg = stageFor(weekStreaks().current).index;
     let q = '';
     let muscle = '';
     const selected = [];
@@ -43,7 +47,7 @@ export function pickExercises({ multi = true, title = 'Übung hinzufügen' } = {
       const row = (it) => {
         const si = selected.indexOf(it.name);
         return `<button class="pick-row ${si >= 0 ? 'sel' : ''}" data-name="${esc(it.name)}">
-          <div class="pick-avatar">${esc(it.name.slice(0, 1))}</div>
+          <div class="pick-avatar pose-av">${poseSVG(poseFor(it.name), { stage: stg })}</div>
           <div class="pick-main"><div class="pick-name">${esc(it.name)}</div>
           <div class="pick-sub">${esc(it.meta.primary)}${it.count ? ` · ${it.count}× · ${fmtRelDay(it.last)}` : ''}</div></div>
           ${si >= 0 ? `<span class="pick-num">${multi ? si + 1 : icon('check')}</span>` : ''}

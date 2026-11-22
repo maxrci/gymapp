@@ -13,10 +13,10 @@ export const ZONES = {
 };
 
 export const DEVICES = {
-  treadmill: { label: 'Laufband', icon: '🏃', exercise: 'Laufband' },
-  bike: { label: 'Rad / Ergometer', icon: '🚴', exercise: 'Radfahren' },
-  elliptical: { label: 'Crosstrainer', icon: '⛷️', exercise: 'Crosstrainer' },
-  rower: { label: 'Rudergerät', icon: '🚣', exercise: 'Rudermaschine' },
+  treadmill: { label: 'Laufband', pose: 'run', exercise: 'Laufband' },
+  bike: { label: 'Rad', pose: 'bike', exercise: 'Radfahren' },
+  elliptical: { label: 'Crosstrainer', pose: 'elliptical', exercise: 'Crosstrainer' },
+  rower: { label: 'Rudergerät', pose: 'rower', exercise: 'Rudermaschine' },
 };
 
 export const DEFAULT_CARDIO = {
@@ -64,12 +64,12 @@ const P = (label, zone, min, kind, extra = {}) => ({ label, zone, dur: Math.roun
 
 export const CARDIO = [
   {
-    id: 'zone2', title: 'Grundlagenausdauer', icon: '🫀', desc: 'Lange, lockere Einheit in Zone 2 – baut deine Ausdauerbasis und Fettstoffwechsel auf.',
+    id: 'zone2', title: 'Grundlagenausdauer', desc: 'Lange, lockere Einheit in Zone 2 – baut deine Ausdauerbasis und Fettstoffwechsel auf.',
     options: [20, 30, 45, 60], def: 30,
     build: (m) => [P('Aufwärmen', 1, 5, 'warmup'), P('Grundlage', 2, m - 10, 'base'), P('Auslaufen', 1, 5, 'cool')],
   },
   {
-    id: 'hiit44', title: '4×4 Intervalle', icon: '🔥', desc: 'Der Klassiker für die maximale Sauerstoffaufnahme: 4 Minuten hart, 3 Minuten locker.',
+    id: 'hiit44', title: '4×4 Intervalle', desc: 'Der Klassiker für die maximale Sauerstoffaufnahme: 4 Minuten hart, 3 Minuten locker.',
     build: () => {
       const ph = [P('Aufwärmen', 1, 5, 'warmup'), P('Aufwärmen steigern', 2, 5, 'warmup')];
       for (let i = 1; i <= 4; i++) {
@@ -81,7 +81,7 @@ export const CARDIO = [
     },
   },
   {
-    id: 'sprint', title: '30/30 Sprints', icon: '⚡', desc: '30 Sekunden Vollgas, 30 Sekunden locker. Kurz, knackig, effektiv.',
+    id: 'sprint', title: '30/30 Sprints', desc: '30 Sekunden Vollgas, 30 Sekunden locker. Kurz, knackig, effektiv.',
     options: [8, 10, 12], optLabel: 'Runden', def: 10,
     build: (n) => {
       const ph = [P('Aufwärmen', 1, 4, 'warmup'), P('Aufwärmen steigern', 2, 4, 'warmup')];
@@ -94,7 +94,7 @@ export const CARDIO = [
     },
   },
   {
-    id: 'pyramid', title: 'Pyramide', icon: '🔺', desc: '1-2-3-4-3-2-1 Minuten hart mit gleich langer Erholung.',
+    id: 'pyramid', title: 'Pyramide', desc: '1-2-3-4-3-2-1 Minuten hart mit gleich langer Erholung.',
     build: () => {
       const ph = [P('Aufwärmen', 1, 4, 'warmup'), P('Aufwärmen steigern', 2, 4, 'warmup')];
       const steps = [1, 2, 3, 4, 3, 2, 1];
@@ -107,7 +107,7 @@ export const CARDIO = [
     },
   },
   {
-    id: 'progressive', title: 'Steigerungslauf', icon: '📈', desc: 'Alle 5 Minuten eine Stufe schneller – vom lockeren Einrollen bis zum starken Finish.',
+    id: 'progressive', title: 'Steigerungslauf', desc: 'Alle 5 Minuten eine Stufe schneller – vom lockeren Einrollen bis zum starken Finish.',
     options: [30, 40], def: 30,
     build: (m) => {
       const blocks = m === 40 ? [1, 2, 2, 3, 3, 4, 4] : [1, 2, 3, 3, 4];
@@ -115,7 +115,7 @@ export const CARDIO = [
     },
   },
   {
-    id: 'tempo', title: 'Schwellentraining', icon: '🎯', desc: '3× 8 Minuten zügig an der Schwelle – verbessert dein Durchhaltevermögen.',
+    id: 'tempo', title: 'Schwellentraining', desc: '3× 8 Minuten zügig an der Schwelle – verbessert dein Durchhaltevermögen.',
     build: () => {
       const ph = [P('Aufwärmen', 1, 5, 'warmup'), P('Aufwärmen steigern', 2, 5, 'warmup')];
       for (let i = 1; i <= 3; i++) {
@@ -127,7 +127,7 @@ export const CARDIO = [
     },
   },
   {
-    id: 'walk', title: '12-3-30 Gehen', icon: '⛰️', desc: '30 Minuten bergauf gehen: 12 % Steigung, 5 km/h. Gelenkschonend und fordernd.', devices: ['treadmill'],
+    id: 'walk', title: '12-3-30 Gehen', desc: '30 Minuten bergauf gehen: 12 % Steigung, 5 km/h. Gelenkschonend und fordernd.', devices: ['treadmill'],
     build: () => [
       P('Einlaufen', 1, 3, 'warmup', { fixed: { speed: 4.5, incline: 3 } }),
       P('Bergauf gehen', 2, 30, 'base', { fixed: { speed: 5, incline: 12 } }),
@@ -135,58 +135,52 @@ export const CARDIO = [
     ],
   },
   {
-    id: 'recovery', title: 'Regeneration', icon: '🍃', desc: 'Sehr lockere Bewegung am Ruhetag – fördert die Erholung.',
+    id: 'recovery', title: 'Regeneration', desc: 'Sehr lockere Bewegung am Ruhetag – fördert die Erholung.',
     options: [15, 20, 30], def: 20,
     build: (m) => [P('Locker bewegen', 1, m, 'base')],
   },
 ];
 
 // ---------------- Mobility ----------------
+// [Name, Pose, Anleitung, beidseitig]
 export const MOVES = {
-  catcow: ['Katze-Kuh', '🐈', 'Vierfüßlerstand. Ausatmen: Rücken rund machen. Einatmen: Brust nach vorn, sanftes Hohlkreuz.'],
-  child: ['Kindhaltung', '🙇', 'Knie breit, Gesäß Richtung Fersen, Arme weit nach vorn. Tief in den Rücken atmen.'],
-  wgs: ['Weltbeste Dehnung', '🌍', 'Tiefer Ausfallschritt, Ellbogen innen Richtung Boden, dann den Arm zur Decke aufdrehen.', true],
-  hipflexor: ['Hüftbeuger-Dehnung', '🦵', 'Halbkniestand, Gesäß anspannen und Becken leicht nach vorn schieben. Oberkörper aufrecht.', true],
-  pigeon: ['Taube', '🕊️', 'Vorderes Bein angewinkelt vor dem Körper, hinteres Bein lang. Oberkörper langsam absenken.', true],
-  ninety: ['90/90 Hüftrotation', '🔄', 'Beide Knie im 90°-Winkel. Langsam von einer Seite zur anderen kippen, aufrecht bleiben.'],
-  thoracic: ['BWS-Rotation', '🌀', 'Vierfüßlerstand, Hand an den Hinterkopf. Ellbogen zum Boden, dann weit zur Decke aufdrehen.', true],
-  wallangel: ['Wand-Engel', '👼', 'Rücken und Arme an der Wand. Arme in U-Form langsam hoch- und runterschieben.'],
-  chest: ['Brustdehnung', '🚪', 'Unterarm an Türrahmen oder Wand, Körper sanft von der Seite wegdrehen.', true],
-  hamstring: ['Beinrückseite dehnen', '📏', 'Bein gestreckt auflegen, aus der Hüfte nach vorn beugen, Rücken lang halten.', true],
-  couch: ['Couch-Stretch', '🛋️', 'Knie an Wand oder Bank, Fuß nach oben, vorderes Bein aufgestellt. Gesäß anspannen.', true],
-  squat: ['Tiefe Hocke', '🧎', 'Füße schulterbreit, tief in die Hocke sinken, Ellbogen schieben die Knie nach außen.'],
-  cossack: ['Cossack Squat', '↔️', 'Breiter Stand, Gewicht langsam auf ein Bein verlagern, das andere bleibt gestreckt. Abwechseln.'],
-  ankle: ['Sprunggelenk mobilisieren', '🦶', 'Fuß vor der Wand, Knie Richtung Wand schieben – Ferse bleibt am Boden.', true],
-  neck: ['Nacken seitlich', '🧣', 'Ohr Richtung Schulter neigen, die andere Schulter sanft nach unten ziehen.', true],
-  hang: ['Hängen an der Stange', '🙌', 'Passiv an der Klimmzugstange hängen, Schultern lösen, ruhig atmen.'],
-  bridge: ['Glute Bridge', '🌉', 'Rückenlage, Füße aufgestellt. Becken heben, oben Gesäß fest anspannen.'],
-  birddog: ['Bird Dog', '🐕', 'Vierfüßlerstand: gegengleich Arm und Bein strecken, kurz halten, wechseln.'],
-  cobra: ['Kobra', '🐍', 'Bauchlage, Hände unter den Schultern. Oberkörper sanft aufrichten, Schultern tief.'],
-  downdog: ['Herabschauender Hund', '🔺', 'Hände und Füße am Boden, Gesäß nach oben, Fersen Richtung Boden, Rücken lang.'],
-  twist: ['Liegende Rotation', '🌙', 'Rückenlage, Knie zur Seite fallen lassen, Blick zur Gegenseite, Schultern am Boden.', true],
-  butterfly: ['Schmetterling', '🦋', 'Fußsohlen zusammen, Knie sinken lassen, aufrecht sitzen und ruhig atmen.'],
-  frog: ['Frosch-Dehnung', '🐸', 'Vierfüßlerstand mit weiten Knien, Hüfte langsam nach hinten schieben.'],
-  shoulders: ['Schulterkreisen', '⭕', 'Große, langsame Kreise – erst vorwärts, dann rückwärts.'],
-  arms: ['Armkreisen', '💫', 'Arme gestreckt, große Kreise in beide Richtungen.'],
-  legswing: ['Beinpendel', '🦿', 'Festhalten, Bein locker vor und zurück schwingen, Bewegung langsam vergrößern.', true],
-  sidebend: ['Seitneigung', '🌾', 'Arm über den Kopf, Oberkörper seitlich neigen, Flanke lang machen.', true],
-  fold: ['Vorbeuge stehend', '🙇‍♂️', 'Knie leicht gebeugt, Oberkörper hängen lassen, Kopf und Nacken locker.'],
+  catcow: ['Katze-Kuh', 'catcow', 'Vierfüßlerstand. Ausatmen: Rücken rund. Einatmen: Brust nach vorn.'],
+  child: ['Kindhaltung', 'child', 'Gesäß Richtung Fersen, Arme weit nach vorn, tief in den Rücken atmen.'],
+  wgs: ['Weltbeste Dehnung', 'wgs', 'Tiefer Ausfallschritt, dann den Arm zur Decke aufdrehen.', true],
+  hipflexor: ['Hüftbeuger-Dehnung', 'hipflexor', 'Halbkniestand, Gesäß anspannen, Becken nach vorn schieben.', true],
+  couch: ['Couch-Stretch', 'couch', 'Hinteren Fuß an die Wand, Gesäß anspannen, aufrecht bleiben.', true],
+  pigeon: ['Taube', 'pigeon', 'Vorderes Bein angewinkelt, hinteres lang. Oberkörper langsam absenken.', true],
+  hamstring: ['Beinrückseite dehnen', 'hamstring', 'Beine lang, aus der Hüfte nach vorn beugen, Rücken lang.'],
+  squat: ['Tiefe Hocke', 'squatHold', 'Tief in die Hocke, Ellbogen schieben die Knie nach außen.'],
+  thoracic: ['BWS-Rotation', 'thoracic', 'Vierfüßlerstand, einen Arm weit zur Decke aufdrehen.', true],
+  arms: ['Armkreisen', 'armCircles', 'Arme gestreckt, große langsame Kreise.'],
+  chest: ['Brustdehnung', 'chest', 'Arm nach hinten an die Wand, Körper sanft wegdrehen.', true],
+  ankle: ['Sprunggelenk mobilisieren', 'ankle', 'Knie Richtung Wand schieben, Ferse bleibt am Boden.', true],
+  hang: ['Hängen', 'hang', 'Passiv an der Stange hängen, Schultern lösen.'],
+  bridge: ['Glute Bridge', 'bridge', 'Rückenlage, Becken heben, oben Gesäß anspannen.'],
+  birddog: ['Bird Dog', 'birddog', 'Vierfüßlerstand, Arm und gegenüberliegendes Bein strecken.', true],
+  cobra: ['Kobra', 'cobra', 'Bauchlage, Oberkörper sanft aufrichten, Schultern tief.'],
+  downdog: ['Herabschauender Hund', 'downdog', 'Gesäß nach oben, Fersen Richtung Boden.'],
+  kneehug: ['Knie zur Brust', 'kneeHug', 'Rückenlage, ein Knie zur Brust ziehen, Rücken entspannen.', true],
+  butterfly: ['Schmetterling', 'butterfly', 'Fußsohlen zusammen, Knie sinken lassen, aufrecht sitzen.'],
+  legswing: ['Beinpendel', 'legswing', 'Festhalten, Bein locker vor und zurück schwingen.', true],
+  fold: ['Vorbeuge', 'fold', 'Knie leicht gebeugt, Oberkörper locker hängen lassen.'],
 };
 
 const M = (id, sec) => ({ id, sec });
 export const MOBILITY = [
-  { id: 'morning', title: 'Morgen-Mobility', icon: '🌅', desc: 'Sanft wach werden – Wirbelsäule, Hüfte und Schultern in Bewegung bringen.',
+  { id: 'morning', title: 'Morgen-Mobility', desc: 'Wirbelsäule, Hüfte und Schultern sanft aufwecken.',
     moves: [M('catcow', 60), M('wgs', 40), M('thoracic', 30), M('squat', 60), M('legswing', 30), M('arms', 40), M('fold', 45)] },
-  { id: 'hips', title: 'Hüfte & unterer Rücken', icon: '🦴', desc: 'Löst verkürzte Hüftbeuger und entlastet den unteren Rücken.',
-    moves: [M('catcow', 60), M('ninety', 60), M('pigeon', 60), M('hipflexor', 45), M('frog', 60), M('butterfly', 60), M('child', 60), M('twist', 45)] },
-  { id: 'shoulders', title: 'Schulter & Brustwirbelsäule', icon: '💪', desc: 'Ideal vor Push-/Pull-Tagen und nach langem Sitzen.',
-    moves: [M('shoulders', 45), M('arms', 45), M('wallangel', 60), M('thoracic', 40), M('chest', 40), M('hang', 30), M('child', 45), M('cobra', 30)] },
-  { id: 'legs', title: 'Beine nach dem Training', icon: '🦵', desc: 'Cool-down für Legday: Beinrückseite, Hüfte, Waden.',
-    moves: [M('hamstring', 45), M('couch', 45), M('pigeon', 45), M('butterfly', 45), M('ankle', 30), M('squat', 45)] },
-  { id: 'flow', title: 'Ganzkörper-Flow', icon: '🌊', desc: 'Kompletter Durchgang für Beweglichkeit und Stabilität.',
-    moves: [M('catcow', 60), M('downdog', 45), M('cobra', 30), M('wgs', 45), M('cossack', 60), M('ninety', 60), M('thoracic', 40), M('bridge', 45), M('birddog', 60), M('twist', 40), M('child', 60)] },
-  { id: 'desk', title: 'Schreibtisch-Reset', icon: '💻', desc: '6 Minuten gegen Bürohaltung – geht auch in Alltagskleidung.',
-    moves: [M('neck', 30), M('shoulders', 40), M('chest', 30), M('sidebend', 30), M('hipflexor', 30), M('fold', 40)] },
+  { id: 'hips', title: 'Hüfte & unterer Rücken', desc: 'Löst die Hüftbeuger und entlastet den unteren Rücken.',
+    moves: [M('catcow', 60), M('pigeon', 60), M('hipflexor', 45), M('butterfly', 60), M('kneehug', 40), M('child', 60)] },
+  { id: 'shoulders', title: 'Schulter & Brustwirbelsäule', desc: 'Vor Push- und Pull-Tagen oder nach langem Sitzen.',
+    moves: [M('arms', 45), M('thoracic', 40), M('chest', 40), M('hang', 30), M('cobra', 40), M('child', 45)] },
+  { id: 'legs', title: 'Beine nach dem Training', desc: 'Cool-down für Beinrückseite, Hüfte und Waden.',
+    moves: [M('hamstring', 60), M('couch', 45), M('pigeon', 45), M('ankle', 30), M('squat', 45)] },
+  { id: 'flow', title: 'Ganzkörper-Flow', desc: 'Kompletter Durchgang für Beweglichkeit und Stabilität.',
+    moves: [M('catcow', 60), M('downdog', 45), M('cobra', 30), M('wgs', 45), M('birddog', 40), M('bridge', 45), M('kneehug', 40), M('child', 60)] },
+  { id: 'desk', title: 'Schreibtisch-Reset', desc: '6 Minuten gegen Bürohaltung.',
+    moves: [M('arms', 40), M('chest', 30), M('hipflexor', 30), M('fold', 40), M('squat', 40)] },
 ];
 
 const PREP = 6;   // Sekunden Vorbereitung vor jeder Übung
@@ -195,13 +189,14 @@ const SWITCH = 5; // Seitenwechsel
 export function mobilityPhases(prog) {
   const ph = [];
   prog.moves.forEach((m, i) => {
-    const [name, emoji, cue, sides] = MOVES[m.id];
-    ph.push({ label: `Gleich: ${name}`, kind: 'prep', dur: i === 0 ? 10 : PREP, emoji, name, cue, idx: i });
+    const [name, pose, cue, sides] = MOVES[m.id];
+    const base = { name, pose, cue, idx: i };
+    ph.push({ ...base, label: `Gleich: ${name}`, kind: 'prep', dur: i === 0 ? 10 : PREP });
     if (sides) {
-      ph.push({ label: name, kind: 'move', dur: m.sec, emoji, name, cue, side: 'Links', idx: i });
-      ph.push({ label: 'Seite wechseln', kind: 'switch', dur: SWITCH, emoji, name, cue, idx: i });
-      ph.push({ label: name, kind: 'move', dur: m.sec, emoji, name, cue, side: 'Rechts', idx: i });
-    } else ph.push({ label: name, kind: 'move', dur: m.sec, emoji, name, cue, idx: i });
+      ph.push({ ...base, label: name, kind: 'move', dur: m.sec, side: 'Links' });
+      ph.push({ ...base, label: 'Seite wechseln', kind: 'switch', dur: SWITCH });
+      ph.push({ ...base, label: name, kind: 'move', dur: m.sec, side: 'Rechts' });
+    } else ph.push({ ...base, label: name, kind: 'move', dur: m.sec });
   });
   return ph;
 }

@@ -4,12 +4,16 @@ import { pageHead, fmtSet, setBadge, kpi, prValue, prLabel, emptyState } from '.
 import { icon, sheet, confirmDialog, toast } from '../ui.js';
 import { esc, fmtDateLong, fmtTime, fmtDur, fmtVolume, num, e1rm, fmtKg } from '../utils.js';
 import { editWorkout } from '../workout.js';
+import { poseSVG, poseFor } from '../poses.js';
+import { stageFor } from '../gamification.js';
+import { weekStreaks } from '../stats.js';
 import { routineFromWorkout, repeatWorkout } from '../actions.js';
 
 export function workoutDetailView({ id }) {
   const w = getWorkout(id);
   if (!w) return { html: pageHead('Workout', { back: '#/home' }) + emptyState('info', 'Nicht gefunden', 'Dieses Workout existiert nicht mehr.') };
   const { wStats, ex } = idx();
+  const stg = stageFor(weekStreaks().current).index;
   const s = wStats.get(w.id) || {};
   const prsByEx = {};
   for (const p of s.prs || []) (prsByEx[p.exercise] ||= []).push(p);
@@ -26,7 +30,7 @@ export function workoutDetailView({ id }) {
     const prs = prsByEx[e.name] || [];
     return `<section class="card">
       <a class="dex-head" href="#/ex/${encodeURIComponent(e.name)}">
-        <div class="ex-avatar">${esc(e.name.slice(0, 1))}</div>
+        <div class="ex-avatar pose-av">${poseSVG(poseFor(e.name), { stage: stg })}</div>
         <div class="ex-titles"><div class="ex-name">${esc(e.name)}</div><div class="ex-sub">${esc(x?.meta.primary || '')}</div></div>
         ${icon('right', 'muted')}
       </a>

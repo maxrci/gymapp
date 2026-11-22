@@ -28,7 +28,7 @@ Alle Daten bleiben lokal auf dem Gerät (IndexedDB).
 - **Weitere Diagramme**: Trainingsbelastung (akut:chronisch), Trainingsdichte, Hauptübungen indexiert,
   Intensitätsverteilung (% vom 1RM), Muskelgruppen gestapelt, Jahresrückblick.
 - **Heller und dunkler Modus** (Profil → Darstellung; Hell, Dunkel oder System).
-- **Gamification**: eigene Kämpfer-Figur, die mit der Streak in 6 Stufen wächst (Streak = Wochen mit
+- **Gamification**: eigene Kämpfer-Figur, die mit der Streak in 6 Stufen wächst (Killstreaks: Blutrünstig, Gnadenlos, Skrupellos, Unnachgiebig, Brutal, Nuklear, Unaufhaltsam) (Streak = Wochen mit
   erreichtem Wochenziel), Streak-Warnung, Kampfkraft, Level/XP, Wochen-Aufgaben, Abzeichen.
 - **PR-Effekte**: Bei einem neuen Rekord wird die Satzzeile orange-gelb wie Feuer, dazu 3 Sekunden
   Einblendung mit Power-up-Sound (abschaltbar).

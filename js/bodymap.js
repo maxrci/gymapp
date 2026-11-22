@@ -70,7 +70,7 @@ export function bodyMap(values, { mode = 'volume', fmt } = {}) {
   };
   const f = fmt || ((v) => (mode === 'readiness' ? `${num(v * 100, 0)} % erholt` : `${num(v, 1)} Sätze/Woche`));
   const legendHtml = mode === 'readiness'
-    ? `<div class="bm-legend"><span><i style="background:var(--st-good)"></i>✓ erholt ≥80 %</span><span><i style="background:var(--st-warn)"></i>◐ 50–80 %</span><span><i style="background:var(--st-crit)"></i>✕ ermüdet</span></div>`
+    ? `<div class="bm-legend"><span><i style="background:var(--st-good)"></i>erholt (ab 80 %)</span><span><i style="background:var(--st-warn)"></i>50–80 %</span><span><i style="background:var(--st-crit)"></i>ermüdet</span></div>`
     : `<div class="bm-legend"><span><i style="background:var(--heat0)"></i>0</span><span><i style="background:var(--heat1)"></i>&lt;3</span><span><i style="background:var(--heat2)"></i>3–6</span><span><i style="background:var(--heat3)"></i>6–10</span><span><i style="background:var(--heat4)"></i>10+ Sätze/Wo.</span></div>`;
   const data = esc(JSON.stringify(Object.fromEntries(Object.entries(values).map(([k, v]) => [k, f(v)]))));
   return `<div class="bodymap" data-bmvals="${data}">

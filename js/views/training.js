@@ -8,6 +8,9 @@ import { defaultTitle } from './home.js';
 import { aiOn, nextWorkout, stagnation } from '../ai.js';
 import { bodyMap, mountBodyMaps } from '../bodymap.js';
 import { lineChart, SERIES } from '../charts.js';
+import { poseSVG } from '../poses.js';
+import { stageFor } from '../gamification.js';
+import { weekStreaks } from '../stats.js';
 import { openCardioSetup, openMobilitySetup, hasGuided, resumeGuided } from '../guided.js';
 
 const pctCls = (r) => (r >= 0.8 ? 'good' : r >= 0.5 ? 'warn' : 'crit');
@@ -48,7 +51,7 @@ function coachHtml() {
           </a>
           <div data-stag="${i}"></div>
           <ul class="tips">${s.tips.slice(0, 3).map((t) => `<li>${esc(t)}</li>`).join('')}</ul>
-        </div>`).join('') : '<p class="footnote">Keine Stagnation erkannt – weiter so! 🚀</p>'}
+        </div>`).join('') : '<p class="footnote">Keine Stagnation erkannt – weiter so.</p>'}
       ${progress.length ? `<div class="stag-progress">▲ ${progress.length} Übung${progress.length > 1 ? 'en' : ''} im Aufwärtstrend: ${esc(progress.slice(0, 6).map((s) => s.x.name).join(', '))}</div>` : ''}
     </section>`;
 }
@@ -71,6 +74,7 @@ export function trainingView() {
     </div>`;
   }).join('');
 
+  const stg = stageFor(weekStreaks().current).index;
   const stagData = ai ? stagnation().filter((s) => s.status !== 'progress').slice(0, 8) : [];
 
   const html = `
@@ -88,8 +92,8 @@ export function trainingView() {
     </section>
     <h2 class="section-title">Geführt</h2>
     <div class="guided-grid">
-      <button class="guided-tile cardio" data-act="cardio"><span>🏃</span><b>Cardio</b><small>Intervalle, Grundlage, Steigerung – Vollbild mit Geräte-Einstellungen</small></button>
-      <button class="guided-tile mobility" data-act="mobility"><span>🧘</span><b>Mobility</b><small>Routinen mit automatischem Timer & Seitenwechsel</small></button>
+      <button class="guided-tile cardio" data-act="cardio"><div class="gt-fig">${poseSVG('run', { stage: stg, t: 0.2 })}</div><b>Cardio</b><small>Intervalle & Grundlage</small></button>
+      <button class="guided-tile mobility" data-act="mobility"><div class="gt-fig">${poseSVG('wgs', { stage: stg, t: 0.5 })}</div><b>Mobility</b><small>Geführte Routinen</small></button>
     </div>
     <div class="section-row"><h2 class="section-title">Routinen</h2><button class="link-btn" data-act="new">${icon('plus', 'xs')} Neu</button></div>
     ${rs.length ? cards : emptyState('layers', 'Noch keine Routinen', 'Routinen sind Vorlagen für deine Workouts (z. B. Push, Pull, Beine).',

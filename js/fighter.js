@@ -10,13 +10,13 @@ const BLUE = '#2b4fa8';
 const HAIR_DARK = '#1d1d22';
 const HAIR_GOLD = '#ffd23f';
 
-export function fighterSVG(stage = 0, { powerUp = false, cls = '' } = {}) {
+export function fighterSVG(stage = 0, { powerUp = false, cls = '', intro = false } = {}) {
   const id = `f${++uidc}`;
-  const m = [0, 0.22, 0.42, 0.62, 0.82, 1][stage] ?? 0;
-  const tired = stage === 0 && !powerUp;
-  const gold = stage >= 4;
-  const auraOn = stage >= 3 || powerUp;
-  const auraCol = gold || powerUp ? '#ffd23f' : '#8fc4ff';
+  const m = [0, 0.16, 0.32, 0.48, 0.62, 0.76, 0.9, 1][stage] ?? 0;
+  const tired = stage === 0 && !powerUp && !intro;
+  const gold = stage >= 5;
+  const auraOn = stage >= 3 || powerUp || intro;
+  const auraCol = gold || powerUp || intro ? '#ffd23f' : '#8fc4ff';
   const dy = tired ? 6 : 0; // Schultern/Kopf hängen
   const cx = 100;
   const headY = 62 + dy;
@@ -64,6 +64,13 @@ export function fighterSVG(stage = 0, { powerUp = false, cls = '' } = {}) {
     ? `<path d="M88,${headY + 1} h8 M104,${headY + 1} h8" stroke="#222" stroke-width="2.4" stroke-linecap="round"/>`
     : `<ellipse cx="92" cy="${headY + 1}" rx="2.6" ry="3.2" fill="${gold ? '#1a7a8c' : '#222'}"/><ellipse cx="108" cy="${headY + 1}" rx="2.6" ry="3.2" fill="${gold ? '#1a7a8c' : '#222'}"/>
        <path d="M86,${headY - 6} L96,${headY - 3} M114,${headY - 6} L104,${headY - 3}" stroke="#222" stroke-width="2.4" stroke-linecap="round"/>`;
+  const eyeCol = gold ? '#1a7a8c' : '#222';
+  const introFace = `
+    <g class="e-happy"><path d="M87,${headY + 2} q5,-6 10,0 M103,${headY + 2} q5,-6 10,0" stroke="#222" stroke-width="2.6" fill="none" stroke-linecap="round"/></g>
+    <g class="e-up"><ellipse cx="92" cy="${headY - 3}" rx="2.6" ry="3.2" fill="${eyeCol}"/><ellipse cx="108" cy="${headY - 3}" rx="2.6" ry="3.2" fill="${eyeCol}"/>
+      <path d="M86,${headY - 8} L96,${headY - 4} M114,${headY - 8} L104,${headY - 4}" stroke="#222" stroke-width="2.6" stroke-linecap="round"/></g>
+    <path class="m-smile" d="M92,${headY + 9} q8,10 16,0 Z" fill="#6b1f1f" stroke="#7a3b2a" stroke-width="1.5" stroke-linejoin="round"/>
+    <ellipse class="m-scream" cx="100" cy="${headY + 12}" rx="7" ry="8" fill="#6b1f1f"/><path class="m-scream" d="M94,${headY + 7} h12" stroke="#fff" stroke-width="2" stroke-linecap="round"/>`;
   const mouth = powerUp
     ? `<ellipse cx="100" cy="${headY + 12}" rx="5" ry="4.5" fill="#6b1f1f"/>`
     : tired ? `<path d="M95,${headY + 12} q2.5,-2 5,0 q2.5,2 5,0" stroke="#7a3b2a" stroke-width="1.8" fill="none"/>`
@@ -74,7 +81,7 @@ export function fighterSVG(stage = 0, { powerUp = false, cls = '' } = {}) {
       <path d="M100,8 C140,30 170,70 168,140 C166,200 140,250 100,256 C60,250 34,200 32,140 C30,70 60,30 100,8 Z" fill="url(#${id}a)"/>
       <path d="M100,26 L112,6 L116,36 L134,18 L130,52 L152,44 L140,80 M100,26 L88,6 L84,36 L66,18 L70,52 L48,44 L60,80" stroke="${auraCol}" stroke-width="3" fill="none" opacity=".55" stroke-linejoin="round"/>
     </g>` : '';
-  const bolts = stage >= 5 || (powerUp && stage >= 4) ? `
+  const bolts = stage >= 6 || (powerUp && stage >= 5) ? `
     <g class="bolts" stroke="#b9f3ff" stroke-width="2.4" fill="none" stroke-linejoin="round">
       <path class="bolt" d="M40,96 l12,10 -8,6 14,12"/><path class="bolt b2" d="M160,84 l-12,12 8,4 -14,14"/>
       <path class="bolt b3" d="M52,176 l10,-6 2,10 12,-8"/><path class="bolt" d="M150,186 l-8,-10 -4,8 -10,-8"/>
@@ -83,7 +90,7 @@ export function fighterSVG(stage = 0, { powerUp = false, cls = '' } = {}) {
   const particles = powerUp ? `<g class="particles" stroke="${auraCol}" stroke-width="2.5" stroke-linecap="round">
       <path d="M30,230 v-14"/><path d="M60,246 v-18"/><path d="M140,246 v-18"/><path d="M172,232 v-14"/><path d="M100,256 v-12"/></g>` : '';
 
-  return `<svg class="fighter ${cls} st${stage} ${powerUp ? 'power' : ''}" viewBox="0 0 200 260" xmlns="http://www.w3.org/2000/svg" aria-label="Kämpfer Stufe ${stage}">
+  return `<svg class="fighter ${cls} st${stage} ${powerUp ? 'power' : ''} ${intro ? 'f-intro' : ''}" viewBox="0 0 200 260" xmlns="http://www.w3.org/2000/svg" aria-label="Kämpfer Stufe ${stage}">
     <defs>
       <radialGradient id="${id}a" cx="50%" cy="55%" r="55%">
         <stop offset="0" stop-color="${auraCol}" stop-opacity=".0"/>
@@ -101,11 +108,13 @@ export function fighterSVG(stage = 0, { powerUp = false, cls = '' } = {}) {
       <path d="${vneck}" fill="${BLUE}"/>
       ${pecs}
       <rect x="${cx - ww - 2}" y="152" width="${ww * 2 + 4}" height="11" rx="3" fill="${BLUE}"/>
-      <circle cx="80" cy="${headY + 3}" r="5" fill="${SKIN}"/><circle cx="120" cy="${headY + 3}" r="5" fill="${SKIN}"/>
-      <ellipse cx="100" cy="${headY + 2}" rx="20" ry="22" fill="${SKIN}"/>
-      <path d="${hair}" fill="${gold ? HAIR_GOLD : HAIR_DARK}"/>
-      <path d="${bangs}" fill="${gold ? HAIR_GOLD : HAIR_DARK}"/>
-      ${eyes}${mouth}${sweat}
+      <g class="f-head" style="transform-origin:100px ${headY + 22}px">
+        <circle cx="80" cy="${headY + 3}" r="5" fill="${SKIN}"/><circle cx="120" cy="${headY + 3}" r="5" fill="${SKIN}"/>
+        <ellipse cx="100" cy="${headY + 2}" rx="20" ry="22" fill="${SKIN}"/>
+        <path d="${hair}" fill="${gold ? HAIR_GOLD : HAIR_DARK}"/>
+        <path d="${bangs}" fill="${gold ? HAIR_GOLD : HAIR_DARK}"/>
+        ${intro ? introFace : `${eyes}${mouth}${sweat}`}
+      </g>
     </g>
     ${bolts}${particles}
   </svg>`;
