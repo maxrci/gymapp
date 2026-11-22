@@ -9,7 +9,7 @@ import { cardioKind, MOBILITY_RE } from './compete.js';
 
 const LS = 'gymlog-srv';
 const LS_GROUP = 'gymlog-group';
-const empty = () => ({ token: null, user: null, group: '', cursor: 0, dirty: { workout: {}, routine: {} }, tomb: [], profHash: '', profUpdated: 0, lastSync: 0 });
+const empty = () => ({ server: '', token: null, user: null, group: '', cursor: 0, dirty: { workout: {}, routine: {} }, tomb: [], profHash: '', profUpdated: 0, lastSync: 0 });
 let S = load();
 let tick = 0;
 
@@ -30,8 +30,10 @@ export const myId = () => S.user?.id || (demoOn() ? 'me' : undefined);
 const pendingCount = () => Object.keys(S.dirty.workout).length + Object.keys(S.dirty.routine).length + S.tomb.length;
 
 // ---------- Server erkennen ----------
+// Die App kann vom Server selbst kommen (gleiche Adresse) oder z. B. von GitHub Pages – dann steht die Server-Adresse in S.server.
 export async function detectServer() {
-  if (location.protocol === 'file:' && !window.__GYMLOG_API) return false;
+  const base = S.server || window.__GYMLOG_API || '';
+  if (location.protocol === 'file:' && !base) return false;
   try {
     const r = await fetch(apiUrl('api/info'), { cache: 'no-store' });
     const j = await r.json();
@@ -39,18 +41,36 @@ export async function detectServer() {
   } catch { srv.available = loggedIn(); }
   return srv.available;
 }
-const apiUrl = (p) => (window.__GYMLOG_API ? `${window.__GYMLOG_API}/${p}` : p);
+const apiUrl = (p, base = S.server || window.__GYMLOG_API || '') => (base ? `${base}/${p}` : p);
+export const serverUrl = () => S.server || '';
 
-export async function api(method, path, body) {
-  if (demoOn() && !/^\/api\/(redeem|info)/.test(path)) return demoApi(method, path, body);
-  const r = await fetch(apiUrl(path.replace(/^\//, '')), {
+// Server-Adresse aus Eingabe oder Einladungslink lesen
+export function parseServerInput(text) {
+  const raw = String(text || '').trim();
+  if (!raw) return { server: '' };
+  const t = (/https?:\/\/[^\s]+/i.exec(raw) || [raw])[0];
+  const m = /[#?&]server=([^&\s]+)/.exec(t);
+  const user = (/[#?&]user=([^&\s]+)/.exec(t) || [])[1];
+  let server = m ? decodeURIComponent(m[1]) : t.split('#')[0].split('?')[0];
+  if (!/^https?:\/\//i.test(server)) server = `https://${server}`;
+  return { server: server.replace(/\/+$/, ''), user: user ? decodeURIComponent(user) : '' };
+}
+// Läuft die App auf dem Server selbst? (dann braucht es keine Server-Adresse)
+export async function sameOriginServer() {
+  if (location.protocol === 'file:') return false;
+  try { const j = await (await fetch('api/info', { cache: 'no-store' })).json(); return j.app === 'gymlog' ? j : false; } catch { return false; }
+}
+
+export async function api(method, path, body, base = null) {
+  if (demoOn() && !/^\/api\/(redeem|login|info)/.test(path)) return demoApi(method, path, body);
+  const r = await fetch(apiUrl(path.replace(/^\//, ''), base ?? undefined), {
     method,
     headers: { 'Content-Type': 'application/json', ...(S.token ? { Authorization: `Bearer ${S.token}` } : {}) },
     body: body ? JSON.stringify(body) : undefined,
     cache: 'no-store',
   });
   const j = await r.json().catch(() => ({}));
-  if (r.status === 401 && S.token && path !== '/api/redeem') {
+  if (r.status === 401 && S.token && !/^\/api\/(redeem|login)$/.test(path)) {
     localLogout();
     toast('Dieses Gerät wurde abgemeldet. Bitte einen neuen Schlüssel beim Admin anfragen.', 5000);
   }
@@ -79,9 +99,24 @@ async function applyProfile(p, updated) {
 }
 
 // ---------- Anmeldung ----------
+// Benutzername + Passwort (vom Admin festgelegt). server = '' heißt: gleiche Adresse wie die App.
+export async function loginPassword(server, username, password, device) {
+  if (server) {
+    try {
+      const j = await (await fetch(`${server}/api/info`, { cache: 'no-store' })).json();
+      if (j.app !== 'gymlog') throw new Error();
+    } catch { throw new Error('Server nicht erreichbar. Stimmt die Adresse (mit https://)?'); }
+  }
+  const r = await api('POST', '/api/login', { username, password, device }, server);
+  return finishLogin(r, server);
+}
 export async function redeemCode(code, device) {
   const r = await api('POST', '/api/redeem', { code, device });
-  S = { ...empty(), token: r.token, user: r.user, group: r.group };
+  return finishLogin(r, '');
+}
+async function finishLogin(r, server) {
+  S = { ...empty(), server, token: r.token, user: r.user, group: r.group };
+  srv.available = true;
   if (r.profileUpdated > 0) await applyProfile(r.profile, r.profileUpdated);
   // Vorhandene lokale Daten hochladen (Duplikate erkennt der Server)
   for (const w of state.workouts) S.dirty.workout[w.id] = 1;
@@ -93,7 +128,7 @@ export async function redeemCode(code, device) {
 }
 
 function localLogout() {
-  S = empty();
+  S = { ...empty(), server: S.server };
   save();
   try { localStorage.removeItem(LS_GROUP); } catch { /* egal */ }
   emit();

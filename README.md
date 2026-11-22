@@ -1,4 +1,4 @@
-# GymLog – Workout-Tracker fürs iPhone (PWA)
+# Gym – Workout-Tracker fürs iPhone (PWA)
 
 Workouts tracken, Routinen verwalten und ausführliche Statistiken zu Kraft, Volumen und
 Trainingstagen sehen. Die App läuft komplett offline, ohne App Store und ohne Apple-Developer-Lizenz.
@@ -46,13 +46,17 @@ Alle Daten bleiben lokal auf dem Gerät (IndexedDB).
 
 ## Arena (Demo)
 
-Der Tab **Arena** zeigt den Gruppen-Modus: Saison-Wertung (Punkte für Fleiß), Ewige Tabelle (Workouts, Volumen,
-Trainingszeit, Cardio, Streak, Maximalkraft absolut und pro Körpergewicht), Challenges und animierte
-5-Sekunden-Kämpfe der Kämpfer – wer im gewählten Wert besser ist, gewinnt.
+Der Tab **Arena** zeigt den Gruppen-Modus: Jahres-Saison mit Monatssiegern, Könige (Workout, Cardio, Mobility),
+Ewige Tabelle, Übungs-Vergleich, Challenges und animierte 5-Sekunden-Kämpfe – wer im gewählten Wert besser ist, gewinnt.
 
 Ohne Server läuft die Arena als **Demo mit zwei NPCs** (Kai und Mia), deren Workouts lokal passend zu deinen
-eigenen Werten erzeugt werden. Demo-Challenges werden nur auf dem Gerät gespeichert. Abschaltbar unter
-Profil → „Arena-Demo mit 2 NPCs“. Für echte Gruppen mit Freunden gibt es den Server im Branch `distribution`.
+eigenen Werten erzeugt werden. Abschaltbar unter Profil → „Arena-Demo mit 2 NPCs“.
+
+## Gruppen-Server
+
+Für echte Gruppen mit Freunden gibt es im Branch `distribution` einen kleinen Server (z. B. für einen Raspberry Pi).
+Die App bleibt hier auf GitHub Pages; in der App unter **Profil → Gruppe** mit Server-Adresse, Benutzername und
+Passwort anmelden. Ohne Server funktioniert alles weiterhin komplett offline.
 
 ## Auf GitHub Pages veröffentlichen
 
@@ -62,7 +66,7 @@ Profil → „Arena-Demo mit 2 NPCs“. Für echte Gruppen mit Freunden gibt es 
 1. Dateien committen und pushen:
    ```bash
    git add .
-   git commit -m "GymLog PWA"
+   git commit -m "Gym PWA"
    git push
    ```
 2. Auf GitHub im Repository: **Settings → Pages → Build and deployment**
@@ -78,12 +82,12 @@ Profil → „Arena-Demo mit 2 NPCs“. Für echte Gruppen mit Freunden gibt es 
 
 1. Die GitHub-Pages-URL in **Safari** öffnen (nicht in Chrome, sonst fehlt „Zum Home-Bildschirm“ als Web-App).
 2. Unten auf **Teilen** (Quadrat mit Pfeil) tippen, dann **„Zum Home-Bildschirm“** und **Hinzufügen**.
-3. GymLog vom Home-Bildschirm starten: Die App läuft im Vollbild und funktioniert danach auch offline.
+3. Gym vom Home-Bildschirm starten: Die App läuft im Vollbild und funktioniert danach auch offline.
 
 ## Alte Workouts importieren
 
 1. Die `workout_data.csv` aufs iPhone bringen, z. B. per **AirDrop** in die Dateien-App oder über **iCloud Drive**.
-2. In GymLog: **Profil → CSV importieren** (oder beim ersten Start „CSV importieren“) und die Datei auswählen.
+2. In Gym: **Profil → CSV importieren** (oder beim ersten Start „CSV importieren“) und die Datei auswählen.
 3. Auf Wunsch werden automatisch Routinen aus deinen letzten Workouts erstellt.
 
 Tipp: Unter **Profil → Körpergewicht** dein Gewicht eintragen. Dann werden Klimmzüge, Dips usw.

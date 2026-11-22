@@ -15,7 +15,7 @@ const LS_CACHE = 'gymlog-tickets-cache';
 
 const typeOf = (k) => TICKET_TYPES.find(([x]) => x === k) || TICKET_TYPES[0];
 const statusOf = (k) => TICKET_STATUS.find(([x]) => x === k) || TICKET_STATUS[0];
-const deviceInfo = () => `GymLog ${APP_VERSION} · ${navigator.userAgent.match(/\(([^)]+)\)/)?.[1] || navigator.platform || ''}`.slice(0, 160);
+const deviceInfo = () => `Gym ${APP_VERSION} · ${navigator.userAgent.match(/\(([^)]+)\)/)?.[1] || navigator.platform || ''}`.slice(0, 160);
 
 // ---------- Lokale Ablage (ohne Server) ----------
 const loadLocal = () => { try { return JSON.parse(localStorage.getItem(LS) || '[]'); } catch { return []; } };
@@ -153,7 +153,7 @@ function openTicket(t, admin, reload) {
       if (e.target.closest('[data-vote]')) { await backend().vote(t.id, !t.voted); return done(); }
       if (e.target.closest('[data-share]')) {
         const text = shareText(t);
-        if (navigator.share) { try { await navigator.share({ title: 'GymLog-Ticket', text }); } catch { /* abgebrochen */ } } else { await navigator.clipboard?.writeText(text); toast('Kopiert'); }
+        if (navigator.share) { try { await navigator.share({ title: 'Gym-Ticket', text }); } catch { /* abgebrochen */ } } else { await navigator.clipboard?.writeText(text); toast('Kopiert'); }
         return;
       }
       if (e.target.closest('[data-menu]')) {

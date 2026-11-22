@@ -3,7 +3,10 @@
 import { state, saveSettings } from './store.js';
 import { overlay, icon, sheet, formDialog, confirmDialog, toast } from './ui.js';
 import { esc, fmtRelDay, fmtDate } from './utils.js';
-import { api, redeemCode, logout, syncNow, account, isAdmin, srv, loggedIn, markAllDirty, fetchGroup } from './sync.js';
+import {
+  api, logout, syncNow, account, isAdmin, srv, loggedIn, markAllDirty, fetchGroup,
+  loginPassword, parseServerInput, sameOriginServer, serverUrl,
+} from './sync.js';
 import { VISIBILITY } from './compete.js';
 
 export const deviceGuess = () => {
@@ -16,27 +19,37 @@ export const deviceGuess = () => {
   return 'Gerät';
 };
 
-export async function loginFlow(code = '') {
-  const r = await formDialog({ title: 'Mit Schlüssel anmelden', okLabel: 'Anmelden', fields: [
-    { name: 'code', label: 'Persönlicher Schlüssel (z. B. K7QF-2MXA-9TPD-H4WN)', value: code, placeholder: 'XXXX-XXXX-XXXX-XXXX' },
-    { name: 'device', label: 'Name dieses Geräts', value: deviceGuess(), autofocus: false },
-  ] });
+// Anmelden mit Benutzername + Passwort (vom Admin festgelegt). Jedes Gerät meldet sich einmal an und bleibt angemeldet.
+export async function loginFlow({ server = '', user = '' } = {}) {
+  const same = await sameOriginServer();
+  const r = await formDialog({
+    title: 'Bei deiner Gruppe anmelden', okLabel: 'Anmelden',
+    fields: [
+      ...(same ? [] : [{ name: 'server', label: 'Server-Adresse (oder Einladungslink einfügen)', value: server || serverUrl(), placeholder: 'https://gym.example.de' }]),
+      { name: 'username', label: 'Benutzername', value: user, autofocus: !!(server || serverUrl() || same) || undefined },
+      { name: 'password', label: 'Passwort', type: 'password' },
+      { name: 'device', label: 'Name dieses Geräts', value: deviceGuess() },
+    ],
+  });
   if (!r) return false;
+  const p = same ? { server: '', user: '' } : parseServerInput(r.server);
+  if (!same && !p.server) { toast('Bitte die Server-Adresse angeben'); return false; }
+  const username = (r.username || p.user || '').trim();
+  if (!username || !r.password) { toast('Benutzername und Passwort angeben'); return false; }
   try {
-    const res = await redeemCode(r.code, r.device);
+    const res = await loginPassword(p.server, username, r.password, r.device);
     toast(`Willkommen, ${res.user.name}!`);
     return true;
-  } catch (e) { toast(e.message, 4000); return false; }
+  } catch (e) { toast(e.message, 4500); return false; }
 }
 
 // Zeilen für die Profilseite
 export function groupSection(row) {
-  if (!srv.available && !loggedIn()) return '';
   const a = account();
   if (!loggedIn()) {
     return `<div class="list-label">Gruppe${srv.info?.group ? ` · ${esc(srv.info.group)}` : ''}</div>
-      <div class="set-group">${row('login', 'key', 'Mit Schlüssel anmelden')}</div>
-      <p class="footnote">Den persönlichen Schlüssel bekommst du vom Admin deiner Gruppe. Ein Passwort brauchst du nicht.</p>`;
+      <div class="set-group">${row('login', 'key', 'Bei Gruppe anmelden')}</div>
+      <p class="footnote">Mit Benutzername und Passwort von deinem Gruppen-Admin. Ohne Gruppe bleibt alles nur auf diesem Gerät.</p>`;
   }
   const vis = VISIBILITY.find(([k]) => k === (state.settings.visibility || 'full'));
   const syncText = srv.syncing ? 'läuft…' : srv.error ? 'Fehler' : a.lastSync ? fmtRelDay(a.lastSync) === 'Heute' ? fmtDate(a.lastSync, { hour: '2-digit', minute: '2-digit' }) : fmtRelDay(a.lastSync) : 'noch nie';
@@ -48,7 +61,7 @@ export function groupSection(row) {
       ${isAdmin() ? row('admin', 'users', 'Gruppe verwalten') : ''}
       ${row('logout', 'logout', 'Abmelden', '', true)}
     </div>
-    <p class="footnote">Deine Workouts werden mit dem Server deiner Gruppe abgeglichen und bleiben zusätzlich auf diesem Gerät.</p>`;
+    <p class="footnote">Deine Workouts werden mit dem Server deiner Gruppe${serverUrl() ? ` (${esc(serverUrl().replace(/^https?:\/\//, ''))})` : ''} abgeglichen und bleiben zusätzlich auf diesem Gerät.</p>`;
 }
 
 export const groupHandlers = {
@@ -72,31 +85,42 @@ export const groupHandlers = {
   },
   admin: () => openAdmin(),
   logout: async () => {
-    if (!(await confirmDialog('Dieses Gerät abmelden? Deine Daten bleiben auf dem Gerät. Für eine neue Anmeldung brauchst du einen neuen Schlüssel vom Admin.', 'Abmelden', true))) return;
+    if (!(await confirmDialog('Dieses Gerät abmelden? Deine Daten bleiben auf dem Gerät. Zum erneuten Anmelden brauchst du Benutzername und Passwort.', 'Abmelden', true))) return;
     await logout();
     toast('Abgemeldet');
   },
 };
 
-// ---------- Schlüssel anzeigen ----------
-function showKey(r) {
+// ---------- Zugangsdaten anzeigen & teilen ----------
+function showAccess(res) {
+  // Kommt die App nicht vom Server (z. B. GitHub Pages), baut die App den Link selbst: App-Adresse + Server + Benutzer
+  const r = { ...res };
+  if (serverUrl()) {
+    r.server = serverUrl();
+    r.link = `${location.href.split('#')[0]}#/login?${new URLSearchParams({ server: r.server, user: r.username })}`;
+  }
   const o = overlay('', 'key-view');
-  const text = `Hier ist dein persönlicher Zugang zu GymLog (${r.user.name}). Öffne den Link auf deinem Handy, installiere die App über „Zum Home-Bildschirm“ und melde dich an. Der Schlüssel funktioniert einmal und ${r.days} Tage lang.`;
+  const group = account().group || 'Gym';
+  const text = `Dein Zugang zum Gym (${group})\n\nApp: ${r.link}\nBenutzername: ${r.username}\nPasswort: ${r.password}${r.link.includes('server=') ? `\nServer: ${r.server}` : ''}\n\niPhone: Link in Safari öffnen → Teilen → „Zum Home-Bildschirm“. Dann die App öffnen und unter Profil → Gruppe anmelden${r.link.includes('server=') ? ' (Server-Adresse von oben einfügen)' : ''}. Du musst dich pro Gerät nur einmal anmelden.`;
   o.innerHTML = `
-    <div class="panel-head"><button class="icon-btn" data-close aria-label="Schließen">${icon('x')}</button><div class="panel-title">Schlüssel für ${esc(r.user.name)}</div><span style="width:40px"></span></div>
+    <div class="panel-head"><button class="icon-btn" data-close aria-label="Schließen">${icon('x')}</button><div class="panel-title">Zugang für ${esc(r.user.name)}</div><span style="width:40px"></span></div>
     <div class="panel-body">
-      <div class="key-box"><small>Persönlicher Schlüssel</small><b>${esc(r.code)}</b><small>Einmal gültig · ${r.days} Tage · 1 Gerät</small></div>
+      <div class="key-box acc">
+        <small>Benutzername</small><b>${esc(r.username)}</b>
+        <small>Passwort</small><b>${esc(r.password)}</b>
+        ${r.link.includes('server=') ? `<small>Server</small><b class="sm">${esc(r.server)}</b>` : ''}
+      </div>
       <div class="key-link">${esc(r.link)}</div>
-      <button class="btn primary block lg" data-share>${icon('share')} Link verschicken</button>
-      <button class="btn ghost block" data-copy>${icon('copy')} Link kopieren</button>
-      <p class="footnote">Tipp fürs iPhone: Erst die App über Safari → Teilen → „Zum Home-Bildschirm“ installieren, dann in der App unter Profil → Gruppe den Schlüssel eingeben. Für jedes weitere Gerät brauchst du einen neuen Schlüssel.</p>
+      <button class="btn primary block lg" data-share>${icon('share')} Zugangsdaten verschicken</button>
+      <button class="btn ghost block" data-copy>${icon('copy')} Kopieren</button>
+      <p class="footnote">Das Passwort wird nur jetzt angezeigt (gespeichert wird nur ein Hash). Vergessen? Unter „Gruppe verwalten“ einfach ein neues setzen. Jedes Gerät meldet sich einmal an und bleibt angemeldet.</p>
     </div>`;
   o.addEventListener('click', async (e) => {
     if (e.target.closest('[data-close]')) return o.close();
     if (e.target.closest('[data-share]')) {
-      if (navigator.share) { try { await navigator.share({ title: 'GymLog-Zugang', text, url: r.link }); } catch { /* abgebrochen */ } } else { await copy(`${text}\n${r.link}`); }
+      if (navigator.share) { try { await navigator.share({ title: 'Gym-Zugang', text }); } catch { /* abgebrochen */ } } else { await copy(text); }
     }
-    if (e.target.closest('[data-copy]')) copy(r.link);
+    if (e.target.closest('[data-copy]')) copy(text);
   });
 }
 async function copy(t) {
@@ -115,10 +139,10 @@ export function openAdmin() {
       <div class="panel-head"><button class="icon-btn" data-close aria-label="Schließen">${icon('x')}</button><div class="panel-title">Gruppe verwalten</div><span style="width:40px"></span></div>
       <div class="panel-body">
         <button class="btn primary block lg" data-new>${icon('plus')} Nutzer anlegen</button>
-        <p class="footnote">Nur wen du hier anlegst, kann mitmachen. Jeder bekommt einen persönlichen Einmal-Schlüssel – Passwörter gibt es keine.</p>
+        <p class="footnote">Nur wen du hier anlegst, kann mitmachen. Du legst Benutzername und Passwort fest – registrieren kann sich niemand selbst.</p>
         ${users ? `<div class="set-group">${users.map((u) => `<button class="set-item adm-u ${u.disabled ? 'off' : ''}" data-u="${esc(u.id)}">
           <span class="si-ic">${icon(u.role === 'admin' ? 'key' : 'user')}</span>
-          <span class="si-l"><b>${esc(u.name)}</b><small>${u.role === 'admin' ? 'Admin · ' : ''}${u.devices.length} Gerät${u.devices.length === 1 ? '' : 'e'} · ${u.workouts} Workouts${u.pendingInvite ? ' · Schlüssel offen' : ''}${u.disabled ? ' · gesperrt' : ''}</small></span>${icon('right', 'muted')}</button>`).join('')}</div>` : '<div class="chart-empty">Lade…</div>'}
+          <span class="si-l"><b>${esc(u.name)}</b><small>${u.username ? `@${esc(u.username)} · ` : ''}${u.role === 'admin' ? 'Admin · ' : ''}${u.devices.length} Gerät${u.devices.length === 1 ? '' : 'e'} · ${u.workouts} Workouts${u.hasPassword ? '' : ' · kein Passwort'}${u.disabled ? ' · gesperrt' : ''}</small></span>${icon('right', 'muted')}</button>`).join('')}</div>` : '<div class="chart-empty">Lade…</div>'}
       </div>`;
   };
   draw();
@@ -128,12 +152,14 @@ export function openAdmin() {
     try {
       if (e.target.closest('[data-new]')) {
         const r = await formDialog({ title: 'Nutzer anlegen', okLabel: 'Anlegen', fields: [
-          { name: 'name', label: 'Name' },
+          { name: 'name', label: 'Name (so sehen ihn die anderen)' },
+          { name: 'username', label: 'Benutzername', placeholder: 'leer = aus dem Namen' },
+          { name: 'password', label: 'Passwort (mind. 6 Zeichen)', placeholder: 'leer = zufällig, z. B. kraft-tiger-4827' },
           { name: 'role', label: 'Rolle', type: 'select', value: 'member', options: [{ value: 'member', label: 'Mitglied' }, { value: 'admin', label: 'Admin (darf Nutzer verwalten)' }] },
         ] });
         if (!r?.name.trim()) return;
-        const res = await api('POST', '/api/admin/users', { name: r.name.trim(), role: r.role });
-        showKey(res);
+        const res = await api('POST', '/api/admin/users', { name: r.name.trim(), username: r.username.trim(), password: r.password, role: r.role });
+        showAccess(res);
         return load();
       }
       const b = e.target.closest('[data-u]');
@@ -143,7 +169,8 @@ export function openAdmin() {
         title: u.name,
         message: u.devices.length ? u.devices.map((d) => `${d.name} · zuletzt ${fmtRelDay(d.last_seen)}`).join('\n') : 'Noch kein Gerät angemeldet',
         options: [
-          { label: 'Neuen Geräte-Schlüssel erstellen', value: 'key', icon: 'key' },
+          { label: u.hasPassword ? 'Passwort neu setzen' : 'Passwort festlegen', value: 'pw', icon: 'key' },
+          { label: `Benutzername ändern${u.username ? ` (@${u.username})` : ''}`, value: 'uname', icon: 'user' },
           ...(u.devices.length ? [{ label: 'Gerät abmelden', value: 'dev', icon: 'logout' }] : []),
           { label: 'Umbenennen', value: 'name', icon: 'edit' },
           { label: u.role === 'admin' ? 'Admin-Rechte entziehen' : 'Zum Admin machen', value: 'role', icon: 'users' },
@@ -151,7 +178,18 @@ export function openAdmin() {
           { label: 'Löschen (inkl. aller Workouts)', value: 'del', icon: 'trash', danger: true },
         ],
       });
-      if (v === 'key') showKey(await api('POST', `/api/admin/users/${u.id}/invite`));
+      if (v === 'pw') {
+        const r = await formDialog({ title: `Passwort für ${u.name}`, okLabel: 'Speichern', fields: [
+          { name: 'password', label: 'Neues Passwort (mind. 6 Zeichen)', placeholder: 'leer = zufällig' },
+          { name: 'out', label: 'Angemeldete Geräte', type: 'select', value: '0', options: [{ value: '0', label: 'Angemeldet lassen' }, { value: '1', label: 'Alle abmelden' }] },
+        ] });
+        if (!r) return;
+        showAccess(await api('POST', `/api/admin/users/${u.id}/password`, { password: r.password, logoutDevices: r.out === '1' }));
+      }
+      if (v === 'uname') {
+        const r = await formDialog({ title: 'Benutzername', fields: [{ name: 'n', label: 'a–z, 0–9, Punkt, Strich', value: u.username || '' }] });
+        if (r?.n.trim()) await api('PATCH', `/api/admin/users/${u.id}`, { username: r.n.trim() });
+      }
       if (v === 'dev') {
         const d = await sheet({ title: 'Welches Gerät abmelden?', options: u.devices.map((x) => ({ label: `${x.name} (${fmtRelDay(x.last_seen)})`, value: x.id, icon: 'logout' })) });
         if (d) await api('DELETE', `/api/admin/devices/${d}`);

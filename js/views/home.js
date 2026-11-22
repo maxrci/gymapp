@@ -54,11 +54,11 @@ export function homeView() {
 
   const installHint = !isStandalone() ? `<div class="card hint">
       <div class="card-title">${icon('download')} App installieren</div>
-      <p>Öffne diese Seite in <b>Safari</b>, tippe auf <b>Teilen</b> ${icon('share', 'xs')} und dann auf <b>„Zum Home-Bildschirm“</b>. So läuft GymLog wie eine echte App – auch offline.</p>
+      <p>Öffne diese Seite in <b>Safari</b>, tippe auf <b>Teilen</b> ${icon('share', 'xs')} und dann auf <b>„Zum Home-Bildschirm“</b>. So läuft Gym wie eine echte App – auch offline.</p>
     </div>` : '';
 
   const onboarding = !ws.length ? `<div class="card onboarding">
-      <h3>Willkommen bei GymLog</h3>
+      <h3>Willkommen im Gym</h3>
       <p>Importiere deine bisherigen Workouts als CSV, damit deine komplette Historie in den Statistiken auftaucht.</p>
       <button class="btn primary block" data-act="import">${icon('upload')} CSV importieren</button>
       <button class="btn ghost block" data-act="start">${icon('plus')} Erstes Workout starten</button>

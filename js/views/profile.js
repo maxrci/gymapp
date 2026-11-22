@@ -14,6 +14,7 @@ import { bwLog } from '../body.js';
 import { groupSection, groupHandlers } from '../group.js';
 import { loggedIn, resetCursor } from '../sync.js';
 import { openTickets, ticketBadge } from '../tickets.js';
+import { showOnboarding } from '../onboarding.js';
 
 let persisted = null;
 
@@ -56,6 +57,7 @@ export function profileView() {
     <div class="list-label">Motivation & AI</div>
     <div class="set-group">
       <a class="set-item" href="#/badges"><span class="si-ic">${icon('medal')}</span><span class="si-l">Level & Abzeichen</span><span class="si-v">Lvl ${profileStats().level}</span>${icon('right', 'muted')}</a>
+      ${row('onboarding', 'info', 'Einführung ansehen')}
       ${toggle('aiMode', 'bolt', 'AI-Mode', ' <em class="tag demo">DEMO</em><small class="si-sub">Vorschläge für Gewichte & Wdh., Erholung, Stagnation, Balance-Analyse</small>')}
       ${toggle('introAnim', 'flame', 'Start-Animation beim Öffnen')}
       ${loggedIn() ? '' : toggle('arenaDemo', 'trophy', 'Arena-Demo mit 2 NPCs')}
@@ -93,7 +95,7 @@ export function profileView() {
 
     <div class="list-label">Über</div>
     <div class="card about">
-      <p><b>GymLog</b> v${APP_VERSION} · ${loggedIn() ? 'läuft offline und gleicht sich mit dem Server deiner Gruppe ab.' : 'läuft komplett offline, alle Daten bleiben auf deinem Gerät.'}</p>
+      <p><b>Gym</b> v${APP_VERSION} · ${loggedIn() ? 'läuft offline und gleicht sich mit dem Server deiner Gruppe ab.' : 'läuft komplett offline, alle Daten bleiben auf deinem Gerät.'}</p>
       <p class="footnote" data-persist>Speicher wird geprüft…</p>
     </div>
   `;
@@ -119,6 +121,7 @@ export function profileView() {
       ...groupHandlers,
       bw: () => openBodyweight(),
       tickets: () => openTickets(),
+      onboarding: () => showOnboarding(),
       avatar: () => openAvatarEditor(),
       rest: async () => {
         const v = await sheet({ title: 'Standard-Pausenzeit', options: [0, 30, 60, 90, 120, 150, 180, 240, 300].map((x) => ({ label: x ? fmtClock(x) : 'Aus', value: String(x), active: x === s.restDefault })) });
