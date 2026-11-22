@@ -24,6 +24,16 @@ function printAccess(user, username, password) {
   console.log(`Server:        ${server}`);
   console.log(`App-Link:      ${link}\n`);
   if (!cfg.publicUrl) console.log('Tipp: PUBLIC_URL (und APP_URL, falls die App von GitHub kommt) setzen, dann stimmen Server und Link.\n');
+  warnUrl();
+}
+// Häufiger Fehler: Freischalt-Link von Tailscale statt der eigentlichen .ts.net-Adresse
+function warnUrl() {
+  if (/login\.tailscale\.com/i.test(cfg.publicUrl)) {
+    console.log('ACHTUNG: PUBLIC_URL ist der Tailscale-Link zum Freischalten von Funnel, nicht die Server-Adresse.');
+    console.log('  1. Den Link im Browser öffnen und Funnel erlauben');
+    console.log('  2. sudo tailscale funnel --bg 8080   und dann   tailscale funnel status');
+    console.log('  3. Die https://…ts.net-Adresse in /etc/gym.env als PUBLIC_URL eintragen, sudo systemctl restart gym\n');
+  }
 }
 const die = (m) => { console.error(m); D.close(); process.exit(1); };
 const findUser = (u) => D.get('SELECT * FROM users WHERE username = ?', normUser(u)) || D.get('SELECT * FROM users WHERE lower(name) = lower(?)', u) || die(`Kein Nutzer „${u}“ gefunden.`);

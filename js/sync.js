@@ -102,6 +102,7 @@ async function applyProfile(p, updated) {
 // Benutzername + Passwort (vom Admin festgelegt). server = '' heißt: gleiche Adresse wie die App.
 export async function loginPassword(server, username, password, device) {
   if (server) {
+    if (/login\.tailscale\.com/i.test(server)) throw new Error('Das ist der Tailscale-Link zum Freischalten von Funnel, nicht die Server-Adresse. Die richtige Adresse endet auf .ts.net (auf dem Pi: tailscale funnel status).');
     try {
       const j = await (await fetch(`${server}/api/info`, { cache: 'no-store' })).json();
       if (j.app !== 'gymlog') throw new Error();

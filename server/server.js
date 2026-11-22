@@ -102,6 +102,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   server.listen(cfg.port, cfg.host, () => {
     const users = D.get('SELECT COUNT(*) AS n FROM users').n;
     console.log(`Gym-Server „${cfg.groupName}“ läuft auf Port ${cfg.port} (Daten: ${cfg.dataDir})`);
+    if (/login\.tailscale\.com/i.test(cfg.publicUrl)) console.log('ACHTUNG: PUBLIC_URL ist der Tailscale-Freischalt-Link – bitte die https://…ts.net-Adresse eintragen (tailscale funnel status).');
     if (!users) console.log('Noch keine Nutzer. Ersten Admin anlegen:  node server/cli.js admin "Dein Name"');
   });
   const stop = () => server.close(() => process.exit(0));
