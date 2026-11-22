@@ -54,7 +54,7 @@ eigenen Werten erzeugt werden. Abschaltbar unter Profil → „Arena-Demo mit 2 
 
 ## Gruppen-Server (Arena, Challenges, Konten)
 
-Im Branch `distribution` gibt es zusätzlich einen kleinen Server, den jede Freundesgruppe selbst betreiben kann –
+Im Ordner `server/` liegt zusätzlich ein kleiner Server, den jede Freundesgruppe selbst betreiben kann –
 am einfachsten auf einem Raspberry Pi daheim. Die App kommt weiter von GitHub Pages; der Server speichert nur die
 Daten der Gruppe (SQLite, wenige MB).
 
@@ -68,7 +68,7 @@ Daten der Gruppe (SQLite, wenige MB).
 Schritt-für-Schritt-Anleitung: [selfhost.html](selfhost.html). Kurzfassung für einen Pi mit Ubuntu 24.04:
 
 ```bash
-git clone -b distribution https://github.com/maxrci/gymapp.git ~/gym && cd ~/gym
+git clone https://github.com/maxrci/gymapp.git ~/gym && cd ~/gym
 bash deploy/pi-setup.sh                      # Node.js 24 + Dienst „gym“
 sudo tailscale funnel --bg 8080              # öffentliche https://…ts.net-Adresse (nach tailscale up)
 sudo nano /etc/gym.env                       # PUBLIC_URL eintragen, dann: sudo systemctl restart gym

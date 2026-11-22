@@ -86,7 +86,7 @@
 <li id="install"><h3>Server installieren</h3>
   <p>Per SSH auf den Pi und Folgendes ausführen. Das Skript installiert Node.js 24, legt die Einstellungen in <code>/etc/gym.env</code> an und richtet den Dienst <code>gym</code> ein, der automatisch beim Booten startet.</p>
 <pre><code>sudo apt update &amp;&amp; sudo apt install -y git
-git clone -b distribution https://github.com/maxrci/gymapp.git ~/gym
+git clone https://github.com/maxrci/gymapp.git ~/gym
 cd ~/gym
 bash deploy/pi-setup.sh</code></pre>
   <p>Danach läuft der Server lokal auf dem Pi (Port 8080). Prüfen mit <code>curl http://127.0.0.1:8080/api/info</code>.</p>
@@ -181,7 +181,7 @@ mkdir -p ~/backups</code></pre>
 <h2 id="docker">Mit Docker (statt Skript)</h2>
 <details><summary>Docker-Variante anzeigen</summary>
 <pre><code>curl -fsSL https://get.docker.com | sh
-git clone -b distribution https://github.com/maxrci/gymapp.git ~/gym &amp;&amp; cd ~/gym
+git clone https://github.com/maxrci/gymapp.git ~/gym &amp;&amp; cd ~/gym
 cp .env.example .env &amp;&amp; nano .env
 docker compose up -d --build                    # nur lokal (Port 8080, z. B. mit Tailscale Funnel)
 docker compose --profile caddy up -d --build    # mit Caddy (Variante B)
