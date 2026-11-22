@@ -16,12 +16,16 @@ import { resumeGuided } from './guided.js';
 import { nav } from './nav.js';
 import { showIntro } from './intro.js';
 import { setLook } from './look.js';
+import { leagueView, memberView } from './views/league.js';
+import { joinView } from './views/join.js';
+import { detectServer, initSync, loggedIn, onSync, demoOn } from './sync.js';
 
 const TABS = [
   ['home', 'Start', 'home'],
   ['training', 'Training', 'dumbbell'],
   ['stats', 'Statistik', 'chart'],
   ['exercises', 'Übungen', 'list'],
+  ['arena', 'Arena', 'trophy'],
   ['profile', 'Profil', 'user'],
 ];
 
@@ -40,6 +44,10 @@ function parseRoute() {
     case 'w': return { tab: 'home', view: workoutDetailView, params: { id: decodeURIComponent(b) } };
     case 'profile': return { tab: 'profile', view: profileView };
     case 'badges': return { tab: 'profile', view: badgesView };
+    case 'arena':
+    case 'league': return { tab: 'arena', view: leagueView, params: { tab: b || 'season' } };
+    case 'member': return { tab: 'arena', view: memberView, params: { id: decodeURIComponent(b) } };
+    case 'join': return { tab: 'profile', view: joinView, params: { code: decodeURIComponent(b) } };
     default: return { tab: 'home', view: homeView };
   }
 }
@@ -53,6 +61,7 @@ function render({ keepScroll = true } = {}) {
   main.innerHTML = current.html;
   nav.entering = false;
   try { current.mount?.(main); } catch (e) { console.error(e); }
+  try { current.onShow?.(rerender); } catch (e) { console.error(e); }
   if (keepScroll) window.scrollTo(0, y); else window.scrollTo(0, 0);
   document.querySelectorAll('#tabbar a').forEach((a) => a.classList.toggle('on', a.dataset.tab === r.tab));
   renderMinibar();
@@ -60,7 +69,9 @@ function render({ keepScroll = true } = {}) {
 const rerender = () => render({ keepScroll: true });
 
 function renderTabbar() {
-  $('#tabbar').innerHTML = TABS.map(([k, l, ic]) => `<a href="#/${k}" data-tab="${k}">${icon(ic)}<span>${l}</span></a>`).join('');
+  const tabs = TABS.filter(([k]) => k !== 'arena' || loggedIn() || demoOn());
+  $('#tabbar').innerHTML = tabs.map(([k, l, ic]) => `<a href="#/${k}" data-tab="${k}">${icon(ic)}<span>${l}</span></a>`).join('');
+  $('#tabbar').classList.toggle('six', tabs.length > 5);
 }
 
 function renderMinibar() {
@@ -110,6 +121,8 @@ async function main() {
   applyTheme(state.settings.theme || 'dark');
   setLook(state.settings.avatar);
   onChange(() => setLook(state.settings.avatar));
+  let arenaShown = loggedIn() || demoOn();
+  onChange(() => { const v = loggedIn() || demoOn(); if (v !== arenaShown) { arenaShown = v; renderTabbar(); } });
   onChange(debounce(rerender, 30));
   onEditorClose(() => { document.body.classList.remove('editor-open'); renderMinibar(); });
   window.addEventListener('hashchange', () => {
@@ -130,9 +143,17 @@ async function main() {
   });
   mo.observe($('#editor'), { attributes: true, attributeFilter: ['hidden'] });
 
+  // Gruppen-Server (nur wenn die App von einem GymLog-Server kommt)
+  let wasIn = loggedIn();
+  onSync(debounce(() => {
+    if (loggedIn() !== wasIn) { wasIn = loggedIn(); renderTabbar(); initSync(); }
+    rerender();
+  }, 60));
+  detectServer().then((ok) => { if (ok) { initSync(); renderTabbar(); rerender(); } });
+
   render({ keepScroll: false });
   document.body.classList.add('ready');
-  showIntro();
+  if (!location.hash.startsWith('#/join')) showIntro();
   resumeGuided();
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
