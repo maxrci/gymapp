@@ -15,6 +15,7 @@ import { groupSection, groupHandlers } from '../group.js';
 import { loggedIn, resetCursor } from '../sync.js';
 import { openTickets, ticketBadge } from '../tickets.js';
 import { showOnboarding } from '../onboarding.js';
+import { testPrSound } from '../fx.js';
 
 let persisted = null;
 
@@ -64,6 +65,7 @@ export function profileView() {
       ${toggle('prEffects', 'trophy', 'PR-Animation & Feuer-Satz')}
       ${toggle('prSound', 'flame', 'Power-up-Sound bei PR')}
       ${toggle('prScream', 'volume', 'Kampfschrei bei PR')}
+      ${row('soundtest', 'play', 'Rekord-Sound testen')}
       ${toggle('voice', 'info', 'Sprachansagen (Cardio/Mobility)')}
       ${row('hr', 'target', 'Max. Herzfrequenz', s.hrMax ? `${s.hrMax} bpm` : 'nicht gesetzt')}
     </div>
@@ -122,6 +124,10 @@ export function profileView() {
       bw: () => openBodyweight(),
       tickets: () => openTickets(),
       onboarding: () => showOnboarding(),
+      soundtest: () => {
+        if (!testPrSound()) return toast('Audio wird auf diesem Gerät nicht unterstützt');
+        if (/iPhone|iPad/.test(navigator.userAgent)) toast('Nichts zu hören? Lautlos-Schalter am iPhone prüfen – im Lautlos-Modus spielt iOS keine App-Sounds ab.', 5000);
+      },
       avatar: () => openAvatarEditor(),
       rest: async () => {
         const v = await sheet({ title: 'Standard-Pausenzeit', options: [0, 30, 60, 90, 120, 150, 180, 240, 300].map((x) => ({ label: x ? fmtClock(x) : 'Aus', value: String(x), active: x === s.restDefault })) });

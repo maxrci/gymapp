@@ -5,12 +5,40 @@ import { fighterSVG } from './fighter.js';
 import { esc } from './utils.js';
 
 let ctx = null;
+let primed = false;
+// iOS: Audio darf erst nach einer Berührung starten und wird nach Sperrbildschirm/Anruf/Musik „interrupted“ –
+// dann muss der Kontext bei der nächsten Berührung wieder aufgeweckt werden (nicht nur bei „suspended“).
 export function unlockAudio() {
   try {
     if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
-    if (ctx.state === 'suspended') ctx.resume();
+    if (ctx.state !== 'running') ctx.resume().catch(() => {});
+    if (!primed) {
+      // ein stiller Mini-Ton während der Berührung schaltet Audio auf iOS zuverlässig frei
+      const b = ctx.createBuffer(1, 1, 22050);
+      const s = ctx.createBufferSource();
+      s.buffer = b; s.connect(ctx.destination); s.start(0);
+      primed = true;
+    }
   } catch { /* kein Audio */ }
   return ctx;
+}
+// Bei jeder Berührung Audio wach halten, damit Rekord-Sounds auch nach der Satzpause (Bildschirm gesperrt) kommen
+if (typeof document !== 'undefined') {
+  const wake = () => { if (ctx && ctx.state !== 'running') unlockAudio(); };
+  document.addEventListener('pointerdown', wake, { passive: true, capture: true });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') wake(); });
+}
+
+// Test aus den Einstellungen: Power-up + Kampfschrei (unabhängig von den Schaltern)
+export function testPrSound() {
+  const c = unlockAudio();
+  if (!c) return false;
+  const saved = { ...state.settings };
+  state.settings.prSound = true; state.settings.prScream = true;
+  powerUpSound();
+  battleCry(0.05);
+  state.settings.prSound = saved.prSound; state.settings.prScream = saved.prScream;
+  return true;
 }
 
 export function beep(freq = 880, dur = 0.15, vol = 0.35, delay = 0, type = 'sine') {
@@ -177,6 +205,11 @@ export function speak(text) {
 // Nicht-blockierende PR-Einblendung für 3 Sekunden
 let popTimer = null;
 export function prPopup({ exercise, detail, stage = 3 }) {
+  // Sounds hängen nur an ihren eigenen Schaltern (Power-up / Kampfschrei), nicht an der Animation
+  unlockAudio();
+  powerUpSound();
+  battleCry(0.05);
+  navigator.vibrate?.([60, 40, 60, 40, 200]);
   if (state.settings.prEffects === false) return;
   document.querySelector('.pr-pop')?.remove();
   clearTimeout(popTimer);
@@ -187,9 +220,6 @@ export function prPopup({ exercise, detail, stage = 3 }) {
     <div class="pr-fighter">${fighterSVG(Math.max(stage, 3), { powerUp: true })}</div>
     <div class="pr-text"><div class="pr-title">NEUER REKORD!</div><div class="pr-ex">${esc(exercise)}</div><div class="pr-detail">${esc(detail)}</div></div>`;
   document.body.appendChild(el);
-  powerUpSound();
-  battleCry(0.05);
-  navigator.vibrate?.([60, 40, 60, 40, 200]);
   requestAnimationFrame(() => el.classList.add('show'));
   popTimer = setTimeout(() => {
     el.classList.remove('show');
