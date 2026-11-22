@@ -22,7 +22,7 @@ const emit = () => srv.listeners.forEach((f) => f());
 export const onSync = (f) => srv.listeners.add(f);
 export const loggedIn = () => !!S.token;
 // DEMO: Arena mit 2 NPCs, solange man bei keinem Server angemeldet ist
-export const demoOn = () => !S.token && state.settings.arenaDemo !== false;
+export const demoOn = () => !S.token && !srv.available && state.settings.arenaDemo !== false;
 export const account = () => ({ user: S.user, group: S.group, lastSync: S.lastSync, pending: pendingCount() });
 export const isAdmin = () => S.user?.role === 'admin';
 export const myId = () => S.user?.id || (demoOn() ? 'me' : undefined);
