@@ -1,5 +1,5 @@
 // Service Worker: App offline verfügbar machen (stale-while-revalidate)
-const CACHE = 'gymlog-v3.4.5';
+const CACHE = 'gymlog-v3.4.6';
 const ASSETS = [
   './',
   'index.html',
@@ -43,6 +43,7 @@ const ASSETS = [
   'js/theme.js',
   'js/tickets.js',
   'js/ui.js',
+  'js/update.js',
   'js/utils.js',
   'js/version.js',
   'js/workout.js',
@@ -61,8 +62,11 @@ const ASSETS = [
   'icons/icon-maskable-512.png',
 ];
 
+// Beim Update immer frisch vom Server laden (nicht aus dem Browser-Cache, GitHub Pages cacht 10 Minuten)
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE)
+    .then((c) => c.addAll(ASSETS.map((a) => new Request(a, { cache: 'reload' }))))
+    .then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {
@@ -81,7 +85,7 @@ self.addEventListener('fetch', (e) => {
   e.respondWith((async () => {
     const cache = await caches.open(CACHE);
     const cached = await cache.match(isNav ? 'index.html' : req, { ignoreSearch: true });
-    const network = fetch(req).then((res) => {
+    const network = fetch(req, { cache: 'no-cache' }).then((res) => {
       if (res && res.ok) cache.put(isNav ? 'index.html' : req, res.clone());
       return res;
     }).catch(() => null);

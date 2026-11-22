@@ -19,6 +19,7 @@ import { setLook } from './look.js';
 import { leagueView, memberView } from './views/league.js';
 import { joinView, loginView } from './views/join.js';
 import { showOnboarding, shouldOnboard } from './onboarding.js';
+import { initUpdates } from './update.js';
 import { detectServer, initSync, loggedIn, onSync, demoOn } from './sync.js';
 
 const TABS = [
@@ -158,9 +159,7 @@ async function main() {
   else if (!viaLink) showIntro();
   resumeGuided();
 
-  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-    navigator.serviceWorker.register('sw.js').catch((e) => console.warn('SW', e));
-  }
+  initUpdates();
   navigator.storage?.persist?.().catch(() => {});
 }
 
