@@ -67,6 +67,32 @@ export function openDb(dir) {
       created INTEGER NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS tickets (
+      id TEXT PRIMARY KEY,
+      user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+      author TEXT NOT NULL,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL DEFAULT '',
+      device TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'open',
+      created INTEGER NOT NULL,
+      updated INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS ticket_votes (
+      ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      PRIMARY KEY (ticket_id, user_id)
+    );
+    CREATE TABLE IF NOT EXISTS ticket_comments (
+      id TEXT PRIMARY KEY,
+      ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+      user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+      author TEXT NOT NULL,
+      body TEXT NOT NULL,
+      created INTEGER NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS challenge_members (
       challenge_id TEXT NOT NULL REFERENCES challenges(id) ON DELETE CASCADE,
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

@@ -125,11 +125,8 @@ export function makeApi(D, cfg) {
 
   // ---- Gruppe ----
   on('GET', '/api/group', 'user', ({ me }) => {
-    const g = groupData(D);
-    return {
-      me: me.id, group: cfg.groupName, now: Date.now(), members: g.members, season: g.season, seasons: g.seasons,
-      titles: g.titles, alltime: g.alltime, challenges: g.challenges,
-    };
+    const { users, ...g } = groupData(D);
+    return { me: me.id, group: cfg.groupName, now: Date.now(), ...g };
   });
 
   on('GET', '/api/members/:id/workouts', 'user', ({ me, params, url }) => {
@@ -199,6 +196,76 @@ export function makeApi(D, cfg) {
     if (c.creator !== me.id && me.role !== 'admin') fail(403, 'Nur wer die Challenge erstellt hat, kann sie löschen');
     D.run('DELETE FROM challenges WHERE id = ?', c.id);
     bump();
+    return { ok: true };
+  });
+
+  // ---- Tickets (Wünsche & Fehler) ----
+  const TICKET_TYPES = new Set(['wish', 'bug']);
+  const TICKET_STATUS = new Set(['open', 'progress', 'done', 'rejected']);
+  const ticketOr404 = (id) => D.get('SELECT * FROM tickets WHERE id = ?', id) || fail(404, 'Ticket nicht gefunden');
+
+  on('GET', '/api/tickets', 'user', ({ me }) => {
+    const votes = D.all('SELECT ticket_id, user_id FROM ticket_votes');
+    const comments = D.all('SELECT id, ticket_id, user_id, author, body, created FROM ticket_comments ORDER BY created');
+    const tickets = D.all('SELECT * FROM tickets ORDER BY updated DESC LIMIT 500').map((t) => ({
+      id: t.id, type: t.type, title: t.title, body: t.body, device: t.device, status: t.status, created: t.created, updated: t.updated,
+      author: t.author, mine: t.user_id === me.id,
+      votes: votes.filter((v) => v.ticket_id === t.id).length, voted: votes.some((v) => v.ticket_id === t.id && v.user_id === me.id),
+      comments: comments.filter((c) => c.ticket_id === t.id).map((c) => ({ id: c.id, author: c.author, body: c.body, created: c.created, mine: c.user_id === me.id })),
+    }));
+    return { tickets, admin: me.role === 'admin' };
+  });
+
+  on('POST', '/api/tickets', 'user', ({ me, body }) => {
+    const type = TICKET_TYPES.has(body.type) ? body.type : 'wish';
+    const title = str(body.title, 120);
+    if (!title) fail(400, 'Titel fehlt');
+    if (D.get('SELECT COUNT(*) AS n FROM tickets WHERE user_id = ? AND created > ?', me.id, Date.now() - 3600e3).n >= 20) fail(429, 'Zu viele Tickets – bitte später nochmal');
+    const id = newId();
+    const now = Date.now();
+    D.run('INSERT INTO tickets (id, user_id, author, type, title, body, device, status, created, updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      id, me.id, me.name, type, title, str(body.body, 4000), str(body.device, 200), 'open', now, now);
+    return { id };
+  });
+
+  on('PATCH', '/api/tickets/:id', 'user', ({ me, params, body }) => {
+    const t = ticketOr404(params.id);
+    const admin = me.role === 'admin';
+    if (!admin && t.user_id !== me.id) fail(403, 'Nur eigene Tickets bearbeiten');
+    const patch = {};
+    if (body.title != null && t.user_id === me.id) patch.title = str(body.title, 120) || t.title;
+    if (body.body != null && t.user_id === me.id) patch.body = str(body.body, 4000);
+    if (body.status != null) {
+      if (!TICKET_STATUS.has(body.status)) fail(400, 'Unbekannter Status');
+      if (!admin && body.status !== 'done') fail(403, 'Nur der Admin setzt den Status');
+      patch.status = body.status;
+    }
+    const keys = Object.keys(patch);
+    if (keys.length) D.run(`UPDATE tickets SET ${keys.map((k) => `${k} = ?`).join(', ')}, updated = ? WHERE id = ?`, ...keys.map((k) => patch[k]), Date.now(), t.id);
+    return { ok: true };
+  });
+
+  on('POST', '/api/tickets/:id/vote', 'user', ({ me, params, body }) => {
+    const t = ticketOr404(params.id);
+    if (body.on === false) D.run('DELETE FROM ticket_votes WHERE ticket_id = ? AND user_id = ?', t.id, me.id);
+    else D.run('INSERT OR IGNORE INTO ticket_votes (ticket_id, user_id) VALUES (?, ?)', t.id, me.id);
+    return { ok: true };
+  });
+
+  on('POST', '/api/tickets/:id/comments', 'user', ({ me, params, body }) => {
+    const t = ticketOr404(params.id);
+    const text = str(body.body, 2000);
+    if (!text) fail(400, 'Kommentar ist leer');
+    const now = Date.now();
+    D.run('INSERT INTO ticket_comments (id, ticket_id, user_id, author, body, created) VALUES (?, ?, ?, ?, ?, ?)', newId(), t.id, me.id, me.name, text, now);
+    D.run('UPDATE tickets SET updated = ? WHERE id = ?', now, t.id);
+    return { ok: true };
+  });
+
+  on('DELETE', '/api/tickets/:id', 'user', ({ me, params }) => {
+    const t = ticketOr404(params.id);
+    if (me.role !== 'admin' && t.user_id !== me.id) fail(403, 'Nur eigene Tickets löschen');
+    D.run('DELETE FROM tickets WHERE id = ?', t.id);
     return { ok: true };
   });
 
