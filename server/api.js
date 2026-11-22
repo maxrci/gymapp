@@ -1,6 +1,9 @@
 // REST-API: /api/...
 
-import { authenticate, redeem, createInvite, rateLimited, noteFail, newId, INVITE_DAYS } from './auth.js';
+import {
+  authenticate, redeem, createInvite, rateLimited, noteFail, newId, INVITE_DAYS,
+  login, normUser, hashPassword, newPassword,
+} from './auth.js';
 import { groupData, memberWorkouts, bump, visOf } from './group.js';
 import { CHALLENGE_TYPES, VISIBILITY } from '../js/compete.js';
 
@@ -17,6 +20,14 @@ export function publicBase(req, cfg) {
   return `${proto}://${req.headers['x-forwarded-host'] || req.headers.host}`;
 }
 const inviteLink = (req, cfg, code) => `${publicBase(req, cfg)}/#/join/${code}`;
+// Anmelde-Link: App (z. B. GitHub Pages, APP_URL) + Server-Adresse + Benutzername
+const loginLink = (req, cfg, username) => {
+  const server = publicBase(req, cfg);
+  const app = (cfg.appUrl || server).replace(/\/$/, '');
+  return `${app}/#/login?${new URLSearchParams({ ...(app !== server ? { server } : {}), user: username || '' })}`;
+};
+// Hinter Caddy/Cloudflare kommt die echte Adresse im X-Forwarded-For-Header
+const clientIp = (req) => (process.env.TRUST_PROXY !== '0' && String(req.headers['x-forwarded-for'] || '').split(',')[0].trim()) || req.socket.remoteAddress || '?';
 
 function cleanProfile(p) {
   const out = {};
@@ -31,7 +42,7 @@ function cleanProfile(p) {
   return out;
 }
 
-const userOut = (u) => ({ id: u.id, name: u.name, role: u.role });
+const userOut = (u) => ({ id: u.id, name: u.name, role: u.role, username: u.username || null });
 
 // ---------------- Handler ----------------
 export function makeApi(D, cfg) {
@@ -46,10 +57,21 @@ export function makeApi(D, cfg) {
   on('GET', '/api/info', null, () => ({ app: 'gymlog', group: cfg.groupName, version: cfg.version }));
 
   on('POST', '/api/redeem', null, ({ body, req }) => {
-    const ip = req.socket.remoteAddress || '?';
+    const ip = clientIp(req);
     if (rateLimited(ip)) fail(429, 'Zu viele Versuche. Bitte in 15 Minuten erneut probieren.');
     const r = redeem(D, body.code, body.device);
     if (!r) { noteFail(ip); fail(400, 'Der Schlüssel ist ungültig, abgelaufen oder wurde schon benutzt.'); }
+    bump();
+    return { token: r.token, user: userOut(r.user), group: cfg.groupName, profile: parse(r.user.profile, {}), profileUpdated: r.user.profile_updated };
+  });
+
+  on('POST', '/api/login', null, ({ body, req }) => {
+    const ip = clientIp(req);
+    const user = normUser(body.username);
+    // pro IP großzügiger (Freunde im selben WLAN teilen sich eine IP), pro Benutzername streng
+    if (rateLimited(ip, 30) || rateLimited(`u:${user}`, 10)) fail(429, 'Zu viele Fehlversuche. Bitte in 15 Minuten erneut probieren.');
+    const r = login(D, user, body.password, body.device);
+    if (!r) { noteFail(ip); noteFail(`u:${user}`); fail(400, 'Benutzername oder Passwort falsch.'); }
     bump();
     return { token: r.token, user: userOut(r.user), group: cfg.groupName, profile: parse(r.user.profile, {}), profileUpdated: r.user.profile_updated };
   });
@@ -271,13 +293,13 @@ export function makeApi(D, cfg) {
 
   // ---- Admin ----
   on('GET', '/api/admin/users', 'admin', () => {
-    const users = D.all('SELECT id, name, role, created, disabled FROM users ORDER BY created');
+    const users = D.all('SELECT id, name, role, created, disabled, username, pw_hash IS NOT NULL AS hasPassword FROM users ORDER BY created');
     const devs = D.all('SELECT id, user_id, name, created, last_seen FROM devices ORDER BY last_seen DESC');
     const inv = D.all('SELECT user_id, expires FROM invites WHERE used_at IS NULL AND expires > ?', Date.now());
     const items = D.all("SELECT user_id, COUNT(*) AS n FROM items WHERE kind = 'workout' AND deleted = 0 GROUP BY user_id");
     return {
       users: users.map((u) => ({
-        ...u, disabled: !!u.disabled,
+        ...u, disabled: !!u.disabled, hasPassword: !!u.hasPassword,
         devices: devs.filter((d) => d.user_id === u.id).map(({ user_id, ...d }) => d),
         pendingInvite: inv.find((i) => i.user_id === u.id)?.expires || null,
         workouts: items.find((i) => i.user_id === u.id)?.n || 0,
@@ -285,14 +307,38 @@ export function makeApi(D, cfg) {
     };
   });
 
+  // Nutzer anlegen: Admin legt Benutzername + Passwort fest (leer = zufälliges Passwort)
+  const access = (req, u, password) => ({ user: userOut(u), username: u.username, password, server: publicBase(req, cfg), link: loginLink(req, cfg, u.username) });
+  const checkUsername = (username, exceptId = '') => {
+    if (username.length < 2) fail(400, 'Benutzername zu kurz (mind. 2 Zeichen: a–z, 0–9, Punkt, Strich)');
+    if (D.get('SELECT 1 FROM users WHERE username = ? AND id != ?', username, exceptId)) fail(400, `Benutzername „${username}“ ist schon vergeben`);
+  };
+  const checkPassword = (pw) => { if (String(pw).length < 6) fail(400, 'Passwort zu kurz (mind. 6 Zeichen)'); };
+
   on('POST', '/api/admin/users', 'admin', ({ body, req }) => {
     const name = str(body.name, 40);
     if (!name) fail(400, 'Name fehlt');
+    const username = normUser(body.username || name);
+    checkUsername(username);
+    const password = body.password ? String(body.password) : newPassword();
+    checkPassword(password);
     const id = newId();
-    D.run('INSERT INTO users (id, name, role, created) VALUES (?, ?, ?, ?)', id, name, body.role === 'admin' ? 'admin' : 'member', Date.now());
-    const inv = createInvite(D, id);
+    D.run('INSERT INTO users (id, name, role, created, username, pw_hash) VALUES (?, ?, ?, ?, ?, ?)',
+      id, name, body.role === 'admin' ? 'admin' : 'member', Date.now(), username, hashPassword(password));
     bump();
-    return { user: { id, name }, code: inv.code, expires: inv.expires, link: inviteLink(req, cfg, inv.code), days: INVITE_DAYS };
+    return access(req, { id, name, role: body.role === 'admin' ? 'admin' : 'member', username }, password);
+  });
+
+  // Passwort neu setzen (leer = zufällig); optional alle Geräte abmelden
+  on('POST', '/api/admin/users/:id/password', 'admin', ({ params, body, req }) => {
+    const u = D.get('SELECT * FROM users WHERE id = ?', params.id) || fail(404, 'Nutzer nicht gefunden');
+    const password = body.password ? String(body.password) : newPassword();
+    checkPassword(password);
+    let username = u.username;
+    if (!username) { username = normUser(u.name); checkUsername(username, u.id); }
+    D.run('UPDATE users SET pw_hash = ?, username = ? WHERE id = ?', hashPassword(password), username, u.id);
+    if (body.logoutDevices) D.run('DELETE FROM devices WHERE user_id = ?', u.id);
+    return access(req, { ...u, username }, password);
   });
 
   on('POST', '/api/admin/users/:id/invite', 'admin', ({ params, req }) => {
@@ -305,6 +351,7 @@ export function makeApi(D, cfg) {
     const u = D.get('SELECT * FROM users WHERE id = ?', params.id) || fail(404, 'Nutzer nicht gefunden');
     if (u.id === me.id && (body.role === 'member' || body.disabled)) fail(400, 'Du kannst dich nicht selbst herabstufen oder sperren');
     if (body.name) D.run('UPDATE users SET name = ? WHERE id = ?', str(body.name, 40), u.id);
+    if (body.username != null) { const un = normUser(body.username); checkUsername(un, u.id); D.run('UPDATE users SET username = ? WHERE id = ?', un, u.id); }
     if (body.role === 'admin' || body.role === 'member') D.run('UPDATE users SET role = ? WHERE id = ?', body.role, u.id);
     if (body.disabled != null) {
       D.run('UPDATE users SET disabled = ? WHERE id = ?', body.disabled ? 1 : 0, u.id);

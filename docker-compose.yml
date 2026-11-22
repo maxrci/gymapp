@@ -1,4 +1,4 @@
-# GymLog – Gruppen-Server
+# Gym – Gruppen-Server
 # Anleitung: selfhost.html (bzw. https://<dein-github-name>.github.io/gymapp/selfhost.html)
 services:
   gymlog:
@@ -8,6 +8,8 @@ services:
     environment:
       GROUP_NAME: ${GROUP_NAME:-GymLog}
       PUBLIC_URL: ${PUBLIC_URL:-}
+      APP_URL: ${APP_URL:-}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-*}
       TZ: ${TZ:-Europe/Berlin}
     volumes:
       - ./data:/data

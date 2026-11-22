@@ -1426,3 +1426,80 @@ a.tr:active { background: var(--surface-2); }
 .tk-c p { margin-top: 2px; }
 .tk-cform { display: flex; gap: 8px; align-items: flex-end; margin-top: 8px; }
 .tk-cform textarea { flex: 1; resize: none; background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; color: var(--text); font: inherit; }
+
+/* ---------- v3.4: Zugangsdaten ---------- */
+.key-box.acc { text-align: left; padding: 14px 16px; }
+.key-box.acc small { margin-top: 6px; }
+.key-box.acc b { font-size: 19px; letter-spacing: .02em; margin: 2px 0 4px; word-break: break-all; }
+.key-box.acc b.sm { font-size: 14px; }
+
+/* ---------- Onboarding ---------- */
+.onb { position: fixed; inset: 0; z-index: 210; background: var(--bg); display: flex; flex-direction: column; padding: calc(env(safe-area-inset-top) + 10px) 20px calc(env(safe-area-inset-bottom) + 14px); opacity: 0; transition: opacity .3s; overflow: hidden; touch-action: pan-y; }
+.onb.open { opacity: 1; }
+.onb::before { content: ''; position: absolute; left: -20%; right: -20%; top: -10%; height: 70%; background: radial-gradient(ellipse 60% 50% at 50% 55%, var(--onb-glow, rgba(57,135,229,.28)), transparent 100%); pointer-events: none; }
+.onb-top { display: flex; justify-content: space-between; align-items: center; height: 40px; position: relative; max-width: 560px; width: 100%; margin: 0 auto; }
+.onb-step { color: var(--muted); font-size: 13px; font-weight: 700; }
+.onb-skip { color: var(--muted); font-weight: 650; font-size: 15px; padding: 8px 4px; }
+.onb-slide { flex: 1; min-height: 0; overflow-y: auto; position: relative; max-width: 560px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; scrollbar-width: none; }
+.onb-slide::-webkit-scrollbar { display: none; }
+.onb-slide.in-r { animation: onbR .35s ease both; }
+.onb-slide.in-l { animation: onbL .35s ease both; }
+@keyframes onbR { from { opacity: 0; transform: translateX(40px); } }
+@keyframes onbL { from { opacity: 0; transform: translateX(-40px); } }
+.onb-fig { height: min(28vh, 230px); flex: none; display: flex; align-items: center; justify-content: center; margin: 4px 0 12px; }
+.onb-slide h2 { font-size: 28px; font-weight: 850; letter-spacing: -.02em; text-align: center; }
+.onb-text { text-align: center; color: var(--text-2); font-size: 15.5px; line-height: 1.45; margin: 8px auto 14px; max-width: 420px; }
+.onb-list { list-style: none; padding: 0; margin: 0 auto; display: grid; gap: 8px; width: 100%; max-width: 440px; }
+.onb-list li { display: flex; gap: 12px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; font-size: 14.5px; line-height: 1.35; }
+.onb-list li > span { width: 32px; height: 32px; flex: none; border-radius: 10px; display: grid; place-items: center; background: var(--surface-2); color: var(--accent); }
+.onb-list li > span .ic { width: 18px; height: 18px; }
+.onb-q { margin: 14px auto 0; width: 100%; max-width: 440px; text-align: center; }
+.onb-q > b { display: block; font-size: 15px; margin-bottom: 8px; }
+.onb-q small { color: var(--muted); font-weight: 600; }
+.onb-chips { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-bottom: 8px; }
+.onb-chips .chip { min-width: 0; padding: 0; }
+.onb-bw { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.onb-bw input { width: 120px; height: 46px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font: 700 20px/1 inherit; text-align: center; }
+.onb-bw span { color: var(--muted); font-weight: 700; }
+.onb-actions { display: flex; gap: 8px; margin: 14px auto 0; width: 100%; max-width: 440px; }
+.onb-actions .btn { flex: 1; }
+.onb-bottom { position: relative; max-width: 560px; width: 100%; margin: 10px auto 0; }
+.onb-dots { display: flex; justify-content: center; gap: 6px; margin-bottom: 12px; }
+.onb-dots i { width: 7px; height: 7px; border-radius: 4px; background: var(--surface-3); transition: width .25s, background .25s; cursor: pointer; }
+.onb-dots i.on { width: 22px; background: var(--accent); }
+.onb-nav { display: grid; grid-template-columns: 1fr 1.6fr; gap: 10px; }
+.onb-nav .btn { height: 50px; font-size: 16px; }
+/* Illustrationen */
+.onb-fx { width: 170px; }
+.onb-fx .fx-wrap { width: 170px; height: 221px; }
+.onb-poses { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; max-width: 380px; height: 100%; }
+.onb-poses > div { border-radius: 18px; padding: 6px; display: flex; align-items: center; }
+.onb-poses .pose { width: 100%; height: auto; overflow: visible; }
+.onb-poses .pose ellipse, .onb-poses .pose rect[style] { opacity: .35; }
+.p-gym { background: linear-gradient(150deg, #f7b733, #fc4a1a 70%); }
+.p-cardio { background: linear-gradient(150deg, #00c6ff, #0052d4 75%); }
+.p-mob { background: linear-gradient(150deg, #e56cf0, #7b2ff7 75%); }
+.onb-stages { display: flex; align-items: flex-end; justify-content: center; gap: 4px; width: 100%; max-width: 420px; }
+.onb-st { flex: 1; text-align: center; }
+.onb-st > div { animation: onbPop .5s cubic-bezier(.2,1.6,.4,1) both; }
+.onb-st:nth-child(2) > div { animation-delay: .12s; } .onb-st:nth-child(3) > div { animation-delay: .24s; } .onb-st:nth-child(4) > div { animation-delay: .36s; }
+.onb-st:nth-child(1) { transform: scale(.82); transform-origin: bottom; } .onb-st:nth-child(2) { transform: scale(.9); transform-origin: bottom; }
+.onb-st small { display: block; font-size: 11px; font-weight: 750; color: var(--muted); margin-top: 2px; white-space: nowrap; }
+@keyframes onbPop { from { opacity: 0; transform: translateY(20px) scale(.8); } }
+.onb-chart { width: 220px; height: auto; }
+.onb-chart rect { fill: var(--accent); opacity: .85; transform-origin: bottom; transform-box: fill-box; animation: onbBar .6s ease both; }
+.onb-line { fill: none; stroke: #ffd23f; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 220; animation: onbLine 1.2s .4s ease both; }
+@keyframes onbBar { from { transform: scaleY(0); } }
+@keyframes onbLine { from { stroke-dashoffset: 220; } to { stroke-dashoffset: 0; } }
+.onb-duel { display: flex; align-items: center; justify-content: center; gap: 4px; width: 100%; max-width: 360px; }
+.onb-duel > div { width: 40%; }
+.onb-duel .flip { transform: scaleX(-1); }
+.onb-duel i { font-style: italic; font-weight: 900; font-size: 30px; color: #ffd23f; text-shadow: 0 0 18px rgba(255,140,0,.7); animation: fgVs .6s cubic-bezier(.2,1.8,.4,1) both; }
+.onb-data { display: flex; gap: 18px; }
+.onb-data .ic { width: 64px; height: 64px; padding: 16px; border-radius: 22px; background: var(--surface); border: 1px solid var(--line); color: var(--accent); }
+.onb:has(.s-train) { --onb-glow: rgba(252,74,26,.25); }
+.onb:has(.s-streak) { --onb-glow: rgba(255,210,63,.25); }
+.onb:has(.s-arena) { --onb-glow: rgba(150,60,240,.28); }
+.onb:has(.s-stats) { --onb-glow: rgba(0,150,255,.25); }
+@media (prefers-reduced-motion: reduce) { .onb-slide, .onb-st > div, .onb-chart rect, .onb-line { animation: none !important; } }
+@media (max-height: 700px) { .onb-fig { height: 150px; } .onb-slide h2 { font-size: 24px; } .onb-list li { padding: 7px 10px; font-size: 13.5px; } }

@@ -1,4 +1,5 @@
-// Schlüssel & Geräte-Tokens: zufällig erzeugt, nur als SHA-256-Hash gespeichert
+// Anmeldung: Benutzername + Passwort (vom Admin festgelegt) → Geräte-Token.
+// Passwörter werden mit scrypt gehasht; Tokens und die alten Einmal-Schlüssel nur als SHA-256-Hash gespeichert.
 
 import crypto from 'node:crypto';
 
@@ -43,6 +44,41 @@ export function redeem(D, code, deviceName) {
   return { token, user };
 }
 
+// ---------- Passwörter ----------
+export const normUser = (u) => String(u || '').trim().toLowerCase().replace(/\s+/g, '.').replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').replace(/[^a-z0-9._-]/g, '').slice(0, 32);
+const SCRYPT = { N: 16384, r: 8, p: 1 };
+export function hashPassword(pw) {
+  const salt = crypto.randomBytes(16);
+  const h = crypto.scryptSync(String(pw), salt, 32, SCRYPT);
+  return ['scrypt', salt.toString('base64url'), h.toString('base64url')].join(':');
+}
+export function verifyPassword(pw, stored) {
+  const [kind, salt, hash] = String(stored || '').split(':');
+  if (kind !== 'scrypt' || !salt || !hash) return false;
+  const h = crypto.scryptSync(String(pw), Buffer.from(salt, 'base64url'), 32, SCRYPT);
+  const want = Buffer.from(hash, 'base64url');
+  return want.length === h.length && crypto.timingSafeEqual(h, want);
+}
+// Gut lesbares Zufallspasswort, z. B. „kraft-tiger-4827“
+const WORDS = ['kraft', 'tiger', 'adler', 'blitz', 'stahl', 'feuer', 'welle', 'sturm', 'berg', 'fuchs', 'wolf', 'falke', 'hantel', 'sprint', 'turbo', 'atlas', 'puls', 'kern', 'orkan', 'komet'];
+export function newPassword() {
+  const b = crypto.randomBytes(4);
+  return `${WORDS[b[0] % WORDS.length]}-${WORDS[b[1] % WORDS.length]}-${1000 + (b.readUInt16BE(2) % 9000)}`;
+}
+export function newDevice(D, userId, deviceName) {
+  const token = newToken();
+  const now = Date.now();
+  D.run('INSERT INTO devices (id, token_hash, user_id, name, created, last_seen) VALUES (?, ?, ?, ?, ?, ?)',
+    newId(), sha(token), userId, String(deviceName || 'Gerät').slice(0, 60), now, now);
+  return token;
+}
+// Benutzername + Passwort prüfen → Geräte-Token (jedes Gerät meldet sich einmal an und bleibt angemeldet)
+export function login(D, username, password, deviceName) {
+  const user = D.get('SELECT * FROM users WHERE username = ? AND disabled = 0', normUser(username));
+  if (!user || !verifyPassword(password, user.pw_hash)) return null;
+  return { token: newDevice(D, user.id, deviceName), user };
+}
+
 export function authenticate(D, header) {
   const m = /^Bearer ([A-Za-z0-9_-]{20,})$/.exec(header || '');
   if (!m) return null;
@@ -56,11 +92,11 @@ export function authenticate(D, header) {
 
 // Einfache Bremse gegen Durchprobieren von Schlüsseln (pro IP)
 const fails = new Map();
-export function rateLimited(ip) {
+export function rateLimited(ip, max = 10) {
   const f = fails.get(ip);
   if (!f) return false;
   if (Date.now() - f.since > 15 * 60000) { fails.delete(ip); return false; }
-  return f.n >= 10;
+  return f.n >= max;
 }
 export function noteFail(ip) {
   const f = fails.get(ip);

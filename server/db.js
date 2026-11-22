@@ -101,6 +101,12 @@ export function openDb(dir) {
     );
   `);
 
+  // Migration (v3.4): Benutzername + Passwort-Hash
+  const cols = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
+  if (!cols.includes('username')) db.exec('ALTER TABLE users ADD COLUMN username TEXT');
+  if (!cols.includes('pw_hash')) db.exec('ALTER TABLE users ADD COLUMN pw_hash TEXT');
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS users_username ON users (username) WHERE username IS NOT NULL');
+
   const get = (sql, ...a) => db.prepare(sql).get(...a);
   const all = (sql, ...a) => db.prepare(sql).all(...a);
   const run = (sql, ...a) => db.prepare(sql).run(...a);

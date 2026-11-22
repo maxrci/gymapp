@@ -1,4 +1,4 @@
-# GymLog – Workout-Tracker fürs iPhone (PWA)
+# Gym – Workout-Tracker fürs iPhone (PWA)
 
 Workouts tracken, Routinen verwalten und ausführliche Statistiken zu Kraft, Volumen und
 Trainingstagen sehen. Die App läuft komplett offline, ohne App Store und ohne Apple-Developer-Lizenz.
@@ -46,34 +46,33 @@ Alle Daten bleiben lokal auf dem Gerät (IndexedDB).
 
 ## Arena (Demo)
 
-Der Tab **Arena** zeigt den Gruppen-Modus: Saison-Wertung (Punkte für Fleiß), Ewige Tabelle (Workouts, Volumen,
-Trainingszeit, Cardio, Streak, Maximalkraft absolut und pro Körpergewicht), Challenges und animierte
-5-Sekunden-Kämpfe der Kämpfer – wer im gewählten Wert besser ist, gewinnt.
+Der Tab **Arena** zeigt den Gruppen-Modus: Jahres-Saison mit Monatssiegern, Könige (Workout, Cardio, Mobility),
+Ewige Tabelle, Übungs-Vergleich, Challenges und animierte 5-Sekunden-Kämpfe – wer im gewählten Wert besser ist, gewinnt.
 
 Ohne Server läuft die Arena als **Demo mit zwei NPCs** (Kai und Mia), deren Workouts lokal passend zu deinen
-eigenen Werten erzeugt werden. Demo-Challenges werden nur auf dem Gerät gespeichert. Abschaltbar unter
-Profil → „Arena-Demo mit 2 NPCs“. Für echte Gruppen mit Freunden gibt es den Server (siehe unten).
-## Gruppen-Server (Arena, Challenges, Accounts)
+eigenen Werten erzeugt werden. Abschaltbar unter Profil → „Arena-Demo mit 2 NPCs“.
+
+## Gruppen-Server (Arena, Challenges, Konten)
 
 Im Branch `distribution` gibt es zusätzlich einen kleinen Server, den jede Freundesgruppe selbst betreiben kann –
-auf einem Raspberry Pi daheim oder einem Cloud-Server. Er liefert die App aus und synchronisiert Workouts.
+am einfachsten auf einem Raspberry Pi daheim. Die App kommt weiter von GitHub Pages; der Server speichert nur die
+Daten der Gruppe (SQLite, wenige MB).
 
-- **Accounts ohne Passwort**: Der Admin legt Mitglieder an und verschickt einen persönlichen Einmal-Schlüssel
-  (1 Schlüssel pro Gerät, 7 Tage gültig). Keine offene Registrierung.
+- **Konten mit Benutzername und Passwort**, die der Admin festlegt. Keine offene Registrierung.
+  Jedes Gerät meldet sich einmal an und bleibt angemeldet.
 - **Offline-first-Sync** zwischen Handy und Server, auch über mehrere Geräte.
-- **Arena**: animierte 5-Sekunden-Kämpfe der Kämpfer (wer im gewählten Wert besser ist, gewinnt), monatliche Saison (Punkte für Fleiß), **Ewige Tabelle** (Workouts, Volumen, Trainingszeit, Cardio,
-  Streak, Maximalkraft absolut und pro Körpergewicht), **Challenges** zum Anlegen, Einladen und Mitmachen.
+- **Arena**, **Challenges**, **Tickets** (Wünsche & Fehler) für die ganze Gruppe.
 - **Sichtbarkeit in 3 Stufen**: nur Zahlen, Workout-Übersicht oder komplette Workouts.
-- Technik: Node.js ≥ 22.13 mit eingebautem SQLite, keine weiteren Pakete; Docker Compose mit Cloudflare Tunnel
-  oder Caddy (automatisches HTTPS).
+- Technik: Node.js ≥ 22.13 mit eingebautem SQLite, keine weiteren Pakete. HTTPS z. B. kostenlos über Tailscale Funnel.
 
-Schritt-für-Schritt-Anleitung: [selfhost.html](selfhost.html)
+Schritt-für-Schritt-Anleitung: [selfhost.html](selfhost.html). Kurzfassung für einen Pi mit Ubuntu 24.04:
 
 ```bash
-git clone -b distribution https://github.com/maxrci/gymapp.git && cd gymapp
-cp .env.example .env            # Gruppenname, Adresse, Tunnel-Token bzw. Domain
-docker compose --profile tunnel up -d --build     # oder: --profile caddy
-docker compose exec gymlog node server/cli.js admin "Dein Name"
+git clone -b distribution https://github.com/maxrci/gymapp.git ~/gym && cd ~/gym
+bash deploy/pi-setup.sh                      # Node.js 24 + Dienst „gym“
+sudo tailscale funnel --bg 8080              # öffentliche https://…ts.net-Adresse (nach tailscale up)
+sudo nano /etc/gym.env                       # PUBLIC_URL eintragen, dann: sudo systemctl restart gym
+bash deploy/cli.sh admin "Dein Name" deinname
 ```
 
 ## Auf GitHub Pages veröffentlichen
@@ -84,7 +83,7 @@ docker compose exec gymlog node server/cli.js admin "Dein Name"
 1. Dateien committen und pushen:
    ```bash
    git add .
-   git commit -m "GymLog PWA"
+   git commit -m "Gym PWA"
    git push
    ```
 2. Auf GitHub im Repository: **Settings → Pages → Build and deployment**
@@ -100,12 +99,12 @@ docker compose exec gymlog node server/cli.js admin "Dein Name"
 
 1. Die GitHub-Pages-URL in **Safari** öffnen (nicht in Chrome, sonst fehlt „Zum Home-Bildschirm“ als Web-App).
 2. Unten auf **Teilen** (Quadrat mit Pfeil) tippen, dann **„Zum Home-Bildschirm“** und **Hinzufügen**.
-3. GymLog vom Home-Bildschirm starten: Die App läuft im Vollbild und funktioniert danach auch offline.
+3. Gym vom Home-Bildschirm starten: Die App läuft im Vollbild und funktioniert danach auch offline.
 
 ## Alte Workouts importieren
 
 1. Die `workout_data.csv` aufs iPhone bringen, z. B. per **AirDrop** in die Dateien-App oder über **iCloud Drive**.
-2. In GymLog: **Profil → CSV importieren** (oder beim ersten Start „CSV importieren“) und die Datei auswählen.
+2. In Gym: **Profil → CSV importieren** (oder beim ersten Start „CSV importieren“) und die Datei auswählen.
 3. Auf Wunsch werden automatisch Routinen aus deinen letzten Workouts erstellt.
 
 Tipp: Unter **Profil → Körpergewicht** dein Gewicht eintragen. Dann werden Klimmzüge, Dips usw.

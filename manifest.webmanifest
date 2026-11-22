@@ -1,6 +1,6 @@
 {
-  "name": "GymLog – Workout Tracker",
-  "short_name": "GymLog",
+  "name": "Gym – Workout Tracker",
+  "short_name": "Gym",
   "description": "Workouts tracken mit ausführlichen Statistiken – offline auf dem iPhone.",
   "lang": "de",
   "start_url": "./",

@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>GymLog selbst hosten – Anleitung für Freundesgruppen</title>
-<meta name="description" content="Eigener GymLog-Server für deine Trainingsgruppe: auf dem Raspberry Pi daheim oder einem Cloud-Server.">
+<title>Gym selbst hosten – Anleitung für Freundesgruppen</title>
+<meta name="description" content="Eigener Gym-Server für deine Trainingsgruppe: auf dem Raspberry Pi daheim – kostenlos, mit Benutzername und Passwort.">
 <link rel="icon" href="icons/icon-192.png">
 <style>
   :root { --bg: #0e0e0d; --surface: #1a1a19; --surface-2: #232322; --line: rgba(255,255,255,.09); --text: #f0efec; --text-2: #c3c2b7; --muted: #898781; --accent: #3987e5; --accent-soft: rgba(57,135,229,.16); --gold: #fab219; --warn-soft: rgba(250,178,25,.12); }
@@ -38,183 +38,169 @@
   table { width: 100%; border-collapse: collapse; font-size: 15px; }
   th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--text-2); }
   th { color: var(--text); }
+  details { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 12px 18px; margin: 14px 0; }
+  summary { cursor: pointer; font-weight: 700; color: var(--text); }
   footer { margin-top: 56px; color: var(--muted); font-size: 14px; }
 </style>
 </head>
 <body>
 <main>
 <header>
-  <small>GymLog · Selbst hosten</small>
+  <small>Gym · Selbst hosten</small>
   <h1>Ein eigener Server für deine Trainingsgruppe</h1>
-  <p class="lead">Mit dem GymLog-Server trackt deine Freundesgruppe Workouts gemeinsam: in der Arena mit Saison-Wertung, Ewiger Tabelle, Kämpfen, Challenges und personalisierten Kämpfern. Der Server läuft bei euch – auf einem <b>Raspberry Pi daheim</b> oder einem <b>günstigen Cloud-Server</b>. Eure Daten gehören euch.</p>
+  <p class="lead">Mit einem eigenen Server trackt deine Freundesgruppe Workouts gemeinsam: Arena mit Jahres-Saison und Monatssiegern, Könige, Kämpfe, Challenges und personalisierte Kämpfer. Der Server läuft bei euch – am einfachsten auf einem <b>Raspberry Pi daheim</b>. Kostenlos, und eure Daten gehören euch.</p>
 </header>
 
 <nav class="toc card">
   <a href="#prinzip">So funktioniert es</a>
   <a href="#voraussetzungen">Was du brauchst</a>
-  <a href="#docker">1. Docker installieren</a>
-  <a href="#code">2. GymLog herunterladen</a>
-  <a href="#https">3. Online stellen (HTTPS)</a>
-  <a href="#admin">4. Ersten Admin anlegen</a>
-  <a href="#einladen">5. Freunde einladen</a>
-  <a href="#sichtbarkeit">Sichtbarkeit & Datenschutz</a>
+  <a href="#install">1. Server installieren</a>
+  <a href="#online">2. Online erreichbar machen</a>
+  <a href="#admin">3. Dich als Admin anlegen</a>
+  <a href="#freunde">4. Freunde anlegen</a>
+  <a href="#anmelden">5. So melden sich Freunde an</a>
+  <a href="#sichtbarkeit">Sichtbarkeit &amp; Datenschutz</a>
   <a href="#backup">Backups</a>
   <a href="#update">Updates</a>
-  <a href="#ohne-docker">Ohne Docker</a>
+  <a href="#docker">Mit Docker</a>
   <a href="#probleme">Fehlerbehebung</a>
 </nav>
 
 <h2 id="prinzip">So funktioniert es</h2>
 <div class="grid">
-  <div class="card"><b>Ein Server pro Gruppe</b>Jede Freundesgruppe betreibt ihren eigenen Server. Gruppen sehen sich gegenseitig nicht.</div>
-  <div class="card"><b>Keine Passwörter</b>Der Admin legt Mitglieder an und verschickt jedem einen persönlichen Einmal-Schlüssel. Eine offene Registrierung gibt es nicht.</div>
-  <div class="card"><b>Offline zuerst</b>Die App speichert alles auf dem Handy und gleicht sich im Hintergrund mit dem Server ab. Im Gym ohne Netz geht nichts verloren.</div>
-  <div class="card"><b>App kommt vom Server</b>Ihr öffnet eure eigene Adresse (z. B. <code>gym.example.de</code>) und installiert die App von dort auf dem Home-Bildschirm.</div>
+  <div class="card"><b>App von GitHub</b>Alle nutzen dieselbe App: <a href="https://maxrci.github.io/gymapp/">maxrci.github.io/gymapp</a>. Sie läuft auf iPhone und Android und funktioniert auch offline.</div>
+  <div class="card"><b>Server bei euch</b>Euer Server speichert nur die Daten der Gruppe – eine kleine SQLite-Datei, wenige MB. Gruppen sehen sich gegenseitig nicht.</div>
+  <div class="card"><b>Du legst die Konten an</b>Niemand kann sich selbst registrieren. Du vergibst Benutzername und Passwort, jedes Gerät meldet sich einmal an und bleibt angemeldet.</div>
 </div>
+<p>Die App bleibt offline-fähig: Workouts werden zuerst auf dem Handy gespeichert und im Hintergrund mit dem Server abgeglichen. Fällt der Server mal aus, trainiert jeder normal weiter.</p>
 
 <h2 id="voraussetzungen">Was du brauchst</h2>
-<table>
-  <tr><th></th><th>Raspberry Pi daheim</th><th>Cloud-Server</th></tr>
-  <tr><td><b>Hardware</b></td><td>Raspberry Pi 4 oder 5 (ab 2 GB RAM), SD-Karte oder besser SSD, <b>Raspberry Pi OS 64-Bit</b></td><td>Kleinster Server reicht (1 vCPU, 1–2 GB RAM), z. B. bei einem deutschen Anbieter für ca. 4 € im Monat</td></tr>
-  <tr><td><b>Adresse</b></td><td>Eigene Domain (ein paar Euro im Jahr) <i>oder</i> kostenlose DynDNS-Adresse</td><td>Eigene Domain oder Subdomain</td></tr>
-  <tr><td><b>Aufwand</b></td><td>ca. 30–45 Minuten</td><td>ca. 20–30 Minuten</td></tr>
-</table>
-<div class="note"><b>Warum HTTPS Pflicht ist:</b> Nur über eine verschlüsselte Verbindung lässt sich die App auf iPhone und Android installieren und offline nutzen. Alle drei Varianten unten richten HTTPS automatisch ein – du musst dich um keine Zertifikate kümmern.</div>
+<ul>
+  <li>Einen <b>Raspberry Pi 3, 4 oder 5</b> (oder einen anderen Linux-Rechner) mit <b>Ubuntu 24.04</b> oder Raspberry Pi OS (64 Bit), per SSH erreichbar.</li>
+  <li>Internet am Pi. Eine Domain oder Portfreigabe im Router brauchst du mit Variante A nicht.</li>
+  <li>10 Minuten Zeit.</li>
+</ul>
 
 <h2>Installation</h2>
 <ol class="steps">
-<li id="docker"><h3>Docker installieren</h3>
-<p>Per SSH auf dem Pi bzw. Server anmelden und Folgendes ausführen:</p>
-<pre><code>curl -fsSL https://get.docker.com | sh
-sudo usermod -aG docker $USER
-# einmal ab- und wieder anmelden, damit die Gruppe greift</code></pre>
+<li id="install"><h3>Server installieren</h3>
+  <p>Per SSH auf den Pi und Folgendes ausführen. Das Skript installiert Node.js 24, legt die Einstellungen in <code>/etc/gym.env</code> an und richtet den Dienst <code>gym</code> ein, der automatisch beim Booten startet.</p>
+<pre><code>sudo apt update &amp;&amp; sudo apt install -y git
+git clone -b distribution https://github.com/maxrci/gymapp.git ~/gym
+cd ~/gym
+bash deploy/pi-setup.sh</code></pre>
+  <p>Danach läuft der Server lokal auf dem Pi (Port 8080). Prüfen mit <code>curl http://127.0.0.1:8080/api/info</code>.</p>
 </li>
 
-<li id="code"><h3>GymLog herunterladen und einstellen</h3>
-<pre><code>git clone -b distribution https://github.com/maxrci/gymapp.git
-cd gymapp
-cp .env.example .env
-nano .env</code></pre>
-<p>In der <code>.env</code> trägst du ein:</p>
-<ul>
-  <li><code>GROUP_NAME</code> – Name eurer Gruppe, z. B. <code>Gym-Crew</code></li>
-  <li><code>PUBLIC_URL</code> – die spätere Adresse mit <code>https://</code>, z. B. <code>https://gym.example.de</code> (für Einladungslinks)</li>
-  <li>je nach Variante <code>DOMAIN</code> oder <code>TUNNEL_TOKEN</code> (siehe nächster Schritt)</li>
-</ul>
+<li id="online"><h3>Online erreichbar machen (HTTPS)</h3>
+  <p>Die App läuft über HTTPS, deshalb braucht auch dein Server eine HTTPS-Adresse. Wähle <b>eine</b> Variante:</p>
+
+  <div class="card"><span class="tag">Empfohlen · kostenlos · ohne Router-Einstellungen</span>
+  <h3 style="margin-top:0">A · Tailscale Funnel</h3>
+  <p>Tailscale gibt deinem Pi eine feste öffentliche Adresse wie <code>https://pi.tail1234.ts.net</code> – ohne Domain, ohne Portfreigabe, funktioniert auch hinter DS-Lite/Kabelanschlüssen. Deine Freunde brauchen <b>kein</b> Tailscale.</p>
+<pre><code>curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up                 # Link öffnen, mit Google/GitHub/Apple anmelden
+sudo tailscale funnel --bg 8080   # beim ersten Mal: angezeigten Link öffnen und Funnel erlauben
+tailscale funnel status           # zeigt deine https://…ts.net-Adresse</code></pre>
+  <p>Die Adresse dann als <code>PUBLIC_URL</code> eintragen:</p>
+<pre><code>sudo nano /etc/gym.env            # PUBLIC_URL=https://pi.tail1234.ts.net
+sudo systemctl restart gym</code></pre>
+  <p class="note">Der kostenlose Personal-Plan von Tailscale ist für private, nicht-kommerzielle Nutzung gedacht – für eine Freundesgruppe passt das.</p>
+  </div>
+
+  <div class="card"><span class="tag">Mit Portfreigabe</span>
+  <h3 style="margin-top:0">B · DuckDNS + Caddy</h3>
+  <p>Kostenlose Adresse wie <code>gym-crew.duckdns.org</code>. Voraussetzung: dein Internetanschluss hat eine öffentliche IPv4-Adresse (kein DS-Lite) und du kannst im Router die Ports 80 und 443 zum Pi weiterleiten.</p>
+<pre><code># 1. Auf duckdns.org anmelden, Subdomain anlegen, Token kopieren
+# 2. IP alle 5 Minuten aktualisieren:
+(crontab -l 2&gt;/dev/null; echo "*/5 * * * * curl -s 'https://www.duckdns.org/update?domains=gym-crew&amp;token=DEIN-TOKEN&amp;ip=' &gt;/dev/null") | crontab -
+# 3. Caddy holt automatisch ein HTTPS-Zertifikat:
+sudo apt install -y caddy
+echo 'gym-crew.duckdns.org {
+  reverse_proxy 127.0.0.1:8080
+}' | sudo tee /etc/caddy/Caddyfile
+sudo systemctl restart caddy
+# 4. Im Router: Ports 80 und 443 → Pi
+# 5. sudo nano /etc/gym.env → PUBLIC_URL=https://gym-crew.duckdns.org ; sudo systemctl restart gym</code></pre>
+  </div>
+
+  <div class="card"><span class="tag">Mit eigener Domain</span>
+  <h3 style="margin-top:0">C · Cloudflare Tunnel</h3>
+  <p>Wenn du eine eigene Domain bei Cloudflare hast: im Cloudflare-Dashboard unter <b>Zero Trust → Networks → Tunnels</b> einen Tunnel anlegen, die angezeigten Installationsbefehle für „Debian / arm64“ auf dem Pi ausführen und als Ziel <code>http://localhost:8080</code> eintragen. Danach <code>PUBLIC_URL</code> setzen wie oben.</p>
+  </div>
 </li>
 
-<li id="https"><h3>Online stellen – eine Variante wählen</h3>
-
-<div class="card"><span class="tag">Empfohlen für daheim</span>
-<h3 style="margin-top:0">A · Raspberry Pi mit Cloudflare Tunnel</h3>
-<p>Kein Port im Router nötig, die IP-Adresse deines Anschlusses bleibt verborgen, HTTPS ist automatisch dabei. Du brauchst eine eigene Domain, die bei Cloudflare verwaltet wird (kostenloses Konto).</p>
-<ol>
-  <li>Domain bei Cloudflare hinzufügen (oder dort kaufen).</li>
-  <li>Im Cloudflare-Dashboard: <b>Zero Trust → Networks → Tunnels → Create a tunnel</b> → Typ <b>Cloudflared</b> → Umgebung <b>Docker</b>. Den angezeigten Token kopieren (die lange Zeichenkette nach <code>--token</code>).</li>
-  <li>Unter <b>Public Hostname</b> eintragen: Subdomain <code>gym</code>, deine Domain, Service <b>HTTP</b> und URL <code>gymlog:8080</code>.</li>
-  <li>In der <code>.env</code>: <code>TUNNEL_TOKEN=…</code> und <code>PUBLIC_URL=https://gym.deine-domain.de</code></li>
-  <li>Starten:</li>
-</ol>
-<pre><code>docker compose --profile tunnel up -d --build</code></pre>
-</div>
-
-<div class="card"><span class="tag">Kostenlos, ohne Domain</span>
-<h3 style="margin-top:0">B · Raspberry Pi mit DynDNS und Portfreigabe</h3>
-<p>Für eine kostenlose Adresse wie <code>deine-gruppe.duckdns.org</code>. Dafür gibst du im Router zwei Ports frei; Caddy holt das HTTPS-Zertifikat automatisch.</p>
-<ol>
-  <li>Bei einem kostenlosen DynDNS-Dienst (z. B. DuckDNS) eine Subdomain anlegen und das Update-Skript bzw. den Cronjob auf dem Pi einrichten, damit die Adresse immer auf deinen Anschluss zeigt. Viele Router (z. B. FRITZ!Box: <i>Internet → Freigaben → DynDNS</i>) können das auch selbst.</li>
-  <li>Im Router dem Pi eine feste IP geben und die Ports <b>80</b> und <b>443</b> (TCP) an den Pi weiterleiten.</li>
-  <li>In der <code>.env</code>: <code>DOMAIN=deine-gruppe.duckdns.org</code> und <code>PUBLIC_URL=https://deine-gruppe.duckdns.org</code></li>
-  <li>Starten:</li>
-</ol>
-<pre><code>docker compose --profile caddy up -d --build</code></pre>
-<p>Hinweis: Manche Anschlüsse (DS-Lite, Glasfaser ohne eigene IPv4) erlauben keine Portfreigaben. Dann nimm Variante A.</p>
-</div>
-
-<div class="card"><span class="tag">Ohne Hardware daheim</span>
-<h3 style="margin-top:0">C · Cloud-Server</h3>
-<ol>
-  <li>Einen kleinen Linux-Server (Ubuntu oder Debian) mieten.</li>
-  <li>Bei deinem Domain-Anbieter einen <b>A-Eintrag</b> setzen, z. B. <code>gym.example.de</code> → IP-Adresse des Servers.</li>
-  <li>In der Firewall des Anbieters die Ports <b>80</b> und <b>443</b> öffnen.</li>
-  <li>Schritte 1 und 2 oben ausführen, in der <code>.env</code> <code>DOMAIN</code> und <code>PUBLIC_URL</code> setzen und starten:</li>
-</ol>
-<pre><code>docker compose --profile caddy up -d --build</code></pre>
-</div>
-
-<p>Danach sollte <code>https://deine-adresse</code> die App zeigen. Kontrolle: <code>docker compose logs -f gymlog</code></p>
+<li id="admin"><h3>Dich als Admin anlegen</h3>
+<pre><code>cd ~/gym
+bash deploy/cli.sh admin "Max" max                 # Passwort wird zufällig erzeugt
+bash deploy/cli.sh admin "Max" max MeinPasswort1   # oder selbst festlegen</code></pre>
+  <p>Ausgegeben werden Benutzername, Passwort und ein Anmelde-Link. Öffne den Link auf deinem Handy – oder öffne die App und gehe zu <b>Profil → Gruppe → Bei Gruppe anmelden</b> und gib Server-Adresse, Benutzername und Passwort ein.</p>
 </li>
 
-<li id="admin"><h3>Ersten Admin anlegen</h3>
-<pre><code>docker compose exec gymlog node server/cli.js admin "Dein Name"</code></pre>
-<p>Die Ausgabe zeigt einen Schlüssel wie <code>K7QF-2MXA-9TPD-H4WN</code> und einen Link. Öffne den Link auf deinem Handy – fertig, du bist Admin. Der Schlüssel funktioniert <b>einmal</b> und ist <b>7 Tage</b> gültig.</p>
+<li id="freunde"><h3>Freunde anlegen</h3>
+  <p>In der App unter <b>Profil → Gruppe verwalten → Nutzer anlegen</b>: Name, Benutzername und Passwort eintragen (leer lassen = zufälliges Passwort wie <code>kraft-tiger-4827</code>). Danach erscheint eine Karte mit den Zugangsdaten und dem Button <b>„Zugangsdaten verschicken“</b> – z. B. per WhatsApp.</p>
+  <p>Oder auf dem Pi: <code>bash deploy/cli.sh add "Lisa" lisa</code>. Passwort vergessen? In der App „Passwort neu setzen“ oder <code>bash deploy/cli.sh passwd lisa</code>.</p>
+  <table>
+    <tr><th>Aktion</th><th>In der App (Gruppe verwalten)</th><th>Auf dem Pi</th></tr>
+    <tr><td>Nutzer anlegen</td><td>Nutzer anlegen</td><td><code>deploy/cli.sh add "Name" benutzer</code></td></tr>
+    <tr><td>Passwort neu setzen</td><td>Nutzer → Passwort neu setzen</td><td><code>deploy/cli.sh passwd benutzer</code></td></tr>
+    <tr><td>Gerät abmelden</td><td>Nutzer → Gerät abmelden</td><td>–</td></tr>
+    <tr><td>Sperren / löschen</td><td>Nutzer → Sperren / Löschen</td><td>–</td></tr>
+    <tr><td>Übersicht</td><td>Liste</td><td><code>deploy/cli.sh users</code></td></tr>
+  </table>
 </li>
 
-<li id="einladen"><h3>Freunde einladen</h3>
-<p>In der App: <b>Profil → Gruppe verwalten → Nutzer anlegen</b>. Du bekommst für jede Person einen persönlichen Schlüssel samt Link, den du per Messenger verschickst. Für jedes weitere Gerät (z. B. iPad) erstellst du einen neuen Schlüssel.</p>
-<div class="grid">
-  <div class="card"><b>iPhone</b>Link in <b>Safari</b> öffnen → <b>Teilen → „Zum Home-Bildschirm“</b> → App öffnen → <b>Profil → Gruppe → Mit Schlüssel anmelden</b>. (Die installierte App hat einen eigenen Speicher, deshalb erst installieren, dann anmelden.)</div>
-  <div class="card"><b>Android</b>Link in <b>Chrome</b> öffnen, anmelden und über <b>⋮ → App installieren</b> auf den Startbildschirm legen.</div>
-</div>
-<p>Wer schon Workouts lokal in GymLog hat (oder eine CSV importiert), dessen Verlauf wird beim Anmelden automatisch hochgeladen und zählt für die Ewige Tabelle.</p>
+<li id="anmelden"><h3>So melden sich Freunde an</h3>
+  <p><b>iPhone:</b> Link in <b>Safari</b> öffnen → <b>Teilen</b> → <b>„Zum Home-Bildschirm“</b>. Dann die App vom Home-Bildschirm öffnen und unter <b>Profil → Gruppe → Bei Gruppe anmelden</b> die Server-Adresse (oder den ganzen Einladungstext) einfügen, Benutzername und Passwort eingeben. Wichtig: in der <b>installierten</b> App anmelden – sie hat einen eigenen Speicher.</p>
+  <p><b>Android:</b> Link in Chrome öffnen, anmelden, dann im Menü <b>„App installieren“</b>.</p>
+  <p>Jedes Gerät meldet sich nur einmal an und bleibt angemeldet. Vorhandene Workouts auf dem Handy werden dabei automatisch hochgeladen.</p>
 </li>
 </ol>
 
-<h2 id="sichtbarkeit">Sichtbarkeit & Datenschutz</h2>
-<p>Jedes Mitglied entscheidet unter <b>Profil → Gruppe → Sichtbarkeit</b> selbst, was die anderen sehen:</p>
+<h2 id="sichtbarkeit">Sichtbarkeit &amp; Datenschutz</h2>
+<p>Jeder entscheidet selbst unter <b>Profil → Sichtbarkeit</b>, was die anderen sehen:</p>
 <table>
   <tr><th>Stufe</th><th>Die anderen sehen</th></tr>
-  <tr><td><b>1 · Nur Zahlen</b></td><td>Arena-Punkte, Bestwerte in der Ewigen Tabelle, Streak, Kämpfer und Challenge-Stände – aber keine Workouts.</td></tr>
-  <tr><td><b>2 · Übersicht</b></td><td>Zusätzlich die Workouts mit Titel, Datum, Dauer, Volumen, Übungen und Rekorden.</td></tr>
-  <tr><td><b>3 · Komplett</b></td><td>Workouts vollständig mit allen Sätzen, Gewichten und Wiederholungen.</td></tr>
+  <tr><td>1 · Nur Zahlen</td><td>Arena-Punkte, Bestwerte, Streak, Challenges – keine Workouts</td></tr>
+  <tr><td>2 · Übersicht</td><td>Zusätzlich Workouts mit Titel, Datum, Dauer, Volumen, Übungen</td></tr>
+  <tr><td>3 · Komplett</td><td>Workouts mit allen Sätzen, Gewichten und Wiederholungen</td></tr>
 </table>
-<p>Der Server speichert Schlüssel und Geräte-Kennungen nur verschlüsselt (als Hash). Falsche Schlüssel werden nach 10 Versuchen für 15 Minuten gesperrt. Als Admin kannst du einzelne Geräte abmelden, Mitglieder sperren oder löschen. Wer den Server betreibt, hat technisch Zugriff auf alle Daten der Gruppe – hostet also bei jemandem, dem ihr vertraut.</p>
+<p>Passwörter werden nur als scrypt-Hash gespeichert, Anmelde-Tokens als SHA-256-Hash. Nach 10 falschen Passwörtern pro Benutzername ist für 15 Minuten Pause.</p>
 
 <h2 id="backup">Backups</h2>
-<p>Alle Daten liegen in einer einzigen Datei unter <code>data/gymlog.db</code>. Sicherung im laufenden Betrieb:</p>
-<pre><code>docker compose exec gymlog node server/cli.js backup /data/backup-$(date +%F).db</code></pre>
-<p>Automatisch jede Nacht um 3 Uhr (mit <code>crontab -e</code> eintragen, Pfad anpassen):</p>
-<pre><code>0 3 * * * cd /home/pi/gymapp &amp;&amp; docker compose exec -T gymlog node server/cli.js backup /data/backup-$(date +\%a).db</code></pre>
-<p>Das hält sieben Sicherungen (eine pro Wochentag) im Ordner <code>data/</code>. Kopiere sie ab und zu auf einen anderen Rechner oder USB-Stick. <b>Wiederherstellen:</b> Server stoppen (<code>docker compose down</code>), Sicherung als <code>data/gymlog.db</code> ablegen, wieder starten.</p>
+<pre><code>bash deploy/cli.sh backup ~/gym-backup-$(date +%F).db
+# Täglich um 4 Uhr automatisch:
+(crontab -l 2&gt;/dev/null; echo "0 4 * * * cd ~/gym &amp;&amp; bash deploy/cli.sh backup ~/backups/gym-\$(date +\%F).db") | crontab -
+mkdir -p ~/backups</code></pre>
+<p>Wiederherstellen: Dienst stoppen (<code>sudo systemctl stop gym</code>), Sicherung nach <code>~/gym/data/gymlog.db</code> kopieren, Dienst starten.</p>
 
 <h2 id="update">Updates</h2>
-<pre><code>cd gymapp
-git pull
-docker compose --profile tunnel up -d --build   # bzw. --profile caddy</code></pre>
-<p>Die Apps auf den Handys aktualisieren sich beim nächsten Öffnen automatisch.</p>
+<pre><code>cd ~/gym &amp;&amp; git pull &amp;&amp; sudo systemctl restart gym</code></pre>
+<p>Die App selbst aktualisiert sich über GitHub automatisch beim nächsten Öffnen.</p>
 
-<h2 id="ohne-docker">Ohne Docker</h2>
-<p>Der Server braucht nur <b>Node.js ab Version 22.13</b> (empfohlen 24) – keine weiteren Pakete. Für HTTPS setzt du dann einen eigenen Reverse-Proxy (z. B. Caddy) davor.</p>
-<pre><code>GROUP_NAME="Gym-Crew" PUBLIC_URL="https://gym.example.de" PORT=8080 DATA_DIR=./data \
-  node --no-warnings server/server.js</code></pre>
-<p>Als Dienst mit systemd (<code>/etc/systemd/system/gymlog.service</code>):</p>
-<pre><code>[Unit]
-Description=GymLog
-After=network.target
-
-[Service]
-WorkingDirectory=/home/pi/gymapp
-Environment=GROUP_NAME=Gym-Crew PUBLIC_URL=https://gym.example.de PORT=8080 DATA_DIR=/home/pi/gymapp/data
-ExecStart=/usr/bin/node --no-warnings server/server.js
-Restart=always
-User=pi
-
-[Install]
-WantedBy=multi-user.target</code></pre>
-<p>Verwaltung dann mit <code>node server/cli.js …</code> statt <code>docker compose exec gymlog node server/cli.js …</code>.</p>
+<h2 id="docker">Mit Docker (statt Skript)</h2>
+<details><summary>Docker-Variante anzeigen</summary>
+<pre><code>curl -fsSL https://get.docker.com | sh
+git clone -b distribution https://github.com/maxrci/gymapp.git ~/gym &amp;&amp; cd ~/gym
+cp .env.example .env &amp;&amp; nano .env
+docker compose up -d --build                    # nur lokal (Port 8080, z. B. mit Tailscale Funnel)
+docker compose --profile caddy up -d --build    # mit Caddy (Variante B)
+docker compose --profile tunnel up -d --build   # mit Cloudflare Tunnel (Variante C)
+docker compose exec gymlog node server/cli.js admin "Max" max</code></pre>
+</details>
 
 <h2 id="probleme">Fehlerbehebung</h2>
 <table>
   <tr><th>Problem</th><th>Lösung</th></tr>
-  <tr><td>„Schlüssel ungültig“</td><td>Jeder Schlüssel funktioniert nur einmal und 7 Tage lang. Als Admin unter <i>Gruppe verwalten</i> einen neuen erstellen.</td></tr>
-  <tr><td>iPhone: nach Installation nicht angemeldet</td><td>Die Home-Bildschirm-App hat einen eigenen Speicher. In der App unter <i>Profil → Gruppe</i> mit einem neuen Schlüssel anmelden.</td></tr>
-  <tr><td>Seite nicht erreichbar</td><td><code>docker compose ps</code> und <code>docker compose logs -f</code> prüfen. Bei Variante B: Portfreigabe und DynDNS kontrollieren.</td></tr>
-  <tr><td>Kein HTTPS-Zertifikat (B/C)</td><td>Zeigt die Domain wirklich auf die richtige IP? Sind Port 80 und 443 offen? Caddy-Log: <code>docker compose logs caddy</code></td></tr>
-  <tr><td>Liste der Nutzer anzeigen</td><td><code>docker compose exec gymlog node server/cli.js users</code></td></tr>
-  <tr><td>Admin hat alle Geräte verloren</td><td><code>docker compose exec gymlog node server/cli.js key "Name"</code> erzeugt einen neuen Schlüssel.</td></tr>
+  <tr><td>„Server nicht erreichbar“ in der App</td><td>Adresse mit <code>https://</code> eingeben. Auf dem Handy im Browser <code>https://deine-adresse/api/info</code> öffnen – dort muss <code>{"app":"gymlog",…}</code> stehen.</td></tr>
+  <tr><td>Dienst läuft nicht</td><td><code>systemctl status gym</code> und <code>journalctl -u gym -n 50</code></td></tr>
+  <tr><td>„Benutzername oder Passwort falsch“</td><td>Benutzername ist klein geschrieben (z. B. <code>lisa.mueller</code>). Neues Passwort: <code>bash deploy/cli.sh passwd lisa.mueller</code></td></tr>
+  <tr><td>„Zu viele Fehlversuche“</td><td>15 Minuten warten oder Dienst neu starten.</td></tr>
+  <tr><td>Funnel-Adresse geht nicht</td><td><code>tailscale funnel status</code> prüfen; im Tailscale-Admin unter <b>DNS</b> „HTTPS Certificates“ aktivieren.</td></tr>
+  <tr><td>Node-Version zu alt</td><td><code>node -v</code> muss ≥ 22.13 sein – <code>bash deploy/pi-setup.sh</code> erneut ausführen.</td></tr>
 </table>
 
-<footer>GymLog ist ein privates Open-Source-Projekt ohne Gewähr. Den Quellcode findest du auf GitHub im Branch <code>distribution</code>.</footer>
+<footer>Gym · Open Source · Fragen und Wünsche: in der App unter Profil → „Wünsche &amp; Fehler melden“.</footer>
 </main>
 </body>
 </html>

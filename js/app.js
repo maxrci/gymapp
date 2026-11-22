@@ -17,7 +17,8 @@ import { nav } from './nav.js';
 import { showIntro } from './intro.js';
 import { setLook } from './look.js';
 import { leagueView, memberView } from './views/league.js';
-import { joinView } from './views/join.js';
+import { joinView, loginView } from './views/join.js';
+import { showOnboarding, shouldOnboard } from './onboarding.js';
 import { detectServer, initSync, loggedIn, onSync, demoOn } from './sync.js';
 
 const TABS = [
@@ -32,7 +33,8 @@ let current = null;
 let currentKey = '';
 
 function parseRoute() {
-  const h = location.hash.replace(/^#\/?/, '');
+  const [h, query = ''] = location.hash.replace(/^#\/?/, '').split('?');
+  const q = new URLSearchParams(query);
   const [a, ...rest] = h.split('/');
   const b = rest.join('/');
   switch (a) {
@@ -47,6 +49,7 @@ function parseRoute() {
     case 'league': return { tab: 'arena', view: leagueView, params: { tab: b || (loggedIn() || demoOn() ? 'season' : 'exercises') } };
     case 'member': return { tab: 'arena', view: memberView, params: { id: decodeURIComponent(b) } };
     case 'join': return { tab: 'profile', view: joinView, params: { code: decodeURIComponent(b) } };
+    case 'login': return { tab: 'profile', view: loginView, params: { server: q.get('server') || '', user: q.get('user') || '' } };
     default: return { tab: 'home', view: homeView };
   }
 }
@@ -139,7 +142,7 @@ async function main() {
   });
   mo.observe($('#editor'), { attributes: true, attributeFilter: ['hidden'] });
 
-  // Gruppen-Server (nur wenn die App von einem GymLog-Server kommt)
+  // Gruppen-Server (nur wenn die App von einem Gym-Server kommt)
   let wasIn = loggedIn();
   onSync(debounce(() => {
     if (loggedIn() !== wasIn) { wasIn = loggedIn(); renderTabbar(); initSync(); }
@@ -149,7 +152,10 @@ async function main() {
 
   render({ keepScroll: false });
   document.body.classList.add('ready');
-  if (!location.hash.startsWith('#/join')) showIntro();
+  // Beim ersten Öffnen: Onboarding statt Start-Animation (nicht bei Anmelde-Links)
+  const viaLink = /^#\/(join|login)/.test(location.hash);
+  if (shouldOnboard() && !viaLink) showOnboarding();
+  else if (!viaLink) showIntro();
   resumeGuided();
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
