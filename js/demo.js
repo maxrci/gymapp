@@ -24,12 +24,12 @@ const hash = (s) => [...s].reduce((h, c) => (Math.imul(h, 31) + c.charCodeAt(0))
 // ---------- NPCs ----------
 const NPCS = [
   {
-    id: 'npc-kai', name: 'Kai (NPC)', freq: 3.2, bw: 88, goal: 3, vis: 'summary', cardio: 0.15,
+    id: 'npc-kai', name: 'Kai (NPC)', freq: 3.2, rel: 0.85, bw: 88, goal: 3, vis: 'summary', cardio: 0.18, device: ['Radfahren', 22, 28], mobility: 0.04,
     factor: { bench: 1.08, squat: 0.97, deadlift: 1.12, ohp: 1.04 },
     look: { sex: 'm', hair: 'blau', outfit: 'tank', color: 'schwarz', face: 'cool' },
   },
   {
-    id: 'npc-mia', name: 'Mia (NPC)', freq: 4.6, bw: 61, goal: 4, vis: 'full', cardio: 0.35,
+    id: 'npc-mia', name: 'Mia (NPC)', freq: 4.6, rel: 1.1, bw: 61, goal: 4, vis: 'full', cardio: 0.3, device: ['Laufband', 8, 11], mobility: 0.22,
     factor: { bench: 0.58, squat: 0.75, deadlift: 0.78, ohp: 0.6 },
     look: { sex: 'f', hair: 'lila', outfit: 'gi', color: 'pink', face: 'happy' },
   },
@@ -64,7 +64,7 @@ const round = (v, s = 2.5) => Math.round(v / s) * s;
 
 function npcItems(npc, base, now) {
   const items = [];
-  const days = 200;
+  const days = 420;
   const today = new Date(now); today.setHours(0, 0, 0, 0);
   let planIdx = 0;
   for (let d = days; d >= 0; d--) {
@@ -77,11 +77,22 @@ function npcItems(npc, base, now) {
     const id = `${npc.id}-${Math.floor(day / DAY)}`;
     const ex = [];
     const exercises = [];
-    if (r() < npc.cardio) {
-      const km = +(3 + r() * 5).toFixed(2);
-      const sec = Math.round(km * (330 + r() * 60));
-      ex.push({ n: 'Laufband', t: 'cardio', v: 0, s: 1, r: 0, mr: 0, e: 0, w: 0, d: km, sec });
-      exercises.push({ name: 'Laufband', sets: [{ type: 'normal', distance: km, duration: sec }] });
+    const roll = r();
+    if (roll < npc.mobility) {
+      const name = r() < 0.5 ? 'Pilates' : 'Mobility';
+      const sec = (20 + Math.floor(r() * 25)) * 60;
+      ex.push({ n: name, t: 'duration', v: 0, s: 1, r: 0, mr: 0, e: 0, w: 0, d: 0, sec });
+      exercises.push({ name, sets: [{ type: 'normal', duration: sec }] });
+      items.push({ id, summary: { start, end: start + sec * 1000, title: name, vol: 0, sets: 1, reps: 0, dur: sec, km: 0, cmin: 0, mob: 1, ex }, data: { id, title: name, start, exercises } });
+      continue;
+    }
+    if (roll < npc.mobility + npc.cardio) {
+      const [dev, lo, hi] = npc.device;
+      const speed = lo + r() * (hi - lo); // km/h
+      const sec = (25 + Math.floor(r() * 35)) * 60;
+      const km = +((speed * sec) / 3600).toFixed(2);
+      ex.push({ n: dev, t: 'cardio', v: 0, s: 1, r: 0, mr: 0, e: 0, w: 0, d: km, sec });
+      exercises.push({ name: dev, sets: [{ type: 'normal', distance: km, duration: sec }] });
       items.push({ id, summary: { start, end: start + sec * 1000, title: 'Cardio', vol: 0, sets: 1, reps: 0, dur: sec, km, cmin: Math.round(sec / 60), mob: 0, ex }, data: { id, title: 'Cardio', start, exercises } });
       continue;
     }
@@ -124,8 +135,12 @@ function users(now) {
     profile: { avatar: s.avatar || null, bwLog: Array.isArray(s.bwLog) ? s.bwLog : (s.bodyweight ? [{ t: 0, kg: s.bodyweight }] : []), weekGoal: s.weekGoal, visibility: s.visibility || 'full' },
   };
   const base = myLifts(mine.map((i) => i.summary));
+  // NPCs trainieren ungefähr so oft wie du (Kai etwas seltener, Mia etwas öfter), damit es spannend bleibt
+  const recent = mine.filter((i) => i.summary.start > now - 91 * DAY).length / 13;
+  const myFreq = recent > 0.5 ? recent : 3.5;
   const npcs = NPCS.map((n, i) => ({
-    id: n.id, name: n.name, role: 'member', created: i + 1, npc: true, items: npcItems(n, base, now),
+    id: n.id, name: n.name, role: 'member', created: i + 1, npc: true,
+    items: npcItems({ ...n, freq: Math.max(1.5, Math.min(6.5, myFreq * n.rel)) }, base, now),
     profile: { avatar: n.look, bwLog: [{ t: 0, kg: n.bw }], weekGoal: n.goal, visibility: n.vis },
   }));
   return [me, ...npcs].map((u) => ({ ...u, sums: u.items.map((x) => ({ ...x.summary, id: x.id })) }));
@@ -138,10 +153,8 @@ export function demoGroup() {
   if (memo.key === key) return memo.g;
   const us = users(now);
   const g = buildGroup(us, d.challenges, now);
-  const out = {
-    demo: true, me: ME, group: 'Demo-Arena', now,
-    members: g.members, season: g.season, seasons: g.seasons, titles: g.titles, alltime: g.alltime, challenges: g.challenges,
-  };
+  const { users: _u, ...rest } = g;
+  const out = { demo: true, me: ME, group: 'Demo-Arena', now, ...rest };
   memo = { key, g: out, us };
   return out;
 }

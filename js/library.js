@@ -16,6 +16,7 @@ export const TYPES = {
 
 // Reihenfolge ist wichtig: spezifischere Regeln zuerst
 const RULES = [
+  [/pilates|yoga/i, 'Bauch', ['Ganzkörper'], 'duration'],
   [/mobility|dehnen|stretch/i, 'Ganzkörper', [], 'duration'],
   [/rudermaschine|carido|cardio|radfahren|fahrrad|ergometer|laufband|crosstrainer|joggen|laufen|schwimmen|stepper|seilspringen|zone ?2/i, 'Cardio', [], 'cardio'],
   [/burpee/i, 'Ganzkörper', [], 'bodyweight'],
@@ -79,5 +80,5 @@ export const LIBRARY = [
   'Ausfallschritt (Kurzhantel)', 'Beinstrecken (Maschine)', 'Liegendes Beinbeugen (Maschine)',
   'Beinbeugen sitzend', 'Hip Thrust (Langhantel)', 'Hüftabduktion (Maschine)', 'Hüftadduktion (Maschine)',
   'Wadenheben stehend (Maschine)', 'Wadenheben sitzend', 'Crunch', 'Negativer Crunch',
-  'Beinheben hängend', 'Plank', 'Radfahren', 'Laufband', 'Crosstrainer', 'Rudermaschine',
+  'Beinheben hängend', 'Plank', 'Pilates', 'Yoga', 'Radfahren', 'Laufband', 'Crosstrainer', 'Rudermaschine',
 ];

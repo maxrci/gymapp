@@ -10,6 +10,7 @@ import { volumeBalance, strengthBalance, bodyweightStandards, LEVELS } from '../
 import { setLoad } from '../stats.js';
 import { rel, relSwitch, relClick, relAvailable, fmtRel } from '../body.js';
 import { e1rm, addDays } from '../utils.js';
+import { aiOn } from '../ai.js';
 import { pageHead, kpi, prValue, prLabel, emptyState } from '../components.js';
 import { icon, chips } from '../ui.js';
 import {
@@ -18,7 +19,9 @@ import {
 } from '../utils.js';
 
 const TABS = [['overview', 'Übersicht'], ['strength', 'Kraft'], ['volume', 'Volumen'], ['balance', 'Balance'], ['calendar', 'Kalender'], ['records', 'Rekorde']];
-const ui = { range: '6m', unit: null, muscle: 'Brust', year: new Date().getFullYear() };
+const ui = { range: '6m', unit: null, muscle: 'Brust', year: new Date().getFullYear(), wOff: 0 };
+const bounds = () => rangeBounds(ui.range, ui.wOff);
+const unitWord = (u) => (u === 'day' ? 'Tag' : u === 'week' ? 'Woche' : 'Monat');
 
 const agg = (list) => {
   const { wStats } = idx();
@@ -33,11 +36,13 @@ const agg = (list) => {
 const pct = (a, b) => (b > 0 ? ((a - b) / b) * 100 : null);
 
 function bucketLabel(b, unit) {
+  if (unit === 'day') return WEEKDAYS[weekday(b.start)];
   if (unit === 'week') return `KW ${isoWeek(b.start)}`;
   const d = new Date(b.start);
   return `${MONTHS[d.getMonth()]}${d.getMonth() === 0 ? ` ${String(d.getFullYear()).slice(2)}` : ''}`;
 }
 function bucketHead(b, unit) {
+  if (unit === 'day') return fmtDate(b.start, { weekday: 'long', day: 'numeric', month: 'short' });
   if (unit === 'week') return `KW ${isoWeek(b.start)} · ${fmtDate(b.start, { day: 'numeric', month: 'short' })}`;
   return fmtDate(b.start, { month: 'long', year: 'numeric' });
 }
@@ -46,16 +51,24 @@ export function statsView({ tab = 'overview' }) {
   if (!state.workouts.length) {
     return { html: pageHead('Statistik') + emptyState('chart', 'Noch keine Daten', 'Importiere deine Workouts oder starte dein erstes Training, um Statistiken zu sehen.', '<a class="btn primary" href="#/profile">Zum Import</a>') };
   }
-  const tabs = `<div class="tabs scroll">${TABS.map(([k, l]) => `<a class="tab ${k === tab ? 'on' : ''}" href="#/stats/${k}">${l}</a>`).join('')}</div>`;
+  // Balance (Auffälligkeiten) gibt es nur im AI-Mode
+  const tabList = TABS.filter(([k]) => k !== 'balance' || aiOn());
+  if (!tabList.some(([k]) => k === tab)) tab = 'overview';
+  const tabs = `<div class="tabs scroll">${tabList.map(([k, l]) => `<a class="tab ${k === tab ? 'on' : ''}" href="#/stats/${k}">${l}${k === 'balance' ? ' <span class="ai-badge xs">AI</span>' : ''}</a>`).join('')}</div>`;
   const rangeChips = chips(RANGES, ui.range, 'data-range');
   const views = { overview, strength, volume, balance, calendar, records };
   const v = (views[tab] || overview)();
+  const b = bounds();
+  const weekNav = ui.range === '1w' ? `<div class="week-nav"><button class="icon-btn" data-wk="-1" aria-label="Vorherige Woche">${icon('left')}</button>
+    <div><b>KW ${isoWeek(b.from)}${ui.wOff === 0 ? ' · diese Woche' : ui.wOff === -1 ? ' · letzte Woche' : ''}</b><small>${esc(fmtDate(b.from, { day: 'numeric', month: 'short' }))} – ${esc(fmtDate(b.end, { day: 'numeric', month: 'short', year: 'numeric' }))}</small></div>
+    <button class="icon-btn" data-wk="1" ${ui.wOff >= 0 ? 'disabled' : ''} aria-label="Nächste Woche">${icon('right')}</button></div>` : '';
   return {
-    html: `${pageHead('Statistik')}${tabs}${tab !== 'calendar' ? `<div class="filter-row">${rangeChips}</div>` : ''}${v.html}`,
+    html: `${pageHead('Statistik')}${tabs}${tab !== 'calendar' ? `<div class="filter-row">${rangeChips}</div>${weekNav}` : ''}${v.html}`,
     mount: v.mount,
     clicks: {
       ...(v.clicks || {}),
-      range: (el, rerender) => { ui.range = el.dataset.range; ui.unit = null; rerender(); },
+      range: (el, rerender) => { ui.range = el.dataset.range; ui.unit = null; ui.wOff = 0; rerender(); },
+      wk: (el, rerender) => { ui.wOff = Math.min(0, ui.wOff + Number(el.dataset.wk)); rerender(); },
     },
   };
 }
@@ -63,17 +76,18 @@ export function statsView({ tab = 'overview' }) {
 // ---------------- Übersicht ----------------
 function overview() {
   const { asc, wStats } = idx();
-  const { from, to, prevFrom, prevTo } = rangeBounds(ui.range);
+  const { from, to, prevFrom, prevTo, end } = bounds();
   const cur = inRange(asc, from, to);
   const prev = inRange(asc, prevFrom, prevTo);
   const a = agg(cur);
   const b = agg(prev);
   const cmp = ui.range !== 'all' && prev.length > 0;
+  const std = bodyweightStandards(strengthBalance().lifts);
   const d = (x, y) => (cmp ? pct(x, y) : null);
   const st = weekStreaks();
   const weeks = Math.max(1, (to - from) / (7 * DAY));
   const unit = autoUnit(ui.range);
-  const bs = bucketize(cur, unit, from, to);
+  const bs = bucketize(cur, unit, from, end || to);
 
   // Splits
   const splits = new Map();
@@ -86,6 +100,8 @@ function overview() {
   const splitRows = [...splits.entries()].sort((p, q) => q[1].n - p[1].n).slice(0, 10);
 
   const html = `
+    ${strengthStandards(std)}
+    ${unit === 'day' ? weekDays(bs) : ''}
     <div class="kpis">
       ${kpi('Workouts', num(a.n, 0), d(a.n, b.n), 'dumbbell')}
       ${kpi('Volumen', fmtVolume(a.vol), d(a.vol, b.vol), 'weight')}
@@ -94,15 +110,15 @@ function overview() {
       ${kpi('Trainingszeit', fmtDurShort(a.dur), d(a.dur, b.dur), 'clock')}
       ${kpi('Ø Dauer', fmtDurShort(a.n ? a.dur / a.n : 0), cmp && b.n ? pct(a.dur / (a.n || 1), b.dur / b.n) : null, 'timer')}
     </div>
-    ${cmp ? '<p class="footnote">Veränderung ggü. dem vorherigen, gleich langen Zeitraum.</p>' : ''}
+    ${cmp ? `<p class="footnote">Veränderung ggü. ${unit === 'day' ? 'dem gleichen Zeitraum der Vorwoche' : 'dem vorherigen, gleich langen Zeitraum'}.</p>` : ''}
     <div class="kpis four">
       <div class="kpi mini"><small>Aktuelle Serie</small><b>${st.current} Wo.</b></div>
       <div class="kpi mini"><small>Längste Serie</small><b>${st.longest} Wo.</b></div>
-      <div class="kpi mini"><small>Ø pro Woche</small><b>${num(a.n / weeks, 1)}</b></div>
+      <div class="kpi mini"><small>${unit === 'day' ? 'Wochenziel' : 'Ø pro Woche'}</small><b>${unit === 'day' ? `${a.n}/${state.settings.weekGoal}` : num(a.n / weeks, 1)}</b></div>
       <div class="kpi mini"><small>Trainingstage</small><b>${num(st.days, 0)}</b></div>
     </div>
-    <section class="card"><div class="card-title">Volumen pro ${unit === 'week' ? 'Woche' : 'Monat'}</div><div data-chart="vol"></div></section>
-    <section class="card"><div class="card-title">Workouts pro ${unit === 'week' ? 'Woche' : 'Monat'}</div><div data-chart="count"></div></section>
+    <section class="card"><div class="card-title">Volumen pro ${unitWord(unit)}</div><div data-chart="vol"></div></section>
+    <section class="card"><div class="card-title">Workouts pro ${unitWord(unit)}</div><div data-chart="count"></div></section>
     <section class="card"><div class="card-title">Ø Trainingsdauer</div><div data-chart="dur"></div></section>
     <section class="card"><div class="card-title">Trainingsbelastung <small>akut : chronisch</small></div>
       <p class="footnote">Volumen der letzten 7 Tage im Verhältnis zum Wochenschnitt der letzten 4 Wochen. Im grünen Bereich (0,8–1,3) steigerst du dich sicher; deutlich darüber steigt das Verletzungsrisiko.</p>
@@ -130,10 +146,11 @@ function overview() {
     });
     barChart(root.querySelector('[data-chart="count"]'), {
       data: bs.map((b) => ({ label: bucketLabel(b, unit), value: b.items.length, partial: b.end > now, tip: `<div class="tt-h">${esc(bucketHead(b, unit))}</div><div class="tt-r"><b>${b.items.length}</b> Workouts</div>` })),
-      color: SERIES[2],
+      color: SERIES[2], yFmt: (v) => (Math.abs(v - Math.round(v)) < 1e-6 ? num(v, 0) : ''),
       refLine: unit === 'week' ? { value: state.settings.weekGoal, label: 'Ziel' } : null,
     });
     const durPts = bs.filter((b) => b.items.length).map((b) => ({ x: b.start, y: sum(b.items, (w) => wStats.get(w.id).duration) / b.items.length / 60 }));
+    if (unit === 'day') { root.querySelector('[data-chart="dur"]').closest('.card').hidden = durPts.length < 2; root.querySelector('[data-chart="density"]').closest('.card').hidden = true; }
     // Akut:chronisch
     const daily = new Map();
     for (const w of asc) { const k = startOfDay(w.start); daily.set(k, (daily.get(k) || 0) + wStats.get(w.id).volume); }
@@ -163,7 +180,7 @@ function overview() {
 // ---------------- Kraft ----------------
 function strength() {
   const { ex } = idx();
-  const { from, to } = rangeBounds(ui.range);
+  const { from, to } = bounds();
   const relOn = rel.on && relAvailable();
   const val = (s) => (relOn ? (s.bw ? s.bestE1rm / s.bw : 0) : s.bestE1rm);
   const vf = (v, d) => (relOn ? `${num(v, d ?? 2)}` : `${num(v, d ?? 1)}`);
@@ -251,10 +268,12 @@ function strength() {
 // ---------------- Volumen ----------------
 function volume() {
   const { asc, wStats, ex } = idx();
-  const { from, to } = rangeBounds(ui.range);
+  const { from, to, end } = bounds();
   const cur = inRange(asc, from, to);
+  if (ui.range === '1w') ui.unit = 'day';
+  else if (ui.unit === 'day') ui.unit = null;
   const unit = ui.unit || autoUnit(ui.range);
-  const bs = bucketize(cur, unit, from, to);
+  const bs = bucketize(cur, unit, from, end || to);
   const weeks = Math.max(1, (to - from) / (7 * DAY));
 
   // Sätze pro Muskelgruppe
@@ -281,9 +300,9 @@ function volume() {
   const typeTotal = sum(types, (r) => r.value) || 1;
 
   const html = `
-    <div class="filter-row">${chips([['week', 'Woche'], ['month', 'Monat']], unit, 'data-unit')}</div>
-    <section class="card"><div class="card-title">Volumen pro ${unit === 'week' ? 'Woche' : 'Monat'}</div><div data-chart="vol"></div></section>
-    <section class="card"><div class="card-title">Arbeitssätze pro ${unit === 'week' ? 'Woche' : 'Monat'}</div><div data-chart="sets"></div></section>
+    ${unit === 'day' ? '' : `<div class="filter-row">${chips([['week', 'Woche'], ['month', 'Monat']], unit, 'data-unit')}</div>`}
+    <section class="card"><div class="card-title">Volumen pro ${unitWord(unit)}</div><div data-chart="vol"></div></section>
+    <section class="card"><div class="card-title">Arbeitssätze pro ${unitWord(unit)}</div><div data-chart="sets"></div></section>
     <section class="card"><div class="card-title">Körperkarte <small>Ø Sätze pro Woche</small></div>${bodyMap(Object.fromEntries(muscList.map((m) => [m.label, m.value])))}</section>
     <section class="card"><div class="card-title">Muskelgruppen im Verlauf <small>Sätze</small></div><div data-chart="stack"></div></section>
     <section class="card">
@@ -438,10 +457,10 @@ function calendar() {
 // ---------------- Rekorde ----------------
 function records() {
   const { prs, ex } = idx();
-  const { from, to } = rangeBounds(ui.range);
+  const { from, to, end } = bounds();
   const cur = prs.filter((p) => p.date >= from && p.date <= to);
   const unit = autoUnit(ui.range);
-  const bs = bucketize([], unit, from, to);
+  const bs = bucketize([], unit, from, end || to);
   for (const p of cur) { const b = bs.find((x) => p.date >= x.start && p.date < x.end); if (b) b.items.push(p); }
   const recent = [...cur].reverse().filter((p) => p.kind !== 'sessionVolume' && p.kind !== 'volume').slice(0, 40);
   const best = [...ex.values()].filter((x) => x.count >= 2)
@@ -455,7 +474,7 @@ function records() {
       <div class="kpi mini"><small>Gewichts-PRs</small><b>${cur.filter((p) => p.kind === 'weight').length}</b></div>
       <div class="kpi mini"><small>Übungen</small><b>${new Set(cur.map((p) => p.exercise)).size}</b></div>
     </div>
-    <section class="card"><div class="card-title">Rekorde pro ${unit === 'week' ? 'Woche' : 'Monat'}</div><div data-chart="prs"></div></section>
+    <section class="card"><div class="card-title">Rekorde pro ${unitWord(unit)}</div><div data-chart="prs"></div></section>
     <section class="card"><div class="card-title">${icon('trophy', 'gold')} Letzte Rekorde</div>
       ${recent.length ? recent.map((p) => `<a class="pr-row" href="#/w/${esc(p.wid)}">
         <div><b>${esc(p.exercise)}</b><small>${esc(prLabel(p.kind))} · ${esc(fmtDate(p.date))}</small></div>
@@ -519,13 +538,14 @@ function review(y, list) {
 }
 
 // ---------------- Balance ----------------
-const LVL_TXT = { ok: 'Ausgewogen', mild: 'Leichte Disbalance', strong: 'Deutliche Disbalance', none: 'Zu wenig Daten' };
+const LVL_TXT = { ok: 'Ausgewogen', mild: 'Leicht schief', strong: 'Deutlich schief', none: 'Wenig Daten' };
 
+// Links steht A, rechts B (wie in der Überschrift). Der Punkt wandert zur Seite, die mehr Anteil hat.
 function balanceBar(share, ideal, aLabel, bLabel) {
-  const pos = Math.max(2, Math.min(98, share * 100));
+  const pos = Math.max(2, Math.min(98, (1 - share) * 100));
   return `<div class="bal-bar">
     <div class="bal-track">
-      <div class="bal-zone" style="left:${ideal[0] * 100}%;width:${(ideal[1] - ideal[0]) * 100}%"></div>
+      <div class="bal-zone" style="left:${(1 - ideal[1]) * 100}%;width:${(ideal[1] - ideal[0]) * 100}%"></div>
       <div class="bal-mid"></div>
       <div class="bal-dot" style="left:${pos}%"></div>
     </div>
@@ -542,11 +562,10 @@ function scaleBar(value, ideal, range) {
 }
 
 function balance() {
-  const { from, to } = rangeBounds(ui.range);
+  const { from, to } = bounds();
   const { asc, wStats } = idx();
   const vb = volumeBalance(from, to);
   const sb = strengthBalance();
-  const std = bodyweightStandards(sb.lifts);
   const weeks = Math.max(1, (to - from) / (7 * DAY));
   const RADAR = ['Brust', 'Rücken', 'Schultern', 'Bizeps', 'Trizeps', 'Bauch', 'Quadrizeps', 'Beinbeuger', 'Gesäß', 'Waden'];
   const musc = {};
@@ -580,15 +599,6 @@ function balance() {
       ${r.tip ? `<div class="bal-tip">${esc(r.tip)}</div>` : ''}
       <p class="footnote">${esc(r.text)} Basis: bestes 1RM der letzten 12 Monate.</p>
     </section>`).join('')}
-    <h2 class="section-title">Kraft im Verhältnis zum Körpergewicht</h2>
-    ${std ? `<section class="card">
-      ${std.map((l) => `<div class="std">
-        <div class="std-head"><b>${esc(l.label)}</b><span>${num(l.rel, 2)}× KG · <b>${esc(l.levelName)}</b></span></div>
-        <div class="std-track">${l.th.map((t, i) => `<i style="left:${(t / l.max) * 100}%"></i>`).join('')}<div class="std-fill lv${l.lvl}" style="width:${Math.min(100, (l.rel / l.max) * 100)}%"></div></div>
-        <div class="std-lbl">${l.th.map((t, i) => `<span style="left:${(t / l.max) * 100}%">${LEVELS[i + 1].slice(0, 5)}.</span>`).join('')}</div>
-      </div>`).join('')}
-      <p class="footnote">Richtwerte (Männer) für das geschätzte 1RM relativ zu deinem Körpergewicht von ${num(state.settings.bodyweight, 1)} kg.</p>
-    </section>` : '<div class="card"><p class="footnote">Trage dein Körpergewicht unter <a class="link-btn" href="#/profile">Profil</a> ein, um deine Kraft mit Richtwerten zu vergleichen.</p></div>'}
   `;
   return {
     html,
@@ -601,3 +611,27 @@ function balance() {
   };
 }
 const nameOf = (k) => ({ bench: 'Bankdrücken', row: 'Rudern', ohp: 'Schulterdrücken', squat: 'Kniebeuge', deadlift: 'Kreuzheben' }[k] || k);
+
+// ---------- Kraft im Verhältnis zum Körpergewicht (Übersicht, ganz oben) ----------
+function strengthStandards(std) {
+  if (!std) return `<div class="card std-card"><div class="card-title">Kraft zum Körpergewicht</div><p class="footnote">Trage dein Körpergewicht unter <a class="link-btn" href="#/profile">Profil</a> ein und trainiere Bankdrücken, Kniebeuge oder Kreuzheben mit der Langhantel, um deine Kraft mit Richtwerten zu vergleichen.</p></div>`;
+  return `<section class="card std-card">
+    <div class="card-title">Kraft zum Körpergewicht <small>bestes 1RM ÷ ${num(state.settings.bodyweight, 1)} kg</small></div>
+    ${std.map((l) => `<div class="std">
+      <div class="std-head"><b>${esc(l.label)}</b><span>${num(l.rel, 2)}× KG · <b>${esc(l.levelName)}</b></span></div>
+      <div class="std-track">${l.th.map((t) => `<i style="left:${(t / l.max) * 100}%"></i>`).join('')}<div class="std-fill lv${l.lvl}" style="width:${Math.min(100, (l.rel / l.max) * 100)}%"></div></div>
+      <div class="std-lbl">${l.th.map((t, i) => `<span style="left:${(t / l.max) * 100}%">${LEVELS[i + 1].slice(0, 5)}.</span>`).join('')}</div>
+    </div>`).join('')}
+    <p class="footnote">Richtwerte (Männer) für das geschätzte 1RM der letzten 12 Monate relativ zu deinem Körpergewicht.</p>
+  </section>`;
+}
+
+// ---------- Wochenansicht: Tage mit Workouts ----------
+function weekDays(bs) {
+  const { wStats } = idx();
+  const today = startOfDay(Date.now());
+  return `<section class="card week-days">${bs.map((b) => `<div class="wd-row ${b.start === today ? 'today' : ''} ${b.start > today ? 'future' : ''}">
+    <span class="wd-d"><b>${WEEKDAYS[weekday(b.start)]}</b><small>${new Date(b.start).getDate()}.</small></span>
+    <span class="wd-w">${b.items.length ? b.items.map((w) => `<a href="#/w/${esc(w.id)}"><b>${esc(w.title)}</b><small>${fmtDurShort(wStats.get(w.id).duration)}${wStats.get(w.id).volume ? ` · ${fmtVolume(wStats.get(w.id).volume)}` : ''}</small></a>`).join('') : `<small class="muted">${b.start > today ? '' : 'Pause'}</small>`}</span>
+  </div>`).join('')}</section>`;
+}

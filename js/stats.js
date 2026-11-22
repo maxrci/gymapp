@@ -174,10 +174,19 @@ function build() {
 
 // ---------- Zeiträume ----------
 export const RANGES = [
-  ['1m', '1M'], ['3m', '3M'], ['6m', '6M'], ['1y', '1J'], ['all', 'Alle'],
+  ['1w', 'Woche'], ['1m', '1M'], ['3m', '3M'], ['6m', '6M'], ['1y', '1J'], ['all', 'Alle'],
 ];
-export function rangeBounds(key) {
-  const to = Date.now();
+// off: Wochen-Versatz für die Wochenansicht (0 = diese Woche, −1 = letzte Woche …)
+export function rangeBounds(key, off = 0) {
+  const now = Date.now();
+  if (key === '1w') {
+    const from = startOfWeek(addDays(startOfWeek(now), off * 7 + 1));
+    const end = startOfWeek(addDays(from, 8)) - 1;
+    const to = Math.min(now, end);
+    const prevFrom = startOfWeek(addDays(from, -6));
+    return { from, to, end, prevFrom, prevTo: prevFrom + (to - from) };
+  }
+  const to = now;
   const { asc } = idx();
   const first = asc[0]?.start ?? to;
   const days = { '1m': 30, '3m': 91, '6m': 182, '1y': 365 }[key];
@@ -190,9 +199,9 @@ export const inRange = (asc, from, to) => asc.filter((w) => w.start >= from && w
 // Teilt den Zeitraum in Wochen/Monate auf
 export function buckets(unit, from, to) {
   const out = [];
-  let s = unit === 'week' ? startOfWeek(from) : startOfMonth(from);
+  let s = unit === 'day' ? startOfDay(from) : unit === 'week' ? startOfWeek(from) : startOfMonth(from);
   while (s <= to) {
-    const e = unit === 'week' ? addDays(s, 7) : addMonths(s, 1);
+    const e = unit === 'day' ? addDays(s, 1) : unit === 'week' ? addDays(s, 7) : addMonths(s, 1);
     out.push({ start: s, end: e, items: [] });
     s = e;
   }
@@ -208,7 +217,7 @@ export function bucketize(workouts, unit, from, to) {
   }
   return bs;
 }
-export const autoUnit = (key) => (key === '1y' || key === 'all' ? 'month' : 'week');
+export const autoUnit = (key) => (key === '1w' ? 'day' : key === '1y' || key === 'all' ? 'month' : 'week');
 
 // ---------- Serien ----------
 // Streak = aufeinanderfolgende Wochen, in denen das Wochenziel erreicht wurde.

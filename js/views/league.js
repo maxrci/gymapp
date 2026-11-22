@@ -1,19 +1,21 @@
 // Arena: Saison (Fleiß), Ewige Tabelle, Challenges, Mitglieder + Mitglieds-Profil
 
 import { pageHead, emptyState, kpi } from '../components.js';
-import { icon, chips, sheet, confirmDialog, toast } from '../ui.js';
+import { icon, chips, sheet, confirmDialog, toast, overlay } from '../ui.js';
 import { esc, num, fmtVolume, fmtDate, fmtRelDay, fmtDurShort, fmtClock } from '../utils.js';
 import { fighterSVG, fighterFx, fighterHead } from '../fighter.js';
 import { nav } from '../nav.js';
-import { cachedGroup, fetchGroup, loggedIn, myId, api, demoOn } from '../sync.js';
+import { cachedGroup, fetchGroup, loggedIn, myId, api, demoOn, srv } from '../sync.js';
 import {
-  ALLTIME, alltimeValue, CHALLENGE_TYPES, LEAGUE_RULES, VISIBILITY, STAGE_NAMES,
+  ALLTIME, alltimeValue, CHALLENGE_TYPES, LEAGUE_RULES, VISIBILITY, STAGE_NAMES, KINGS,
 } from '../compete.js';
 import { openChallengeEditor } from '../challengeEditor.js';
-import { startFight, chooseFight } from '../fight.js';
+import { startFight, chooseFight, fightSuggestions, catLabel, fmtCat, kingValue, fmtKing, startKingShowdown } from '../fight.js';
+import { exercisesView } from './exercises.js';
+import { loginFlow } from '../group.js';
 
-const TABS = [['season', 'Saison'], ['alltime', 'Ewige Tabelle'], ['challenges', 'Challenges'], ['members', 'Mitglieder']];
-const ui = { cat: 'workouts', rel: false };
+const TABS = [['season', 'Saison'], ['kings', 'Könige'], ['alltime', 'Ewig'], ['exercises', 'Übungen'], ['challenges', 'Challenges'], ['members', 'Mitglieder']];
+const ui = { cat: 'workouts', rel: false, kp: 'season' };
 let lastFetch = 0;
 
 const look = (m) => m?.look || {};
@@ -21,32 +23,43 @@ const fightBtn = (id) => (id !== myId() ? `<button class="lg-fight" data-fight="
 const head = (m) => `<span class="lg-head">${fighterHead(m?.stage || 0, look(m))}</span>`;
 const member = (g, id) => g.members.find((m) => m.id === id);
 const nameOf = (g, id) => member(g, id)?.name || 'Unbekannt';
-
+const titleOf = (g, id) => { const t = g.titles?.[id]; return typeof t === 'number' ? { months: t, years: 0 } : t || { months: 0, years: 0 }; };
 
 function refresh(rerender) {
-  if (demoOn() || Date.now() - lastFetch < 4000) return;
+  if (demoOn() || !loggedIn() || Date.now() - lastFetch < 4000) return;
   lastFetch = Date.now();
   fetchGroup().then(() => rerender()).catch(() => {});
 }
 
 export function leagueView({ tab = 'season' }) {
+  const tabs = `<div class="tabs scroll">${TABS.map(([k, l]) => `<a class="tab ${k === tab ? 'on' : ''}" href="#/arena/${k}">${l}</a>`).join('')}</div>`;
+  if (tab === 'exercises') {
+    const v = exercisesView({ embed: true });
+    const g = loggedIn() || demoOn() ? cachedGroup() : null;
+    return { ...v, html: `${pageHead(g?.group || 'Arena')}${g?.demo ? demoBanner() : ''}${tabs}${v.html}` };
+  }
   if (!loggedIn() && !demoOn()) {
-    return { html: pageHead('Arena') + emptyState('users', 'Keine Gruppe', 'Melde dich mit deinem persönlichen Schlüssel an (Profil → Gruppe), um in der Arena anzutreten.', '<a class="btn primary" href="#/profile">Zum Profil</a>') };
+    return {
+      html: pageHead('Arena') + tabs + emptyState('users', 'Keine Gruppe', srv.available
+        ? 'Melde dich mit deinem persönlichen Schlüssel an, um mit deiner Gruppe in der Arena anzutreten.'
+        : 'Für eine Gruppe mit Freunden braucht ihr einen eigenen Server. Die Arena-Demo mit 2 NPCs kannst du im Profil einschalten.',
+      srv.available ? '<button class="btn primary" data-act="login">Mit Schlüssel anmelden</button>' : '<a class="btn primary" href="#/profile">Zum Profil</a>'),
+      handlers: { login: () => loginFlow() },
+    };
   }
   const g = cachedGroup();
-  const tabs = `<div class="tabs scroll">${TABS.map(([k, l]) => `<a class="tab ${k === tab ? 'on' : ''}" href="#/arena/${k}">${l}</a>`).join('')}</div>`;
   if (!g) {
     return {
       html: pageHead('Arena') + tabs + '<div class="chart-empty">Lade Gruppendaten…</div>',
       mount: () => fetchGroup().then(() => window.dispatchEvent(new HashChangeEvent('hashchange'))).catch((e) => toast(e.message)),
     };
   }
-  const views = { season, alltime, challenges, members };
+  const views = { season, kings, alltime, challenges, members };
   const v = (views[tab] || season)(g);
   return {
     html: `${pageHead(g.group || 'Arena', { sub: `${g.members.length} Mitglieder` })}${g.demo ? demoBanner() : ''}${tabs}${v.html}`,
     mount: (root) => { v.mount?.(root); },
-    handlers: { ...(v.handlers || {}) },
+    handlers: { login: () => loginFlow(), ...(v.handlers || {}) },
     clicks: { ...(v.clicks || {}) },
     onShow: refresh,
   };
@@ -54,54 +67,167 @@ export function leagueView({ tab = 'season' }) {
 
 // DEMO-Hinweis
 const demoBanner = () => `<div class="card demo-banner"><span class="demo-tag">DEMO</span>
-  <div><b>Arena-Demo mit 2 NPCs</b><small>Kai und Mia sind computergesteuert und trainieren passend zu deinen Werten. Für eine echte Gruppe mit Freunden braucht ihr einen eigenen Server. Abschaltbar unter Profil.</small></div></div>`;
+  <div><b>Arena-Demo mit 2 NPCs</b><small>Kai und Mia sind computergesteuert und trainieren passend zu deinen Werten. ${srv.available
+    ? 'Du bist noch nicht bei deiner Gruppe angemeldet – sobald du dich anmeldest, siehst du deine echte Gruppe.'
+    : 'Für eine echte Gruppe mit Freunden braucht ihr einen eigenen Server. Abschaltbar unter Profil.'}</small>
+  ${srv.available ? '<button class="btn primary sm" data-act="login">Mit Schlüssel anmelden</button>' : ''}</div></div>`;
 
-// ---------------- Saison ----------------
+// ---------------- Saison (1 Jahr, Monate einzeln gewinnen) ----------------
+const monthName = (ts, long = true) => fmtDate(ts, { month: long ? 'long' : 'short' });
+function rankRows(g, rows, me, sub) {
+  return rows.map((r, i) => `<a class="lg-row ${r.id === me ? 'me' : ''}" href="#/member/${esc(r.id)}">
+    <span class="lg-rank ${i < 3 && r.points ? `m${i + 1}` : ''}">${i + 1}</span>${head(member(g, r.id))}
+    <span class="lg-main"><b>${esc(nameOf(g, r.id))}</b><small>${sub(r)}</small></span>
+    <span class="lg-val">${num(r.points, 0)}<small>P</small></span>${fightBtn(r.id)}</a>`).join('');
+}
+const rowSub = (r) => `${r.workouts} Workouts · ${r.goalWeeks} Wochenziele · ${r.prs} Rekorde${r.wins ? ` · ${r.wins} Siege` : ''}`;
+
+function openRanking(g, which = 'year') {
+  const me = myId();
+  const o = overlay('', 'rank-view');
+  const draw = () => {
+    const s = g.season;
+    const rows = which === 'year' ? s.rows : (s.month?.rows || []);
+    o.innerHTML = `
+      <div class="panel-head"><button class="icon-btn" data-close aria-label="Schließen">${icon('x')}</button><div class="panel-title">Rangliste</div><span style="width:40px"></span></div>
+      <div class="panel-body">
+        <div class="seg two"><button class="seg-btn ${which === 'year' ? 'on' : ''}" data-w="year">Saison ${new Date(s.from).getFullYear()}</button><button class="seg-btn ${which === 'month' ? 'on' : ''}" data-w="month">${esc(monthName(s.month?.from || Date.now()))}</button></div>
+        <section class="card">${rankRows(g, rows, me, rowSub)}</section>
+        <p class="footnote">${esc(LEAGUE_RULES)}</p>
+      </div>`;
+  };
+  draw();
+  o.addEventListener('click', (e) => {
+    if (e.target.closest('[data-close]')) return o.close();
+    const w = e.target.closest('[data-w]');
+    if (w) { which = w.dataset.w; return draw(); }
+    const f = e.target.closest('[data-fight]');
+    if (f) { e.preventDefault(); return chooseFight(g, me, f.dataset.fight); }
+    if (e.target.closest('a[href]')) o.close();
+  });
+}
+
+// Arena-Kampf: zu jedem Freund eine Kategorie, in der er oder sie vorne liegt
+function openFightPicker(g) {
+  const me = myId();
+  const sug = fightSuggestions(g, me);
+  const behind = g.members.filter((m) => m.id !== me && !sug.some((x) => x.friend.id === m.id));
+  const o = overlay(`
+    <div class="panel-head"><button class="icon-btn" data-close aria-label="Schließen">${icon('x')}</button><div class="panel-title">Arena-Kampf</div><span style="width:40px"></span></div>
+    <div class="panel-body">
+      <p class="footnote">Für jeden Gegner die Disziplin, in der er oder sie ${g.members.length > 2 ? 'in der Gruppe' : ''} vorne liegt – so hat jeder seine Stärke.</p>
+      ${sug.map((x, i) => `<button class="card sug-card" data-sug="${i}">
+        <span class="sug-fig">${fighterHead(x.friend.stage || 0, look(x.friend))}</span>
+        <span class="sug-main"><b>${esc(x.friend.name)}</b><small>${x.how === 'lead' ? 'führt bei' : 'schlägt dich bei'} <em>${esc(catLabel(x.key, x.rel))}</em></small>
+        <small class="muted">${esc(fmtCat(x.key, x.vb, x.rel, g, x.friend.id))} gegen deine ${esc(fmtCat(x.key, x.va, x.rel, g, me))}</small></span>
+        <span class="sug-go">${icon('bolt')}</span></button>`).join('')}
+      ${behind.length ? `<p class="footnote">${esc(behind.map((m) => m.name).join(', '))} ${behind.length > 1 ? 'liegen' : 'liegt'} gerade überall hinter dir.</p>` : ''}
+      <button class="btn ghost block" data-own>${icon('target')} Gegner & Disziplin selbst wählen</button>
+    </div>`, 'fight-pick');
+  o.addEventListener('click', async (e) => {
+    if (e.target.closest('[data-close]')) return o.close();
+    const b = e.target.closest('[data-sug]');
+    if (b) { const x = sug[+b.dataset.sug]; return startFight(g, me, x.friend.id, x.key, x.rel); }
+    if (e.target.closest('[data-own]')) {
+      const others = g.members.filter((m) => m.id !== me);
+      const id = others.length === 1 ? others[0].id : await sheet({ title: 'Gegner wählen', options: others.map((m) => ({ label: `${m.name} · ${STAGE_NAMES[m.stage]}`, value: m.id, icon: 'user' })) });
+      if (id) chooseFight(g, me, id);
+    }
+  });
+}
+
 function season(g) {
   const s = g.season;
   const me = myId();
-  const month = fmtDate(s.from, { month: 'long', year: 'numeric' });
+  const year = new Date(s.from).getFullYear();
   const daysLeft = Math.max(0, Math.ceil((s.to - Date.now()) / 86400000));
   const rows = s.rows;
   const podium = rows.slice(0, 3);
   const order = [1, 0, 2].filter((i) => podium[i]);
-  const titles = Object.entries(g.titles || {}).sort((a, b) => b[1] - a[1]);
+  const mon = s.month || { rows: [], from: Date.now() };
+  const mTop = mon.rows.filter((r) => r.points > 0);
+  const mLeft = Math.max(0, Math.ceil((mon.to - Date.now()) / 86400000));
+  const titles = g.members.map((m) => ({ m, t: titleOf(g, m.id) })).filter((x) => x.t.months || x.t.years).sort((a, b) => b.t.years - a.t.years || b.t.months - a.t.months);
   const html = `
-    <section class="card season-card">
-      <div class="season-top"><div><small>Saison</small><h3>${esc(month)}</h3></div><span class="pill">${daysLeft} Tag${daysLeft === 1 ? '' : 'e'} übrig</span></div>
+    <section class="card season-card tap" data-act="ranking" role="button" tabindex="0">
+      <div class="season-top"><div><small>Saison</small><h3>${year}</h3></div><span class="pill">${daysLeft} Tag${daysLeft === 1 ? '' : 'e'} übrig</span></div>
       <div class="podium">${order.map((i) => {
         const r = podium[i]; const m = member(g, r.id);
-        return `<a class="pod p${i + 1} ${r.id === me ? 'me' : ''}" href="#/member/${esc(r.id)}">
+        return `<div class="pod p${i + 1} ${r.id === me ? 'me' : ''}">
           <div class="pod-fig">${i === 0 ? fighterFx(m?.stage || 0, { look: look(m), enter: nav.entering }) : fighterSVG(m?.stage || 0, { look: look(m) })}</div>
-          <b>${esc(m?.name || '')}</b><small>${num(r.points, 0)} P</small><div class="pod-base">${i + 1}</div></a>`;
+          <b>${esc(m?.name || '')}</b><small>${num(r.points, 0)} P</small><div class="pod-base">${i + 1}</div></div>`;
       }).join('')}</div>
+      <div class="pod-hint">Komplette Rangliste ${icon('right', 'xs')}</div>
     </section>
     ${g.members.length > 1 ? `<button class="btn fight-btn block lg" data-act="fightpick">${icon('bolt')} Arena-Kampf starten</button>` : ''}
     <section class="card">
-      <div class="card-title">Rangliste</div>
-      ${rows.map((r, i) => `<a class="lg-row ${r.id === me ? 'me' : ''}" href="#/member/${esc(r.id)}">
-        <span class="lg-rank">${i + 1}</span>${head(member(g, r.id))}
-        <span class="lg-main"><b>${esc(nameOf(g, r.id))}</b><small>${r.workouts} Workouts · ${r.goalWeeks} Wochenziele · ${r.prs} Rekorde${r.wins ? ` · ${r.wins} Siege` : ''}</small></span>
-        <span class="lg-val">${num(r.points, 0)}<small>P</small></span>${fightBtn(r.id)}</a>`).join('')}
-      <p class="footnote">${esc(LEAGUE_RULES)}</p>
+      <div class="card-title">${icon('calendar')} ${esc(monthName(mon.from))} <small>Monatssieg · noch ${mLeft} Tag${mLeft === 1 ? '' : 'e'}</small></div>
+      ${mTop.length ? rankRows(g, mon.rows.slice(0, 3), me, rowSub) : '<p class="footnote">Diesen Monat hat noch niemand gepunktet.</p>'}
+      ${mon.rows.length > 3 ? '<button class="link-btn" data-act="rankmonth">Alle anzeigen</button>' : ''}
     </section>
-    ${titles.length ? `<section class="card"><div class="card-title">${icon('trophy', 'gold')} Saison-Titel</div>
-      ${titles.map(([id, n]) => `<div class="lg-row">${head(member(g, id))}<span class="lg-main"><b>${esc(nameOf(g, id))}</b></span><span class="lg-val">${n}×</span></div>`).join('')}
+    <section class="card">
+      <div class="card-title">${icon('trophy', 'gold')} Monatssieger ${year}</div>
+      <div class="month-grid">${(s.months || []).map((x) => `<div class="mg ${x.running ? 'run' : ''} ${x.winners.includes(me) ? 'me' : ''}">
+        <small>${esc(monthName(x.from, false))}${x.running ? ' · läuft' : ''}</small>
+        ${x.winners.length ? `<span class="lg-head">${fighterHead(member(g, x.winners[0])?.stage || 0, look(member(g, x.winners[0])))}</span><b>${esc(x.winners.map((id) => nameOf(g, id)).join(' & '))}</b><small>${num(x.top[0]?.points || 0, 0)} P</small>` : '<b class="muted">–</b>'}
+      </div>`).join('')}</div>
+      <p class="footnote">Das Jahr gewinnt, wer über alle Monate die meisten Punkte holt – nicht, wer die meisten Monate gewinnt.</p>
+    </section>
+    ${titles.length ? `<section class="card"><div class="card-title">${icon('medal')} Titel</div>
+      ${titles.map(({ m, t }) => `<div class="lg-row">${head(m)}<span class="lg-main"><b>${esc(m.name)}</b><small>${t.years ? `${t.years}× Jahressieger · ` : ''}${t.months}× Monatssieger</small></span><span class="lg-val">${t.years ? `${icon('trophy', 'gold')}${t.years}` : t.months}</span></div>`).join('')}
     </section>` : ''}
     ${g.seasons?.length ? `<section class="card"><div class="card-title">Vergangene Saisons</div>
-      ${g.seasons.slice(0, 12).map((x) => `<div class="lg-row"><span class="lg-main"><b>${esc(fmtDate(x.from, { month: 'long', year: 'numeric' }))}</b>
+      ${g.seasons.slice(0, 10).map((x) => `<div class="lg-row"><span class="lg-main"><b>Saison ${new Date(x.from).getFullYear()}</b>
         <small>${x.top.map((t, i) => `${i + 1}. ${esc(nameOf(g, t.id))} (${num(t.points, 0)})`).join(' · ')}</small></span>${icon('trophy', 'gold')}</div>`).join('')}
-    </section>` : ''}`;
+    </section>` : ''}
+    <p class="footnote">${esc(LEAGUE_RULES)}</p>`;
   return {
     html,
     handlers: {
-      fightpick: async () => {
-        const others = g.members.filter((m) => m.id !== me);
-        const id = others.length === 1 ? others[0].id : await sheet({ title: 'Gegner wählen', options: others.map((m) => ({ label: `${m.name} · ${STAGE_NAMES[m.stage]}`, value: m.id, icon: 'user' })) });
-        if (id) chooseFight(g, me, id);
-      },
+      ranking: () => openRanking(g, 'year'),
+      rankmonth: () => openRanking(g, 'month'),
+      fightpick: () => openFightPicker(g),
     },
     clicks: { fight: (el) => startFight(g, me, el.dataset.fight, 'season') },
+  };
+}
+
+// ---------------- Könige ----------------
+function kings(g) {
+  const me = myId();
+  const per = ui.kp;
+  const st = g.kings?.[per] || {};
+  const PL = [['month', 'Monat'], ['season', 'Saison'], ['all', 'Ewig']];
+  const BTN = { race: 'Rennen starten', lift: 'Kraft-Duell starten', stretch: 'Mobility-Duell starten' };
+  const LOW = { race: 'Rentner', lift: 'Plattgedrückt', stretch: 'Steif' };
+  const html = `
+    <div class="filter-row">${chips(PL, per, 'data-kp')}</div>
+    ${KINGS.map((k) => {
+      const rows = g.members.map((m) => ({ m, v: kingValue(st[m.id], k.key) })).sort((a, b) => b.v - a.v);
+      const top = rows[0]?.v || 0;
+      const low = rows.length > 1 && rows[rows.length - 1].v < top ? rows[rows.length - 1].v : null;
+      const king = top > 0 ? rows[0].m : null;
+      return `<section class="card king-card k-${k.key}">
+        <div class="king-top">
+          <div class="king-fig">${king ? fighterFx(king.stage || 0, { look: look(king) }) : ''}</div>
+          <div class="king-info"><small>${icon(k.icon, 'xs')} ${esc(k.label)}</small><h3>${king ? esc(king.name) : 'Noch offen'}</h3>
+            ${king ? `<span>${esc(fmtKing(k.key, st[king.id]))}</span>` : '<span class="muted">Noch keine Einheiten im Zeitraum</span>'}</div>
+          <span class="king-crown">${icon('trophy')}</span>
+        </div>
+        ${rows.map((r, i) => `<div class="lg-row ${r.m.id === me ? 'me' : ''}">
+          <span class="lg-rank ${i < 3 && r.v ? `m${i + 1}` : ''}">${i + 1}</span>${head(r.m)}
+          <span class="lg-main"><b>${esc(r.m.name)}${low != null && r.v === low ? ` <em class="tag">${LOW[k.anim]}</em>` : ''}</b><div class="bar"><i style="width:${top ? Math.max(r.v ? 3 : 0, (r.v / top) * 100) : 0}%"></i></div></span>
+          <span class="lg-val sm">${esc(fmtKing(k.key, st[r.m.id]))}</span></div>`).join('')}
+        ${g.members.length > 1 ? `<button class="btn ghost block" data-kshow="${k.key}">${icon(k.icon, 'xs')} ${BTN[k.anim]}</button>` : ''}
+        <p class="footnote">${esc(k.desc)}${k.key === 'cardio' ? ' Angezeigt als Kilometer-Äquivalent (so weit wärst du bei 75 kg gelaufen) und Ø-Leistung in Watt.' : ''}</p>
+      </section>`;
+    }).join('')}`;
+  return {
+    html,
+    clicks: {
+      kp: (el, rr) => { ui.kp = el.dataset.kp; rr(); },
+      kshow: (el) => startKingShowdown(g, el.dataset.kshow, g.members.map((m) => m.id), per),
+    },
   };
 }
 
@@ -274,7 +400,7 @@ export function memberView({ id }) {
       ${kpi('Workouts', num(at.workouts || 0, 0), null, 'dumbbell')}
       ${kpi('Volumen', fmtVolume(at.volume || 0), null, 'layers')}
       ${kpi('Trainingszeit', `${num(at.hours || 0, 0)} h`, null, 'clock')}
-      ${kpi('Saison-Titel', `${g.titles?.[id] || 0}`, null, 'trophy')}
+      ${kpi('Titel', `${titleOf(g, id).years ? `${titleOf(g, id).years} J · ` : ''}${titleOf(g, id).months} M`, null, 'trophy')}
     </div>
     ${lifts.length ? `<section class="card"><div class="card-title">Maximalkraft <small>geschätztes 1RM</small></div>
       ${lifts.map((k) => `<div class="pr-row"><div><b>${L[k]}</b>${at.rel[k] ? `<small>${num(at.rel[k], 2)} × Körpergewicht</small>` : ''}</div><span class="pr-val">${num(at.abs[k], 1)} kg</span></div>`).join('')}</section>` : ''}

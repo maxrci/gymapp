@@ -3,7 +3,7 @@
 
 const L = { torso: 50, neck: 8, head: 12, ua: 28, fa: 26, th: 36, sh: 34 };
 const GROUND = 182, CX = 110, BAR = 30;
-import { getLook, palette, lookKey } from './look.js';
+import { getLook, palette, lookKey, normLook } from './look.js';
 
 const C = {
   gi: '#f28c28', giF: '#cf6d14', skin: '#f3c9a0', skinF: '#dcae84',
@@ -11,11 +11,12 @@ const C = {
 };
 // Farben der Figur an den eigenen Kämpfer anpassen
 let lastLook = '';
-function syncLook() {
-  const k = lookKey();
+let plateScale = 1;
+function syncLook(other) {
+  const l = other ? normLook(other) : getLook();
+  const k = lookKey(l);
   if (k === lastLook) return;
   lastLook = k;
-  const l = getLook();
   const p = palette(l);
   const darker = (hex, f = 0.85) => '#' + [1, 3, 5].map((i) => Math.round(parseInt(hex.slice(i, i + 2), 16) * f).toString(16).padStart(2, '0')).join('');
   const top = p.main;
@@ -95,7 +96,7 @@ function boot(f, a, col) {
   return seg(heel, toe, 8, col);
 }
 function weight(kind, p) {
-  if (kind === 'bb') return `${circ(p, 14, C.plate)}${circ(p, 5, C.plateIn)}`;
+  if (kind === 'bb') return `${circ(p, 14 * plateScale, C.plate)}${circ(p, 5 * Math.sqrt(plateScale), C.plateIn)}`;
   if (kind === 'db') return `<rect x="${(p[0] - 9).toFixed(1)}" y="${(p[1] - 3).toFixed(1)}" width="18" height="6" rx="2" fill="${C.plateIn}"/>${circ([p[0] - 8, p[1]], 6, C.plate)}${circ([p[0] + 8, p[1]], 6, C.plate)}`;
   if (kind === 'handle') return `<rect x="${(p[0] - 7).toFixed(1)}" y="${(p[1] - 2.5).toFixed(1)}" width="14" height="5" rx="2.5" fill="${C.plateIn}"/>`;
   return '';
@@ -181,6 +182,7 @@ function props(J, M) {
     if (p === 'step') out.push(`<rect x="${(J.fn[0] - 6).toFixed(1)}" y="${GROUND - 6}" width="26" height="8" rx="2" ${PF}/>`);
     if (p === 'wallFront') out.push(`<path d="M${(J.fn[0] + 30).toFixed(1)},40 V${GROUND}" ${P} stroke-width="5"/>`);
     if (p === 'wallBack') out.push(`<path d="M${(J.ff[0] - 8).toFixed(1)},70 V${GROUND}" ${P} stroke-width="5"/>`);
+    if (p === 'cane') out.push(`<path d="M${J.hn[0].toFixed(1)},${(J.hn[1] - 4).toFixed(1)} q0,-7 -6,-7 M${J.hn[0].toFixed(1)},${(J.hn[1] - 4).toFixed(1)} L${(J.hn[0] + 5).toFixed(1)},${GROUND}" style="stroke:#8a5a2b;fill:none;stroke-width:4;stroke-linecap:round"/>`);
     if (p === 'pole') out.push(`<path d="M${(J.hf[0] + 4).toFixed(1)},${(J.hf[1] - 30).toFixed(1)} V${GROUND}" ${P} stroke-width="4"/>`);
     if (p === 'legpress') {
       const u = dir(ang(J.kn, J.fn) - 90);
@@ -203,6 +205,14 @@ function machine(kind, J) {
 // ---------- Posen-Bibliothek ----------
 const ARMS_DOWN = { af: [96, 92], an: [84, 88] };
 const STAND = { t: -90, h: -90, ...ARMS_DOWN, lf: [94, 90], ln: [86, 90] };
+function runFn(amp, lean) {
+  return (t) => {
+    const p = 2 * Math.PI * t;
+    const leg = (ph) => { const q = Math.sin(ph); const th = 90 + amp * q; return [th, th + 18 + (amp * 1.5) * Math.max(0, Math.cos(ph + 0.6))]; };
+    const arm = (ph) => { const q = Math.sin(ph); const ua = 90 - (amp + 4) * q; return [ua, ua - 85]; };
+    return { hip: [104, 108 - 4 * Math.abs(Math.cos(p))], t: lean, h: lean - 4, ln: leg(p), lf: leg(p + Math.PI), an: arm(p), af: arm(p + Math.PI) };
+  };
+}
 const QUAD = { t: -22, h: -12, af: [90, 90], an: [88, 90], lf: [90, 180], ln: [88, 178] };
 
 export const POSES = {
@@ -254,13 +264,19 @@ export const POSES = {
   hang: { a: { t: -90, h: -92, af: [-95, -90], an: [-88, -90], lf: [92, 90], ln: [88, 90] }, b: { t: -90, h: -92, af: [-95, -90], an: [-88, -90], lf: [95, 92], ln: [85, 88] }, period: 4000, anchor: 'hands', props: ['bar'] },
   kneeHug: { a: { t: 180, h: 180, af: [-40, -20], an: [-44, -24], lf: [0, 0], ln: [-128, -10] }, b: { t: 184, h: 186, af: [-48, -28], an: [-52, -32], lf: [0, 0], ln: [-138, -22] }, period: 6000, anchor: 'ff', props: ['mat'] },
   // Cardio
-  run: {
+  run: { fn: runFn(34, -80), period: 720, anchor: 'fixed', machine: 'treadmill' },
+  // Arena: Sprint ohne Gerät, Rentner mit Gehstock, Spagat
+  sprint: { fn: runFn(46, -70), period: 520, anchor: 'fixed' },
+  oldwalk: {
     fn: (t) => {
-      const p = 2 * Math.PI * t, s = Math.sin(p);
-      const leg = (ph) => { const q = Math.sin(ph); const th = 90 + 34 * q; return [th, th + 18 + 52 * Math.max(0, Math.cos(ph + 0.6))]; };
-      const arm = (ph) => { const q = Math.sin(ph); const ua = 90 - 38 * q; return [ua, ua - 85]; };
-      return { hip: [104, 108 - 4 * Math.abs(Math.cos(p))], t: -80, h: -84, ln: leg(p), lf: leg(p + Math.PI), an: arm(p), af: arm(p + Math.PI) };
-    }, period: 720, anchor: 'fixed', machine: 'treadmill',
+      const p = 2 * Math.PI * t;
+      const leg = (ph) => { const th = 92 + 12 * Math.sin(ph); return [th, th + 10 + 16 * Math.max(0, Math.cos(ph + 0.6))]; };
+      return { hip: [100, 114 + 1.5 * Math.abs(Math.cos(p))], t: -58, h: -30, ln: leg(p), lf: leg(p + Math.PI), an: [62 + 6 * Math.sin(p), 92], af: [150, 50], bend: 6 };
+    }, period: 1500, anchor: 'fixed', props: ['cane'],
+  },
+  splits: {
+    fn: (t) => { const b = Math.sin(2 * Math.PI * t) * 1.5; return { hip: [110, 168 + b], t: -90, h: -92, lf: [180, 180], ln: [0, 0], af: [-125, -120], an: [-55, -60], bootRel: -90 }; },
+    period: 1600, anchor: 'fixed',
   },
   bike: {
     fn: (t) => {
@@ -318,12 +334,17 @@ function frameJoints(id, t) {
   return shift(J, targetX - J[a][0], GROUND - maxY - (J.lift || 0));
 }
 
-export function poseFrame(id, t, stage = 0) {
-  syncLook();
+export function poseFrame(id, t, stage = 0, look = null, { plate = 1, noShadow = false } = {}) {
+  syncLook(look);
+  plateScale = plate;
   const M = POSES[id] || POSES.stand;
   const J = frameJoints(id, t);
-  return `${M.machine ? machine(M.machine, J) : ''}${props(J, M)}${figure(J, M, stage)}`;
+  const pr = props(J, M);
+  const out = `${M.machine ? machine(M.machine, J) : ''}${noShadow ? pr.replace(/<ellipse[^>]*pose-shadow[^>]*\/>/, '') : pr}${figure(J, M, stage)}`;
+  plateScale = 1;
+  return out;
 }
+export const GROUND_Y = GROUND;
 
 // Begrenzungsrahmen über mehrere Frames (für ein ruhiges, zentriertes Bild)
 const vbCache = new Map();
@@ -384,6 +405,7 @@ export function poseFor(name) {
   if (/radfahren|fahrrad|ergometer|bike|rad\b/.test(n)) return 'bike';
   if (/crosstrainer|ellipt/.test(n)) return 'elliptical';
   if (/rudermaschine|carido|rudergerät/.test(n)) return 'rower';
+  if (/pilates|yoga/.test(n)) return 'birddog';
   if (/mobility|dehn|stretch/.test(n)) return 'catcow';
   if (/beinheben|leg raise/.test(n)) return 'legRaise';
   if (/klimmzug|pull ?up|chin ?up/.test(n)) return 'pullup';

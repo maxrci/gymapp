@@ -4,7 +4,7 @@
 
 import {
   prMap, streakInfo, seasonScore, alltimeStats, challengeValue, challengeStatus,
-  startOfMonth, addMonths, STAGE_NAMES, VISIBILITY,
+  startOfMonth, addMonths, startOfYear, addYears, STAGE_NAMES, VISIBILITY, kingStats, exerciseBests,
 } from './compete.js';
 
 export const visOf = (p) => (VISIBILITY.some(([k]) => k === p?.visibility) ? p.visibility : 'full');
@@ -59,21 +59,45 @@ export function buildGroup(rawUsers, rawChallenges, now = Date.now()) {
     };
   });
 
-  const season = { from, to, rows: users.map((u) => ({ id: u.id, ...score(u, from, to) })).sort((a, b) => b.points - a.points) };
+  // Saison = Kalenderjahr; jeder Monat hat einen eigenen Sieger
+  const yFrom = startOfYear(now), yTo = addYears(now, 1);
+  const rank = (a, b) => users.map((u) => ({ id: u.id, ...score(u, a, b) })).sort((p, q) => q.points - p.points);
+  const winnersOf = (rows) => (rows[0]?.points > 0 ? rows.filter((r) => r.points === rows[0].points).map((r) => r.id) : []);
+  const months = [];
+  for (let m = yFrom; m < yTo && m <= now; m = addMonths(m, 1)) {
+    const rows = rank(m, addMonths(m, 1));
+    months.push({ from: m, running: m === from, top: rows.filter((r) => r.points > 0).slice(0, 3).map(({ id, points }) => ({ id, points })), winners: winnersOf(rows) });
+  }
+  const season = { from: yFrom, to: yTo, rows: rank(yFrom, yTo), month: { from, to, rows: rank(from, to) }, months };
 
   const first = Math.min(now, ...users.flatMap((u) => (u.sums[0] ? [u.sums[0].start] : [])));
-  const seasons = [];
   const titles = {};
-  for (let m = addMonths(from, -1), i = 0; m >= startOfMonth(first) && i < 24; m = addMonths(m, -1), i++) {
-    const rows = users.map((u) => ({ id: u.id, points: score(u, m, addMonths(m, 1)).points })).filter((r) => r.points > 0).sort((a, b) => b.points - a.points);
+  const T = (id) => (titles[id] ||= { years: 0, months: 0 });
+  // Monatstitel (abgeschlossene Monate, max. 5 Jahre zurück)
+  for (let m = addMonths(from, -1), i = 0; m >= startOfMonth(first) && i < 60; m = addMonths(m, -1), i++) {
+    for (const w of winnersOf(rank(m, addMonths(m, 1)))) T(w).months++;
+  }
+  // Vergangene Saisons (Jahre)
+  const seasons = [];
+  for (let y = addYears(yFrom, -1); y >= startOfYear(first); y = addYears(y, -1)) {
+    const rows = rank(y, addYears(y, 1)).filter((r) => r.points > 0);
     if (!rows.length) continue;
-    const winners = rows.filter((r) => r.points === rows[0].points).map((r) => r.id);
-    for (const w of winners) titles[w] = (titles[w] || 0) + 1;
-    seasons.push({ from: m, top: rows.slice(0, 3), winners });
+    const winners = winnersOf(rows);
+    for (const w of winners) T(w).years++;
+    seasons.push({ from: y, top: rows.slice(0, 3).map(({ id, points }) => ({ id, points })), winners });
   }
 
+  // Könige: aktueller Monat, Saison (Jahr) und ewig
+  const kings = { month: {}, season: {}, all: {} };
+  for (const u of users) {
+    kings.month[u.id] = kingStats(u.sums, u.bwLog, from, to);
+    kings.season[u.id] = kingStats(u.sums, u.bwLog, yFrom, yTo);
+    kings.all[u.id] = kingStats(u.sums, u.bwLog);
+  }
+  const exercises = Object.fromEntries(users.map((u) => [u.id, exerciseBests(u.sums, u.bwLog)]));
+
   const alltime = Object.fromEntries(users.map((u) => [u.id, alltimeStats(u.sums, u.bwLog, u.goal)]));
-  return { members, season, seasons, titles, alltime, challenges, users: byId };
+  return { members, season, seasons, titles, alltime, kings, exercises, challenges, users: byId };
 }
 
 // Workout-Feed eines Mitglieds je nach Sichtbarkeit

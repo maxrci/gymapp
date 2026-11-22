@@ -8,7 +8,7 @@ import { homeView } from './views/home.js';
 import { trainingView } from './views/training.js';
 import { workoutDetailView } from './views/workoutDetail.js';
 import { statsView } from './views/stats.js';
-import { exercisesView, exerciseDetailView } from './views/exercises.js';
+import { exerciseDetailView } from './views/exercises.js';
 import { profileView } from './views/profile.js';
 import { badgesView } from './views/badges.js';
 import { applyTheme } from './theme.js';
@@ -24,7 +24,6 @@ const TABS = [
   ['home', 'Start', 'home'],
   ['training', 'Training', 'dumbbell'],
   ['stats', 'Statistik', 'chart'],
-  ['exercises', 'Übungen', 'list'],
   ['arena', 'Arena', 'trophy'],
   ['profile', 'Profil', 'user'],
 ];
@@ -39,13 +38,13 @@ function parseRoute() {
   switch (a) {
     case 'training': return { tab: 'training', view: trainingView };
     case 'stats': return { tab: 'stats', view: statsView, params: { tab: b || 'overview' } };
-    case 'exercises': return { tab: 'exercises', view: exercisesView };
-    case 'ex': return { tab: 'exercises', view: exerciseDetailView, params: { name: decodeURIComponent(b) } };
+    case 'exercises': return { tab: 'arena', view: leagueView, params: { tab: 'exercises' } };
+    case 'ex': return { tab: 'arena', view: exerciseDetailView, params: { name: decodeURIComponent(b) } };
     case 'w': return { tab: 'home', view: workoutDetailView, params: { id: decodeURIComponent(b) } };
     case 'profile': return { tab: 'profile', view: profileView };
     case 'badges': return { tab: 'profile', view: badgesView };
     case 'arena':
-    case 'league': return { tab: 'arena', view: leagueView, params: { tab: b || 'season' } };
+    case 'league': return { tab: 'arena', view: leagueView, params: { tab: b || (loggedIn() || demoOn() ? 'season' : 'exercises') } };
     case 'member': return { tab: 'arena', view: memberView, params: { id: decodeURIComponent(b) } };
     case 'join': return { tab: 'profile', view: joinView, params: { code: decodeURIComponent(b) } };
     default: return { tab: 'home', view: homeView };
@@ -69,9 +68,8 @@ function render({ keepScroll = true } = {}) {
 const rerender = () => render({ keepScroll: true });
 
 function renderTabbar() {
-  const tabs = TABS.filter(([k]) => k !== 'arena' || loggedIn() || demoOn());
-  $('#tabbar').innerHTML = tabs.map(([k, l, ic]) => `<a href="#/${k}" data-tab="${k}">${icon(ic)}<span>${l}</span></a>`).join('');
-  $('#tabbar').classList.toggle('six', tabs.length > 5);
+  $('#tabbar').innerHTML = TABS.map(([k, l, ic]) => `<a href="#/${k}" data-tab="${k}">${icon(ic)}<span>${l}</span></a>`).join('');
+  $('#tabbar').classList.toggle('six', TABS.length > 5);
 }
 
 function renderMinibar() {
@@ -121,8 +119,6 @@ async function main() {
   applyTheme(state.settings.theme || 'dark');
   setLook(state.settings.avatar);
   onChange(() => setLook(state.settings.avatar));
-  let arenaShown = loggedIn() || demoOn();
-  onChange(() => { const v = loggedIn() || demoOn(); if (v !== arenaShown) { arenaShown = v; renderTabbar(); } });
   onChange(debounce(rerender, 30));
   onEditorClose(() => { document.body.classList.remove('editor-open'); renderMinibar(); });
   window.addEventListener('hashchange', () => {
