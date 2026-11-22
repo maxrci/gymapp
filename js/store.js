@@ -11,6 +11,14 @@ export const DEFAULT_SETTINGS = {
   restSound: true,
   lastBackup: null,
   weekGoal: 4,
+  theme: 'dark',           // 'dark' | 'light' | 'system'
+  aiMode: false,           // AI-Vorschläge (lokaler Algorithmus)
+  prEffects: true,         // PR-Einblendung + Feuer-Zeile
+  prSound: true,           // Power-up-Sound bei PR
+  voice: true,             // Sprachansagen in geführten Einheiten
+  hrMax: null,             // max. Herzfrequenz für Puls-Zonen
+  cardio: {},              // Geräte-Kalibrierung
+  lastDevice: 'treadmill',
 };
 
 export const state = {

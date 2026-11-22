@@ -5,6 +5,7 @@ import { lineChart, SERIES } from '../charts.js';
 import { pageHead, kpi, fmtSet, setBadge, emptyState } from '../components.js';
 import { icon, chips, sheet, formDialog, toast, confirmDialog } from '../ui.js';
 import { createExerciseDialog } from '../picker.js';
+import { aiOn, suggest, repRange, increment } from '../ai.js';
 import { esc, num, fmtVolume, fmtKg, fmtDate, fmtRelDay, fmtPct, fmtClock, fmtCompact } from '../utils.js';
 
 const ui = { muscle: '', sort: 'count', q: '', range: 'all', metric: null, metricFor: null, hist: 10 };
@@ -139,6 +140,7 @@ export function exerciseDetailView({ name }) {
   const html = `
     ${pageHead(name, { back, actions: menuBtn, sub })}
     <div class="kpis">${kpis}</div>
+    ${aiOn() ? aiCard(x) : ''}
     <div class="filter-row">${chips(RANGES, ui.range, 'data-range')}</div>
     <section class="card">
       <div class="chips scroll">${metrics.map(([k, l]) => `<button class="chip ${k === ui.metric ? 'on' : ''}" data-metric="${k}">${l}</button>`).join('')}</div>
@@ -188,6 +190,8 @@ async function exerciseMenu(name, type) {
     options: [
       { label: `Muskelgruppe: ${meta.primary}`, value: 'muscle', icon: 'target' },
       { label: `Erfassung: ${TYPES[type]?.label}`, value: 'type', icon: 'layers' },
+      { label: 'Wiederholungsbereich (AI)', value: 'range', icon: 'target' },
+      { label: 'Gewichtsschritt (AI)', value: 'inc', icon: 'weight' },
       { label: 'Umbenennen / Zusammenführen', value: 'rename', icon: 'edit' },
     ],
   });
@@ -209,6 +213,24 @@ async function exerciseMenu(name, type) {
     const t = await sheet({ title: 'Wie wird die Übung erfasst?', options: Object.entries(TYPES).map(([k, x]) => ({ label: x.label, value: k, active: k === type })) });
     if (t) await saveExerciseMeta(name, { type: t });
   }
+  if (v === 'range') {
+    const x = idx().ex.get(name);
+    const [lo, hi] = x ? repRange(x) : [8, 12];
+    const res = await formDialog({ title: 'Wiederholungsbereich', fields: [
+      { name: 'lo', label: 'Minimum', value: lo, inputmode: 'numeric' }, { name: 'hi', label: 'Maximum (dann Gewicht steigern)', value: hi, inputmode: 'numeric' }] });
+    if (res) {
+      const a = parseInt(res.lo, 10), b = parseInt(res.hi, 10);
+      await saveExerciseMeta(name, { repRange: a > 0 && b > a ? [a, b] : null });
+    }
+  }
+  if (v === 'inc') {
+    const x = idx().ex.get(name);
+    const res = await formDialog({ title: 'Gewichtsschritt', fields: [{ name: 'v', label: 'Kleinste Steigerung in kg (leer = automatisch)', value: x ? increment(x) : 2.5, inputmode: 'decimal' }] });
+    if (res) {
+      const n = parseFloat(String(res.v).replace(',', '.'));
+      await saveExerciseMeta(name, { increment: n > 0 ? n : null });
+    }
+  }
   if (v === 'rename') {
     const others = allExerciseNames().filter((n) => n !== name).sort((a, b) => a.localeCompare(b, 'de'));
     const res = await formDialog({
@@ -225,4 +247,17 @@ async function exerciseMenu(name, type) {
     toast(merge ? `Zusammengeführt (${n} Workouts)` : 'Umbenannt');
     location.hash = `#/ex/${encodeURIComponent(to)}`;
   }
+}
+
+function aiCard(x) {
+  const sg = suggest(x.name);
+  if (!sg) return '';
+  const range = sg.range ? `Bereich ${sg.range[0]}–${sg.range[1]} Wdh.` : '';
+  return `<section class="card ai-card">
+    <div class="coach-head"><span class="ai-badge">AI</span><b>Nächste Einheit</b></div>
+    <div class="ai-target">${esc(sg.label)}</div>
+    <div class="ai-reason">${esc(sg.reason)}</div>
+    <div class="ai-sets">${sg.sets.map((s) => `<span class="${s.type === 'warmup' ? 'w' : ''}">${s.type === 'warmup' ? 'W ' : ''}${s.weight != null ? `${num(s.weight)}×` : ''}${s.reps ?? (s.duration ? `${Math.round(s.duration / 60)} min` : '')}</span>`).join('')}</div>
+    <small class="muted">${esc(range)}${sg.inc ? ` · Schritt ${num(sg.inc)} kg` : ''} · über ⋯ anpassbar</small>
+  </section>`;
 }

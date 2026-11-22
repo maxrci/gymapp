@@ -5,6 +5,8 @@ import { icon, formDialog, confirmDialog, toast, sheet } from '../ui.js';
 import { esc, num, fmtVolume, fmtDate, fmtClock, fmtRelDay, DAY, sum } from '../utils.js';
 import { importCSVFlow, exportCSV, exportBackup, restoreBackup, routinesFromHistory } from '../actions.js';
 import { APP_VERSION } from '../version.js';
+import { applyTheme } from '../theme.js';
+import { profileStats } from '../gamification.js';
 
 let persisted = null;
 
@@ -36,6 +38,21 @@ export function profileView() {
     </section>
 
     ${backupWarn ? `<div class="card warn-card">${icon('info')}<div><b>Backup empfohlen</b><small>${s.lastBackup ? `Letztes Backup ${esc(fmtRelDay(s.lastBackup))}` : 'Noch kein Backup erstellt'}. Deine Daten liegen nur auf diesem Gerät.</small></div><button class="btn primary sm" data-act="backup">Sichern</button></div>` : ''}
+
+    <div class="list-label">Darstellung</div>
+    <div class="seg" role="radiogroup">
+      ${[['light', '☀️ Hell'], ['dark', '🌙 Dunkel'], ['system', '⚙️ System']].map(([v, l]) => `<button class="seg-btn ${s.theme === v ? 'on' : ''}" data-theme-set="${v}">${l}</button>`).join('')}
+    </div>
+
+    <div class="list-label">Motivation & AI</div>
+    <div class="set-group">
+      <a class="set-item" href="#/badges"><span class="si-ic">🏅</span><span class="si-l">Level & Abzeichen</span><span class="si-v">Lvl ${profileStats().level}</span>${icon('right', 'muted')}</a>
+      ${toggle('aiMode', 'bolt', 'AI-Mode (Vorschläge & Analyse)')}
+      ${toggle('prEffects', 'trophy', 'PR-Animation & Feuer-Satz')}
+      ${toggle('prSound', 'flame', 'Power-up-Sound bei PR')}
+      ${toggle('voice', 'info', 'Sprachansagen (Cardio/Mobility)')}
+      ${row('hr', 'target', 'Max. Herzfrequenz', s.hrMax ? `${s.hrMax} bpm` : 'nicht gesetzt')}
+    </div>
 
     <div class="list-label">Training</div>
     <div class="set-group">
@@ -70,6 +87,7 @@ export function profileView() {
     html,
     mount: async (root) => {
       root.querySelectorAll('[data-toggle]').forEach((el) => el.addEventListener('change', () => saveSettings({ [el.dataset.toggle]: el.checked })));
+      root.querySelectorAll('[data-theme-set]').forEach((el) => el.addEventListener('click', () => { applyTheme(el.dataset.themeSet); saveSettings({ theme: el.dataset.themeSet }); }));
       const p = root.querySelector('[data-persist]');
       try {
         if (persisted === null && navigator.storage?.persisted) persisted = await navigator.storage.persisted();
@@ -93,8 +111,14 @@ export function profileView() {
         const v = await sheet({ title: 'Standard-Pausenzeit', options: [0, 30, 60, 90, 120, 150, 180, 240, 300].map((x) => ({ label: x ? fmtClock(x) : 'Aus', value: String(x), active: x === s.restDefault })) });
         if (v != null) await saveSettings({ restDefault: +v });
       },
+      hr: async () => {
+        const r = await formDialog({ title: 'Max. Herzfrequenz', fields: [{ name: 'v', label: 'Schläge pro Minute (Faustregel: 220 − Alter)', inputmode: 'numeric', value: s.hrMax ?? '' }] });
+        if (!r) return;
+        const v = parseInt(r.v, 10);
+        await saveSettings({ hrMax: v > 100 && v < 230 ? v : null });
+      },
       goal: async () => {
-        const v = await sheet({ title: 'Workouts pro Woche', options: [1, 2, 3, 4, 5, 6, 7].map((x) => ({ label: `${x}`, value: String(x), active: x === s.weekGoal })) });
+        const v = await sheet({ title: 'Wochenziel – zählt für deine Streak', options: [1, 2, 3, 4, 5, 6, 7].map((x) => ({ label: `${x}`, value: String(x), active: x === s.weekGoal })) });
         if (v) await saveSettings({ weekGoal: +v });
       },
       wipe: async () => {

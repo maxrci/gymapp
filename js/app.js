@@ -10,6 +10,10 @@ import { workoutDetailView } from './views/workoutDetail.js';
 import { statsView } from './views/stats.js';
 import { exercisesView, exerciseDetailView } from './views/exercises.js';
 import { profileView } from './views/profile.js';
+import { badgesView } from './views/badges.js';
+import { applyTheme } from './theme.js';
+import { resumeGuided } from './guided.js';
+import { nav } from './nav.js';
 
 const TABS = [
   ['home', 'Start', 'home'],
@@ -33,6 +37,7 @@ function parseRoute() {
     case 'ex': return { tab: 'exercises', view: exerciseDetailView, params: { name: decodeURIComponent(b) } };
     case 'w': return { tab: 'home', view: workoutDetailView, params: { id: decodeURIComponent(b) } };
     case 'profile': return { tab: 'profile', view: profileView };
+    case 'badges': return { tab: 'profile', view: badgesView };
     default: return { tab: 'home', view: homeView };
   }
 }
@@ -41,8 +46,10 @@ function render({ keepScroll = true } = {}) {
   const r = parseRoute();
   const main = $('#view');
   const y = window.scrollY;
+  nav.entering = !keepScroll;
   current = r.view(r.params || {});
   main.innerHTML = current.html;
+  nav.entering = false;
   try { current.mount?.(main); } catch (e) { console.error(e); }
   if (keepScroll) window.scrollTo(0, y); else window.scrollTo(0, 0);
   document.querySelectorAll('#tabbar a').forEach((a) => a.classList.toggle('on', a.dataset.tab === r.tab));
@@ -98,6 +105,7 @@ async function main() {
   initEditor();
   setupDelegation();
   await loadAll();
+  applyTheme(state.settings.theme || 'dark');
   onChange(debounce(rerender, 30));
   onEditorClose(() => { document.body.classList.remove('editor-open'); renderMinibar(); });
   window.addEventListener('hashchange', () => {
@@ -120,6 +128,7 @@ async function main() {
 
   render({ keepScroll: false });
   document.body.classList.add('ready');
+  resumeGuided();
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('sw.js').catch((e) => console.warn('SW', e));

@@ -1,15 +1,24 @@
 // Leichtgewichtige SVG-Charts mit Touch-Tooltips (keine externen Abhängigkeiten)
+// Farben kommen aus CSS-Variablen → funktionieren im hellen und dunklen Modus.
 
 import { num, esc, fmtDate, MONTHS, DAY, startOfDay, addDays, startOfWeek, WEEKDAYS } from './utils.js';
 
-export const SERIES = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#0ca30c', '#9085e9', '#e66767'];
-const GRID = '#2c2c2a';
-const AXIS = '#383835';
-const MUTED = '#898781';
-const SURFACE = '#1a1a19';
-const HEAT = ['#262625', '#184f95', '#256abf', '#3987e5', '#86b6ef'];
+export const SERIES = ['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--s4)', 'var(--s5)', 'var(--s6)', 'var(--s7)', 'var(--s8)'];
+export const HEAT = ['var(--heat0)', 'var(--heat1)', 'var(--heat2)', 'var(--heat3)', 'var(--heat4)'];
 
 const NS = 'http://www.w3.org/2000/svg';
+const STYLE_PROPS = new Set(['fill', 'stroke']);
+
+function el(tag, attrs = {}, parent) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) {
+    const v = attrs[k];
+    if (STYLE_PROPS.has(k) && String(v).includes('var(')) e.style[k] = v;
+    else e.setAttribute(k, v);
+  }
+  if (parent) parent.appendChild(e);
+  return e;
+}
 
 function niceStep(x) {
   const e = 10 ** Math.floor(Math.log10(x));
@@ -51,13 +60,6 @@ function timeTicks(x0, x1, maxTicks) {
   return out;
 }
 
-function el(tag, attrs = {}, parent) {
-  const e = document.createElementNS(NS, tag);
-  for (const k in attrs) e.setAttribute(k, attrs[k]);
-  if (parent) parent.appendChild(e);
-  return e;
-}
-
 function setupContainer(host, H) {
   host.innerHTML = '';
   host.classList.add('chart');
@@ -84,12 +86,22 @@ function empty(host, msg = 'Keine Daten im Zeitraum') {
   host.innerHTML = `<div class="chart-empty">${esc(msg)}</div>`;
 }
 
+function axisText(svg, x, y, text, anchor = 'end', cls = 'ax') {
+  const t = el('text', { x, y, 'text-anchor': anchor, class: cls }, svg);
+  t.textContent = text;
+  return t;
+}
+
+export function legend(items) {
+  return `<div class="legend">${items.map((i) => `<span><i style="background:${i.color}"></i>${esc(i.label)}</span>`).join('')}</div>`;
+}
+
 // ---------------- Linienchart ----------------
 // series: [{name, color, points:[{x, y, meta}]}]
 export function lineChart(host, opts) {
   const {
     series, height = 190, yFmt = (v) => num(v, 1), tipFmt, yZero = false, area = true,
-    mini = false, xIsTime = true, onTap,
+    mini = false, xIsTime = true, onTap, band, refLine, dots,
   } = opts;
   const all = series.flatMap((s) => s.points);
   if (!all.length) return empty(host);
@@ -99,8 +111,15 @@ export function lineChart(host, opts) {
   let x0 = Math.min(...all.map((p) => p.x)), x1 = Math.max(...all.map((p) => p.x));
   if (x0 === x1) { x0 -= DAY; x1 += DAY; }
   let ymin = Math.min(...all.map((p) => p.y)), ymax = Math.max(...all.map((p) => p.y));
+  if (band) { ymin = Math.min(ymin, band.from); ymax = Math.max(ymax, band.to); }
+  if (refLine) { ymin = Math.min(ymin, refLine.value); ymax = Math.max(ymax, refLine.value); }
   if (yZero) ymin = Math.min(0, ymin);
-  else { const pad = (ymax - ymin) * 0.08 || ymax * 0.05 || 1; ymin -= pad; ymax += pad; if (ymin < 0 && Math.min(...all.map((p) => p.y)) >= 0) ymin = 0; }
+  else {
+    const pad = (ymax - ymin) * 0.08 || ymax * 0.05 || 1;
+    const rawMin = ymin;
+    ymin -= pad; ymax += pad;
+    if (ymin < 0 && rawMin >= 0) ymin = 0;
+  }
   const ticks = niceTicks(ymin, ymax, mini ? 2 : 4);
   const lo = ticks[0], hi = ticks[ticks.length - 1];
 
@@ -109,18 +128,20 @@ export function lineChart(host, opts) {
   const sx = (v) => pad.l + ((v - x0) / (x1 - x0)) * (W - pad.l - pad.r);
   const sy = (v) => pad.t + (1 - (v - lo) / (hi - lo || 1)) * (H - pad.t - pad.b);
 
+  if (band) {
+    el('rect', { x: pad.l, width: W - pad.l - pad.r, y: sy(band.to), height: Math.max(0, sy(band.from) - sy(band.to)), fill: 'var(--band)' }, svg);
+    if (band.label && !mini) axisText(svg, W - pad.r - 4, sy(band.to) + 13, band.label, 'end', 'ax ax-band');
+  }
   if (!mini) {
     for (const t of ticks) {
-      el('line', { x1: pad.l, x2: W - pad.r, y1: sy(t), y2: sy(t), stroke: t === lo ? AXIS : GRID, 'stroke-width': 1 }, svg);
-      const tx = el('text', { x: pad.l - 8, y: sy(t) + 4, 'text-anchor': 'end', class: 'ax' }, svg);
-      tx.textContent = yFmt(t);
+      el('line', { x1: pad.l, x2: W - pad.r, y1: sy(t), y2: sy(t), class: t === lo ? 'g-axis' : 'g-grid' }, svg);
+      axisText(svg, pad.l - 8, sy(t) + 4, yFmt(t));
     }
-    if (xIsTime) {
-      for (const tk of timeTicks(x0, x1, W < 360 ? 4 : 6)) {
-        const tx = el('text', { x: sx(tk.t), y: H - 6, 'text-anchor': 'middle', class: 'ax' }, svg);
-        tx.textContent = tk.label;
-      }
-    }
+    if (xIsTime) for (const tk of timeTicks(x0, x1, W < 360 ? 4 : 6)) axisText(svg, sx(tk.t), H - 6, tk.label, 'middle');
+  }
+  if (refLine) {
+    el('line', { x1: pad.l, x2: W - pad.r, y1: sy(refLine.value), y2: sy(refLine.value), class: 'g-ref' }, svg);
+    if (refLine.label) axisText(svg, W - pad.r, sy(refLine.value) - 5, refLine.label, 'end', 'ax ax-ref');
   }
 
   series.forEach((s, si) => {
@@ -133,14 +154,14 @@ export function lineChart(host, opts) {
       el('path', { d: `${d}L${sx(pts[pts.length - 1].x).toFixed(1)},${base}L${sx(pts[0].x).toFixed(1)},${base}Z`, fill: color, 'fill-opacity': 0.12 }, svg);
     }
     el('path', { d, fill: 'none', stroke: color, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, svg);
-    const showDots = pts.length <= (mini ? 0 : 28);
-    const dots = showDots ? pts : [pts[pts.length - 1]];
-    for (const p of dots) el('circle', { cx: sx(p.x), cy: sy(p.y), r: 4, fill: color, stroke: SURFACE, 'stroke-width': 2 }, svg);
+    const showDots = dots ?? pts.length <= (mini ? 0 : 28);
+    const shown = showDots ? pts : [pts[pts.length - 1]];
+    for (const p of shown) el('circle', { cx: sx(p.x), cy: sy(p.y), r: 4, fill: color, class: 'g-ring' }, svg);
   });
 
   // Hover-/Touch-Ebene
-  const cross = el('line', { y1: pad.t, y2: H - pad.b, stroke: MUTED, 'stroke-width': 1, visibility: 'hidden' }, svg);
-  const hdots = series.map((s, si) => el('circle', { r: 5, fill: s.color || SERIES[si], stroke: SURFACE, 'stroke-width': 2, visibility: 'hidden' }, svg));
+  const cross = el('line', { y1: pad.t, y2: H - pad.b, class: 'g-cross', visibility: 'hidden' }, svg);
+  const hdots = series.map((s, si) => el('circle', { r: 5, fill: s.color || SERIES[si], class: 'g-ring', visibility: 'hidden' }, svg));
   const hit = el('rect', { x: pad.l, y: 0, width: W - pad.l - pad.r, height: H, fill: 'transparent' }, svg);
   let current = null;
   const show = (ev) => {
@@ -180,11 +201,10 @@ export function lineChart(host, opts) {
   hit.addEventListener('pointerdown', show);
   hit.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') hide(); });
   if (onTap) tip.addEventListener('click', () => current && onTap(current));
-  host.addEventListener('chart:hide', hide);
 }
 
 // ---------------- Balkenchart ----------------
-// data: [{label, value, tip, partial}]
+// data: [{label, value, tip, partial, color}]
 export function barChart(host, opts) {
   const { data, height = 180, yFmt = (v) => num(v, 0), color = SERIES[0], refLine, maxLabels, onTap } = opts;
   if (!data.length || data.every((d) => !d.value)) return empty(host);
@@ -202,19 +222,15 @@ export function barChart(host, opts) {
   const base = sy(0);
 
   for (const t of ticks) {
-    el('line', { x1: pad.l, x2: W - pad.r, y1: sy(t), y2: sy(t), stroke: t === 0 ? AXIS : GRID, 'stroke-width': 1 }, svg);
-    const tx = el('text', { x: pad.l - 8, y: sy(t) + 4, 'text-anchor': 'end', class: 'ax' }, svg);
-    tx.textContent = yFmt(t);
+    el('line', { x1: pad.l, x2: W - pad.r, y1: sy(t), y2: sy(t), class: t === 0 ? 'g-axis' : 'g-grid' }, svg);
+    axisText(svg, pad.l - 8, sy(t) + 4, yFmt(t));
   }
   const nl = maxLabels || (W < 360 ? 5 : 8);
   const k = Math.max(1, Math.ceil(data.length / nl));
   const bars = [];
   data.forEach((d, i) => {
     const cx = pad.l + band * i + band / 2;
-    if ((data.length - 1 - i) % k === 0) {
-      const tx = el('text', { x: cx, y: H - 6, 'text-anchor': 'middle', class: 'ax' }, svg);
-      tx.textContent = d.label;
-    }
+    if ((data.length - 1 - i) % k === 0) axisText(svg, cx, H - 6, d.label, 'middle');
     if (!d.value) { bars.push(null); return; }
     const y = sy(d.value);
     const h = base - y;
@@ -225,16 +241,14 @@ export function barChart(host, opts) {
   });
   if (refLine && refLine.value > 0) {
     const y = sy(refLine.value);
-    el('line', { x1: pad.l, x2: W - pad.r, y1: y, y2: y, stroke: '#c3c2b7', 'stroke-width': 1, 'stroke-opacity': 0.6 }, svg);
-    const tx = el('text', { x: W - pad.r, y: y - 5, 'text-anchor': 'end', class: 'ax ax-ref' }, svg);
-    tx.textContent = refLine.label;
+    el('line', { x1: pad.l, x2: W - pad.r, y1: y, y2: y, class: 'g-ref' }, svg);
+    axisText(svg, W - pad.r, y - 5, refLine.label, 'end', 'ax ax-ref');
   }
   const hit = el('rect', { x: pad.l, y: 0, width: iw, height: H, fill: 'transparent' }, svg);
   let cur = -1;
   const show = (ev) => {
     const r = svg.getBoundingClientRect();
     const i = Math.max(0, Math.min(data.length - 1, Math.floor((ev.clientX - r.left - pad.l) / band)));
-    if (cur >= 0 && bars[cur]) bars[cur].setAttribute('fill-opacity', data[cur].partial ? 0.5 : 1);
     cur = i;
     bars.forEach((b, j) => b && b.setAttribute('fill-opacity', j === i ? 1 : 0.45));
     const d = data[i];
@@ -248,8 +262,111 @@ export function barChart(host, opts) {
   if (onTap) tip.addEventListener('click', () => cur >= 0 && onTap(data[cur]));
 }
 
+// ---------------- Gestapelte Balken ----------------
+// keys: [{key, label, color}], data: [{label, head, values:{key: v}, partial}]
+export function stackedBars(host, { keys, data, height = 200, yFmt = (v) => num(v, 0), valFmt = yFmt }) {
+  const totals = data.map((d) => keys.reduce((a, k) => a + (d.values[k.key] || 0), 0));
+  if (!totals.some(Boolean)) return empty(host);
+  host.innerHTML = '';
+  const legendEl = document.createElement('div');
+  legendEl.innerHTML = legend(keys);
+  const plot = document.createElement('div');
+  host.append(legendEl.firstElementChild, plot);
+  const { W, svg, tip } = setupContainer(plot, height);
+  const H = height;
+  const ticks = niceTicks(0, Math.max(...totals), 4);
+  const hi = ticks[ticks.length - 1];
+  const labelW = Math.max(...ticks.map((t) => yFmt(t).length)) * 6.6 + 10;
+  const pad = { l: labelW, r: 8, t: 10, b: 24 };
+  const iw = W - pad.l - pad.r;
+  const band = iw / data.length;
+  const bw = Math.max(2, Math.min(24, band - 2));
+  const sy = (v) => pad.t + (1 - v / (hi || 1)) * (H - pad.t - pad.b);
+  for (const t of ticks) {
+    el('line', { x1: pad.l, x2: W - pad.r, y1: sy(t), y2: sy(t), class: t === 0 ? 'g-axis' : 'g-grid' }, svg);
+    axisText(svg, pad.l - 8, sy(t) + 4, yFmt(t));
+  }
+  const k = Math.max(1, Math.ceil(data.length / (W < 360 ? 5 : 8)));
+  const groups = [];
+  data.forEach((d, i) => {
+    const cx = pad.l + band * i + band / 2;
+    if ((data.length - 1 - i) % k === 0) axisText(svg, cx, H - 6, d.label, 'middle');
+    const g = el('g', { 'fill-opacity': d.partial ? 0.5 : 1 }, svg);
+    groups.push(g);
+    let acc = 0;
+    keys.forEach((key, ki) => {
+      const v = d.values[key.key] || 0;
+      if (!v) return;
+      const y1 = sy(acc), y2 = sy(acc + v);
+      acc += v;
+      const isTop = !keys.slice(ki + 1).some((kk) => d.values[kk.key]);
+      const h = Math.max(0, y1 - y2 - (isTop ? 0 : 2)); // 2px Fuge zwischen Segmenten
+      if (h <= 0) return;
+      const x = cx - bw / 2;
+      const top = y1 - h;
+      if (isTop) {
+        const r = Math.min(4, bw / 2, h);
+        el('path', { d: `M${x},${y1}V${top + r}Q${x},${top} ${x + r},${top}H${x + bw - r}Q${x + bw},${top} ${x + bw},${top + r}V${y1}Z`, fill: key.color }, g);
+      } else el('rect', { x, y: top, width: bw, height: h, fill: key.color }, g);
+    });
+  });
+  const hit = el('rect', { x: pad.l, y: 0, width: iw, height: H, fill: 'transparent' }, svg);
+  const show = (ev) => {
+    const r = svg.getBoundingClientRect();
+    const i = Math.max(0, Math.min(data.length - 1, Math.floor((ev.clientX - r.left - pad.l) / band)));
+    groups.forEach((g, j) => g.setAttribute('fill-opacity', j === i ? 1 : 0.4));
+    const d = data[i];
+    tip.innerHTML = `<div class="tt-h">${esc(d.head || d.label)}</div>${[...keys].reverse().filter((kk) => d.values[kk.key]).map((kk) => `<div class="tt-r"><i style="background:${kk.color}"></i>${esc(kk.label)} <b>${esc(valFmt(d.values[kk.key]))}</b></div>`).join('')}<div class="tt-r muted">Gesamt ${esc(valFmt(totals[i]))}</div>`;
+    placeTip(tip, pad.l + band * i + band / 2, W, 0);
+  };
+  hit.addEventListener('pointermove', show);
+  hit.addEventListener('pointerdown', show);
+}
+
+// ---------------- Netzdiagramm ----------------
+// axes: [label], series: [{name, color, values:[...]}], ref: {value, label}
+export function radarChart(host, { axes, series, ref, height = 300, fmt = (v) => num(v, 1) }) {
+  if (!axes.length) return empty(host);
+  const { W, svg, tip } = setupContainer(host, height);
+  const cx = W / 2, cy = height / 2;
+  const R = Math.min(W / 2 - 58, height / 2 - 28);
+  const max = Math.max(ref?.value || 0, ...series.flatMap((s) => s.values)) * 1.08 || 1;
+  const n = axes.length;
+  const ang = (i) => -Math.PI / 2 + (i / n) * Math.PI * 2;
+  const pt = (i, v) => [cx + Math.cos(ang(i)) * (v / max) * R, cy + Math.sin(ang(i)) * (v / max) * R];
+  for (const f of [0.25, 0.5, 0.75, 1]) {
+    el('polygon', { points: axes.map((_, i) => pt(i, max * f).join(',')).join(' '), class: 'g-grid', fill: 'none' }, svg);
+  }
+  axes.forEach((a, i) => {
+    const [x, y] = pt(i, max);
+    el('line', { x1: cx, y1: cy, x2: x, y2: y, class: 'g-grid' }, svg);
+    const [lx, ly] = pt(i, max * 1.13);
+    const anchor = Math.abs(lx - cx) < 8 ? 'middle' : lx > cx ? 'start' : 'end';
+    axisText(svg, lx, ly + 4, a, anchor, 'ax ax-radar');
+  });
+  if (ref) {
+    el('polygon', { points: axes.map((_, i) => pt(i, ref.value).join(',')).join(' '), class: 'g-ref', fill: 'none' }, svg);
+  }
+  series.forEach((s, si) => {
+    const color = s.color || SERIES[si];
+    const pts = s.values.map((v, i) => pt(i, v).join(',')).join(' ');
+    el('polygon', { points: pts, fill: color, 'fill-opacity': 0.14, stroke: color, 'stroke-width': 2, 'stroke-linejoin': 'round' }, svg);
+    s.values.forEach((v, i) => {
+      const [x, y] = pt(i, v);
+      const c = el('circle', { cx: x, cy: y, r: 4, fill: color, class: 'g-ring' }, svg);
+      const hitc = el('circle', { cx: x, cy: y, r: 14, fill: 'transparent' }, svg);
+      hitc.addEventListener('pointerdown', () => {
+        tip.innerHTML = `<div class="tt-h">${esc(axes[i])}</div><div class="tt-r"><b>${esc(fmt(v))}</b>${ref ? ` <span class="muted">· Richtwert ${esc(fmt(ref.value))}</span>` : ''}</div>`;
+        placeTip(tip, x, W, Math.max(0, y - 50));
+        c.setAttribute('r', 6);
+        setTimeout(() => c.setAttribute('r', 4), 1200);
+      });
+    });
+  });
+}
+
 // ---------------- Kalender-Heatmap ----------------
-// days: Map(dayStart -> {value, tip, href})
+// days: Map(dayStart -> {value, tip})
 export function heatmap(host, { from, to, days, cell = 13, gap = 3 }) {
   host.innerHTML = '';
   host.classList.add('chart', 'heat-wrap');
@@ -269,30 +386,18 @@ export function heatmap(host, { from, to, days, cell = 13, gap = 3 }) {
   const th = [q(0.25), q(0.5), q(0.75)];
   const level = (v) => (!v ? 0 : v <= th[0] ? 1 : v <= th[1] ? 2 : v <= th[2] ? 3 : 4);
 
-  [0, 2, 4].forEach((wd) => {
-    const t = el('text', { x: 0, y: padT + wd * (cell + gap) + cell - 2, class: 'ax' }, svg);
-    t.textContent = WEEKDAYS[wd];
-  });
+  [0, 2, 4].forEach((wd) => axisText(svg, 0, padT + wd * (cell + gap) + cell - 2, WEEKDAYS[wd], 'start'));
   let lastMonth = -1;
-  const cells = [];
   for (let w = 0; w < weeks; w++) {
     const ws = addDays(start, w * 7);
     const m = new Date(addDays(ws, 6)).getMonth();
-    if (m !== lastMonth) {
-      const t = el('text', { x: padL + w * (cell + gap), y: 10, class: 'ax' }, svg);
-      t.textContent = MONTHS[m];
-      lastMonth = m;
-    }
+    if (m !== lastMonth) { axisText(svg, padL + w * (cell + gap), 10, MONTHS[m], 'start'); lastMonth = m; }
     for (let d = 0; d < 7; d++) {
       const day = addDays(ws, d);
       if (day < startOfDay(from) || day > to) continue;
       const info = days.get(day);
-      const r = el('rect', {
-        x: padL + w * (cell + gap), y: padT + d * (cell + gap), width: cell, height: cell, rx: 3,
-        fill: HEAT[level(info?.value)],
-      }, svg);
+      const r = el('rect', { x: padL + w * (cell + gap), y: padT + d * (cell + gap), width: cell, height: cell, rx: 3, fill: HEAT[level(info?.value)] }, svg);
       r.dataset.day = day;
-      cells.push(r);
     }
   }
   const tip = document.createElement('div');
@@ -303,22 +408,19 @@ export function heatmap(host, { from, to, days, cell = 13, gap = 3 }) {
   svg.addEventListener('click', (ev) => {
     const r = ev.target.closest('rect');
     if (!r || !r.dataset.day) return;
-    if (sel) sel.removeAttribute('stroke');
+    if (sel) sel.classList.remove('g-sel');
     sel = r;
-    r.setAttribute('stroke', '#f0efec');
-    r.setAttribute('stroke-width', 1.5);
+    r.classList.add('g-sel');
     const day = +r.dataset.day;
     const info = days.get(day);
     tip.innerHTML = `<div class="tt-h">${esc(fmtDate(day, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }))}</div>${info ? info.tip : '<div class="tt-r">Kein Training</div>'}`;
-    const x = +r.getAttribute('x') - scroller.scrollLeft;
-    placeTip(tip, x, host.clientWidth, H + 6);
+    tip.hidden = false;
   });
   requestAnimationFrame(() => { scroller.scrollLeft = scroller.scrollWidth; });
-  return { levels: HEAT };
 }
 
 // ---------------- Horizontale Balken (HTML) ----------------
-export function hbars(list, { fmt = (v) => num(v, 0), color = SERIES[0], max, sub, onclickAttr } = {}) {
+export function hbars(list, { fmt = (v) => num(v, 0), color = SERIES[0], max, sub } = {}) {
   if (!list.length) return '<div class="chart-empty">Keine Daten im Zeitraum</div>';
   const m = max ?? Math.max(...list.map((x) => x.value), 1);
   return `<div class="hbars">${list.map((x) => `
@@ -327,5 +429,3 @@ export function hbars(list, { fmt = (v) => num(v, 0), color = SERIES[0], max, su
       <div class="hbar-track"><div class="hbar-fill" style="width:${Math.max(1.5, (x.value / m) * 100).toFixed(1)}%;background:${x.color || color}"></div></div>
     </div>`).join('')}</div>`;
 }
-
-export { HEAT };

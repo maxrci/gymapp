@@ -203,22 +203,39 @@ export function bucketize(workouts, unit, from, to) {
 export const autoUnit = (key) => (key === '1y' || key === 'all' ? 'month' : 'week');
 
 // ---------- Serien ----------
+// Streak = aufeinanderfolgende Wochen, in denen das Wochenziel erreicht wurde.
+// Die laufende Woche bricht die Serie nicht, solange sie noch nicht vorbei ist.
 export function weekStreaks() {
   const { asc } = idx();
-  const weeks = new Set(asc.map((w) => startOfWeek(w.start)));
-  let cur = 0;
-  let w = startOfWeek(Date.now());
-  if (!weeks.has(w)) w = addDays(w, -7);
-  while (weeks.has(w)) { cur++; w = addDays(w, -7); }
-  const sorted = [...weeks].sort((a, b) => a - b);
-  let longest = 0, run = 0, prev = null;
-  for (const s of sorted) {
-    run = prev != null && startOfWeek(addDays(prev, 7)) === s ? run + 1 : 1;
-    longest = Math.max(longest, run);
-    prev = s;
+  const goal = Math.max(1, state.settings.weekGoal || 3);
+  const counts = new Map();
+  for (const w of asc) {
+    const k = startOfWeek(w.start);
+    counts.set(k, (counts.get(k) || 0) + 1);
   }
+  const ok = (k) => (counts.get(k) || 0) >= goal;
+  const prevWeek = (k) => startOfWeek(addDays(k, -3));
+  const nowWeek = startOfWeek(Date.now());
+  const thisCount = counts.get(nowWeek) || 0;
+  const thisDone = thisCount >= goal;
+  let cur = thisDone ? 1 : 0;
+  let w = prevWeek(nowWeek);
+  while (ok(w)) { cur++; w = prevWeek(w); }
+
+  let longest = 0, run = 0;
+  if (asc.length) {
+    for (let k = startOfWeek(asc[0].start); k <= nowWeek; k = startOfWeek(addDays(k, 10))) {
+      run = ok(k) ? run + 1 : 0;
+      longest = Math.max(longest, run);
+    }
+  }
+  const goalWeeks = [...counts.keys()].filter(ok).length;
   const days = new Set(asc.map((x) => startOfDay(x.start)));
-  return { current: cur, longest, weeks: weeks.size, days: days.size };
+  const wd = (new Date().getDay() + 6) % 7;
+  return {
+    current: cur, longest, goal, goalWeeks, weeks: counts.size, days: days.size,
+    thisCount, thisDone, needed: Math.max(0, goal - thisCount), daysLeft: 7 - wd,
+  };
 }
 
 // ---------- Übungs-Trends ----------

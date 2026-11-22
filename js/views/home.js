@@ -1,10 +1,14 @@
 import { state } from '../store.js';
-import { idx, weekStreaks } from '../stats.js';
-import { pageHead, workoutCard, emptyState } from '../components.js';
+import { idx } from '../stats.js';
+import { pageHead, workoutCard } from '../components.js';
 import { icon } from '../ui.js';
-import { esc, fmtVolume, startOfWeek, addDays, weekday, WEEKDAYS, fmtDate, startOfDay, fmtDurShort } from '../utils.js';
+import { esc, fmtVolume, startOfWeek, weekday, WEEKDAYS, fmtDate, fmtDurShort, num } from '../utils.js';
 import { startWorkout } from '../workout.js';
 import { importCSVFlow, startFromRoutine } from '../actions.js';
+import { fighterFx } from '../fighter.js';
+import { nav } from '../nav.js';
+import { profileStats, weeklyQuests, achievements, STAGES } from '../gamification.js';
+import { aiOn, nextWorkout } from '../ai.js';
 
 let limit = 15;
 
@@ -19,11 +23,34 @@ export function homeView() {
   const days = new Set(thisWeek.map((w) => weekday(w.start)));
   const vol = thisWeek.reduce((a, w) => a + (wStats.get(w.id)?.volume || 0), 0);
   const dur = thisWeek.reduce((a, w) => a + (wStats.get(w.id)?.duration || 0), 0);
-  const st = weekStreaks();
-  const goal = state.settings.weekGoal || 4;
+  const P = profileStats();
+  const st = P.st;
+  const stage = P.stage;
+  const goal = st.goal;
   const today = weekday(now);
   const hour = new Date().getHours();
   const greet = hour < 11 ? 'Guten Morgen' : hour < 18 ? 'Hallo' : 'Guten Abend';
+
+  // Streak-Status dieser Woche
+  let alert = '';
+  if (ws.length) {
+    if (st.thisDone) alert = `<div class="streak-alert ok">✓ Wochenziel erreicht – deine Streak wächst auf <b>${st.current}</b> Wochen!</div>`;
+    else if (st.needed > st.daysLeft) alert = `<div class="streak-alert lost">✕ Diese Woche ist das Ziel nicht mehr erreichbar (${st.thisCount}/${goal}). Nächste Woche neu angreifen!</div>`;
+    else if (st.needed === st.daysLeft) alert = `<div class="streak-alert danger">⚠ Streak in Gefahr! Noch <b>${st.needed}</b> Workout${st.needed > 1 ? 's' : ''} in ${st.daysLeft} Tag${st.daysLeft > 1 ? 'en' : ''} – jeden Tag zählt.</div>`;
+    else alert = `<div class="streak-alert info">🔥 Noch <b>${st.needed}</b> Workout${st.needed > 1 ? 's' : ''} in ${st.daysLeft} Tagen, um deine Streak zu halten.</div>`;
+  }
+
+  const hero = ws.length ? `<section class="card hero st${stage.index}">
+      <div class="hero-fig">${fighterFx(stage.index, { enter: nav.entering })}</div>
+      <div class="hero-info">
+        <small>Stufe ${stage.index + 1}/${STAGES.length}</small>
+        <h3>${esc(stage.name)}</h3>
+        <div class="hero-streak">${icon('flame')}<b>${st.current}</b><span>Wochen Streak</span></div>
+        ${stage.next ? `<div class="hero-next"><div class="bar"><i style="width:${Math.round(stage.progress * 100)}%"></i></div><small>Noch ${stage.toNext} Woche${stage.toNext > 1 ? 'n' : ''} bis <b>${esc(stage.next.name)}</b></small></div>` : '<small class="hero-max">Höchste Stufe erreicht! ⚡</small>'}
+        <div class="hero-power"><small>Kampfkraft</small><b>${num(P.power, 0)}</b>${P.power > 9000 ? '<span class="over9000">ÜBER 9000!</span>' : ''}</div>
+      </div>
+      <a class="hero-level" href="#/badges"><span>Lvl ${P.level}</span><div class="bar"><i style="width:${Math.round(P.levelProgress * 100)}%"></i></div></a>
+    </section>` : '';
 
   const installHint = !isStandalone() ? `<div class="card hint">
       <div class="card-title">${icon('download')} App installieren</div>
@@ -37,7 +64,32 @@ export function homeView() {
       <button class="btn ghost block" data-act="start">${icon('plus')} Erstes Workout starten</button>
     </div>` : '';
 
-  // Feed mit Monats-Trennern
+  const quests = ws.length ? weeklyQuests() : [];
+  const questHtml = quests.length ? `<section class="card">
+      <div class="card-title">Wochen-Aufgaben <small>${quests.filter((q) => q.value >= q.target).length}/${quests.length} erledigt</small></div>
+      ${quests.map((q) => {
+        const done = q.value >= q.target;
+        const f = q.fmt || ((v) => num(v, 0));
+        return `<div class="quest ${done ? 'done' : ''}">
+          <span class="q-ic">${done ? '✅' : q.icon}</span>
+          <div class="q-main"><div class="q-top"><b>${esc(q.title)}</b><span>+${q.xp} XP</span></div>
+          <div class="bar"><i style="width:${Math.min(100, (q.value / q.target) * 100)}%"></i></div>
+          <small>${esc(f(Math.min(q.value, q.target)))} / ${esc(f(q.target))}${q.hint ? ` · ${esc(q.hint)}` : ''}</small></div>
+        </div>`;
+      }).join('')}
+    </section>` : '';
+
+  let coach = '';
+  if (aiOn() && ws.length) {
+    const nw = nextWorkout();
+    if (nw) coach = `<a class="card coach-mini" href="#/training">
+      <span class="ai-badge">AI</span>
+      <div><b>Empfehlung: ${esc(nw.best.name)}</b><small>${esc(nw.whenText)}</small></div>${icon('right', 'muted')}</a>`;
+  }
+
+  const ach = ws.length ? achievements() : [];
+  const achDone = ach.filter((a) => a.done);
+
   let feed = '';
   let lastM = '';
   for (const w of ws.slice(0, limit)) {
@@ -46,25 +98,30 @@ export function homeView() {
     feed += workoutCard(w);
   }
   const more = ws.length > limit ? `<button class="btn ghost block" data-act="more">Weitere Workouts laden (${ws.length - limit})</button>` : '';
-
   const routines = state.routines.slice(0, 8).map((r) => `<button class="quick-chip" data-act="routine" data-id="${esc(r.id)}">${icon('play', 'xs')} ${esc(r.name)}</button>`).join('');
 
   const html = `
     ${pageHead(`${greet}!`, { sub: esc(fmtDate(now, { weekday: 'long', day: 'numeric', month: 'long' })) })}
     ${onboarding}
+    ${hero}
     ${ws.length ? `<section class="card week-card">
       <div class="week-top">
         <div><small>Diese Woche</small><div class="week-count"><b>${thisWeek.length}</b><span>/ ${goal} Workouts</span></div></div>
-        <div class="streak">${icon('flame')}<div><b>${st.current}</b><small>Wochen in Folge</small></div></div>
+        <div class="week-meta col"><span>${icon('weight', 'xs')} ${fmtVolume(vol)}</span><span>${icon('clock', 'xs')} ${fmtDurShort(dur)}</span></div>
       </div>
       <div class="week-dots">${WEEKDAYS.map((d, i) => `<div class="wd ${days.has(i) ? 'on' : ''} ${i === today ? 'today' : ''}"><i>${days.has(i) ? icon('check') : ''}</i><span>${d}</span></div>`).join('')}</div>
       <div class="week-bar"><i style="width:${Math.min(100, (thisWeek.length / goal) * 100)}%"></i></div>
-      <div class="week-meta"><span>${icon('weight', 'xs')} ${fmtVolume(vol)}</span><span>${icon('clock', 'xs')} ${fmtDurShort(dur)}</span></div>
+      ${alert}
     </section>` : ''}
+    ${coach}
     <section class="quick">
       <button class="btn primary block lg" data-act="start">${icon('plus')} Leeres Workout starten</button>
       ${routines ? `<div class="quick-row">${routines}</div>` : ''}
     </section>
+    ${questHtml}
+    ${ach.length ? `<a class="card badge-teaser" href="#/badges">
+      <div class="bt-icons">${achDone.slice(-5).map((a) => `<span>${a.icon}</span>`).join('')}</div>
+      <div><b>Abzeichen</b><small>${achDone.length} von ${ach.length} freigeschaltet</small></div>${icon('right', 'muted')}</a>` : ''}
     ${installHint}
     ${ws.length ? `<h2 class="section-title">Verlauf</h2>${feed}${more}` : ''}
   `;

@@ -4,7 +4,11 @@ import {
   repRanges, setTypeDist, primaryMetric,
 } from '../stats.js';
 import { MUSCLES } from '../library.js';
-import { lineChart, barChart, heatmap, hbars, SERIES, HEAT } from '../charts.js';
+import { lineChart, barChart, heatmap, hbars, stackedBars, radarChart, legend, SERIES, HEAT } from '../charts.js';
+import { bodyMap, mountBodyMaps } from '../bodymap.js';
+import { volumeBalance, strengthBalance, bodyweightStandards, LEVELS } from '../balance.js';
+import { setLoad } from '../stats.js';
+import { e1rm, addDays } from '../utils.js';
 import { pageHead, kpi, prValue, prLabel, emptyState } from '../components.js';
 import { icon, chips } from '../ui.js';
 import {
@@ -12,7 +16,7 @@ import {
   MONTHS, WEEKDAYS, weekday, startOfDay, DAY,
 } from '../utils.js';
 
-const TABS = [['overview', 'Übersicht'], ['strength', 'Kraft'], ['volume', 'Volumen'], ['calendar', 'Kalender'], ['records', 'Rekorde']];
+const TABS = [['overview', 'Übersicht'], ['strength', 'Kraft'], ['volume', 'Volumen'], ['balance', 'Balance'], ['calendar', 'Kalender'], ['records', 'Rekorde']];
 const ui = { range: '6m', unit: null, muscle: 'Brust', year: new Date().getFullYear() };
 
 const agg = (list) => {
@@ -43,7 +47,7 @@ export function statsView({ tab = 'overview' }) {
   }
   const tabs = `<div class="tabs scroll">${TABS.map(([k, l]) => `<a class="tab ${k === tab ? 'on' : ''}" href="#/stats/${k}">${l}</a>`).join('')}</div>`;
   const rangeChips = chips(RANGES, ui.range, 'data-range');
-  const views = { overview, strength, volume, calendar, records };
+  const views = { overview, strength, volume, balance, calendar, records };
   const v = (views[tab] || overview)();
   return {
     html: `${pageHead('Statistik')}${tabs}${tab !== 'calendar' ? `<div class="filter-row">${rangeChips}</div>` : ''}${v.html}`,
@@ -99,6 +103,12 @@ function overview() {
     <section class="card"><div class="card-title">Volumen pro ${unit === 'week' ? 'Woche' : 'Monat'}</div><div data-chart="vol"></div></section>
     <section class="card"><div class="card-title">Workouts pro ${unit === 'week' ? 'Woche' : 'Monat'}</div><div data-chart="count"></div></section>
     <section class="card"><div class="card-title">Ø Trainingsdauer</div><div data-chart="dur"></div></section>
+    <section class="card"><div class="card-title">Trainingsbelastung <small>akut : chronisch</small></div>
+      <p class="footnote">Volumen der letzten 7 Tage im Verhältnis zum Wochenschnitt der letzten 4 Wochen. Im grünen Bereich (0,8–1,3) steigerst du dich sicher; deutlich darüber steigt das Verletzungsrisiko.</p>
+      <div data-chart="acwr"></div></section>
+    <section class="card"><div class="card-title">Trainingsdichte <small>kg pro Minute</small></div>
+      <p class="footnote">Wie viel Volumen du pro Trainingsminute bewegst – steigt, wenn du effizienter trainierst.</p>
+      <div data-chart="density"></div></section>
     <section class="card"><div class="card-title">Trainings-Splits</div>
       <div class="table">
         <div class="tr th"><span>Workout</span><span>Anzahl</span><span>Ø Dauer</span><span>Ø Volumen</span></div>
@@ -123,6 +133,27 @@ function overview() {
       refLine: unit === 'week' ? { value: state.settings.weekGoal, label: 'Ziel' } : null,
     });
     const durPts = bs.filter((b) => b.items.length).map((b) => ({ x: b.start, y: sum(b.items, (w) => wStats.get(w.id).duration) / b.items.length / 60 }));
+    // Akut:chronisch
+    const daily = new Map();
+    for (const w of asc) { const k = startOfDay(w.start); daily.set(k, (daily.get(k) || 0) + wStats.get(w.id).volume); }
+    const acwr = [];
+    const step = ui.range === 'all' ? 7 : ui.range === '1y' ? 2 : 1;
+    for (let d = startOfDay(from); d <= to; d = startOfDay(addDays(d, step))) {
+      let a = 0, c = 0;
+      for (let k = 0; k < 28; k++) { const v = daily.get(startOfDay(addDays(d, -k))) || 0; c += v; if (k < 7) a += v; }
+      if (c > 0) acwr.push({ x: d, y: Math.min(2.5, a / (c / 4)) });
+    }
+    lineChart(root.querySelector('[data-chart="acwr"]'), {
+      series: [{ name: 'Belastung', points: acwr, color: SERIES[0] }], area: false, dots: false,
+      band: { from: 0.8, to: 1.3, label: 'optimal' }, yFmt: (v) => num(v, 1),
+      tipFmt: (p) => `<div class="tt-h">${esc(fmtDate(p.x))}</div><div class="tt-r"><b>${num(p.y, 2)}</b> ${p.y > 1.5 ? '⚠ sehr hoch' : p.y > 1.3 ? '◐ erhöht' : p.y < 0.8 ? '↓ Entlastung' : '✓ optimal'}</div>`,
+    });
+    const dens = bs.map((b) => {
+      const l = b.items.filter((w) => wStats.get(w.id).duration >= 600 && wStats.get(w.id).volume > 0);
+      if (!l.length) return null;
+      return { x: b.start, y: sum(l, (w) => wStats.get(w.id).volume) / sum(l, (w) => wStats.get(w.id).duration / 60) };
+    }).filter(Boolean);
+    lineChart(root.querySelector('[data-chart="density"]'), { series: [{ name: 'Dichte', points: dens, color: SERIES[2] }], yFmt: (v) => `${num(v, 0)}`, tipFmt: (p) => `<div class="tt-h">${esc(fmtDate(p.x, { month: 'short', day: 'numeric', year: 'numeric' }))}</div><div class="tt-r"><b>${num(p.y, 0)} kg/min</b></div>` });
     lineChart(root.querySelector('[data-chart="dur"]'), { series: [{ name: 'Dauer', points: durPts, color: SERIES[6] }], yFmt: (v) => `${num(v, 0)} min`, tipFmt: (p) => `<div class="tt-h">${esc(fmtDate(p.x, unit === 'week' ? { day: 'numeric', month: 'short', year: 'numeric' } : { month: 'long', year: 'numeric' }))}</div><div class="tt-r"><b>${num(p.y, 0)} Min.</b> Ø</div>` });
   };
   return { html, mount };
@@ -141,6 +172,26 @@ function strength() {
   }).filter((r) => r.ses.length);
   const top = [...rows].filter((r) => r.ses.length >= 3).sort((a, b) => b.ses.length - a.ses.length).slice(0, 6);
   const table = [...rows].filter((r) => r.tr).sort((a, b) => (b.tr.pct ?? -1e9) - (a.tr.pct ?? -1e9));
+  const cmp = top.slice(0, 4);
+  // Intensitätsverteilung
+  const bwv = state.settings.bodyweight;
+  const bins = [['< 60 %', 0, 0.6], ['60–75 %', 0.6, 0.75], ['75–85 %', 0.75, 0.85], ['85–95 %', 0.85, 0.95], ['≥ 95 %', 0.95, 9]];
+  const counts = bins.map(() => 0);
+  for (const x of list) {
+    let best = 0;
+    for (const s of x.sessions) {
+      best = Math.max(best, s.bestE1rm);
+      if (s.date < from || s.date > to || !best) continue;
+      for (const q of s.sets) {
+        if (q.type === 'warmup' || !q.reps) continue;
+        const pc = setLoad(x.type, q, bwv) / best;
+        const bi = bins.findIndex(([, a, b]) => pc >= a && pc < b);
+        if (bi >= 0 && pc > 0) counts[bi]++;
+      }
+    }
+  }
+  const intens = bins.map(([label], i) => ({ label, value: counts[i] }));
+  const intTotal = sum(intens, (x) => x.value) || 1;
 
   const html = `
     <p class="footnote">Kraft wird als <b>geschätztes 1RM</b> (Epley-Formel) aus deinem besten Satz pro Einheit berechnet. Der Trend ist eine lineare Regression über den Zeitraum.</p>
@@ -153,6 +204,14 @@ function strength() {
       </a>`).join('')}
     </div>
     ${top.length ? '' : '<p class="footnote">Mindestens 3 Einheiten einer Übung im Zeitraum nötig.</p>'}
+    ${cmp.length >= 2 ? `<section class="card"><div class="card-title">Hauptübungen im Vergleich <small>Start = 100</small></div>
+      <p class="footnote">Bestes 1RM pro Monat, relativ zum ersten Monat im Zeitraum – so siehst du, welche Übung am stärksten wächst.</p>
+      ${legend(cmp.map((c, i) => ({ label: c.x.name, color: SERIES[i] })))}
+      <div data-chart="cmp"></div></section>` : ''}
+    <section class="card"><div class="card-title">Intensität <small>% vom 1RM</small></div>
+      <p class="footnote">Wie schwer deine Arbeitssätze relativ zu deinem damaligen Bestwert waren. Für Kraft: viele Sätze ≥ 80 %, für Muskelaufbau: 65–85 %.</p>
+      ${hbars(intens, { fmt: (v) => `${num((v / intTotal) * 100, 0)} %`, color: SERIES[4], sub: (x) => ` · ${x.value}` })}
+    </section>
     <section class="card"><div class="card-title">Kraftentwicklung aller Übungen</div>
       <div class="table strength-table">
         <div class="tr th"><span>Übung</span><span>Best 1RM</span><span>pro Monat</span><span>Trend</span></div>
@@ -161,6 +220,19 @@ function strength() {
     </section>
   `;
   const mount = (root) => {
+    if (cmp.length >= 2) {
+      const series = cmp.map((c, i) => {
+        const months = new Map();
+        for (const s of c.ses) { const k = new Date(new Date(s.date).getFullYear(), new Date(s.date).getMonth(), 1).getTime(); months.set(k, Math.max(months.get(k) || 0, s.bestE1rm)); }
+        const pts = [...months.entries()].sort((a, b) => a[0] - b[0]);
+        const base = pts[0]?.[1] || 1;
+        return { name: c.x.name, color: SERIES[i], points: pts.map(([x, y]) => ({ x, y: (y / base) * 100, raw: y })) };
+      });
+      lineChart(root.querySelector('[data-chart="cmp"]'), {
+        series, area: false, yFmt: (v) => num(v, 0), refLine: { value: 100, label: '' }, height: 210,
+        tipFmt: (p, rows) => `<div class="tt-h">${esc(fmtDate(p.x, { month: 'long', year: 'numeric' }))}</div>${rows.map((r) => `<div class="tt-r"><i style="background:${r.color}"></i>${esc(r.s.name.split(' (')[0])} <b>${num(r.p.y, 0)}</b> <span class="muted">(${num(r.p.raw, 1)} kg)</span></div>`).join('')}`,
+      });
+    }
     top.forEach((r, i) => {
       lineChart(root.querySelector(`[data-spark="${i}"]`), {
         series: [{ name: '1RM', points: r.ses.map((s) => ({ x: s.date, y: s.bestE1rm })), color: SERIES[0] }],
@@ -207,6 +279,8 @@ function volume() {
     <div class="filter-row">${chips([['week', 'Woche'], ['month', 'Monat']], unit, 'data-unit')}</div>
     <section class="card"><div class="card-title">Volumen pro ${unit === 'week' ? 'Woche' : 'Monat'}</div><div data-chart="vol"></div></section>
     <section class="card"><div class="card-title">Arbeitssätze pro ${unit === 'week' ? 'Woche' : 'Monat'}</div><div data-chart="sets"></div></section>
+    <section class="card"><div class="card-title">Körperkarte <small>Ø Sätze pro Woche</small></div>${bodyMap(Object.fromEntries(muscList.map((m) => [m.label, m.value])))}</section>
+    <section class="card"><div class="card-title">Muskelgruppen im Verlauf <small>Sätze</small></div><div data-chart="stack"></div></section>
     <section class="card">
       <div class="card-title">Sätze pro Muskelgruppe <small>Ø pro Woche</small></div>
       <p class="footnote">Primäre Muskeln zählen 1 Satz, unterstützende 0,5. Für Muskelaufbau gelten ca. 10–20 Sätze pro Woche als guter Richtwert.</p>
@@ -226,6 +300,22 @@ function volume() {
   `;
   const mount = (root) => {
     const now = Date.now();
+    mountBodyMaps(root);
+    const topM = muscList.slice(0, 6).map((m) => m.label);
+    const keys = [...topM.map((m, i) => ({ key: m, label: m, color: SERIES[i] })), { key: '_other', label: 'Andere', color: 'var(--muted)' }];
+    stackedBars(root.querySelector('[data-chart="stack"]'), {
+      keys,
+      data: bs.map((b) => {
+        const values = {};
+        for (const w of b.items) for (const [m, v] of Object.entries(wStats.get(w.id).muscles)) {
+          if (m === 'Cardio' || m === 'Ganzkörper') continue;
+          const k = topM.includes(m) ? m : '_other';
+          values[k] = (values[k] || 0) + v;
+        }
+        return { label: bucketLabel(b, unit), head: bucketHead(b, unit), values, partial: b.end > now };
+      }),
+      valFmt: (v) => `${num(v, 1)} Sätze`,
+    });
     barChart(root.querySelector('[data-chart="vol"]'), {
       data: bs.map((b) => {
         const v = sum(b.items, (w) => wStats.get(w.id).volume);
@@ -297,6 +387,7 @@ function calendar() {
       <div class="kpi mini"><small>Stunden</small><b>${num(yAgg.dur / 3600, 0)}</b></div>
       <div class="kpi mini"><small>Sätze</small><b>${num(yAgg.sets, 0)}</b></div>
     </div>
+    ${review(y, yList)}
     <section class="card"><div class="card-title">Trainingstage ${y}</div>
       <div data-chart="heat"></div>
       <div class="heat-legend"><span>Weniger Volumen</span>${HEAT.map((c) => `<i style="background:${c}"></i>`).join('')}<span>Mehr</span></div>
@@ -381,3 +472,126 @@ function records() {
 }
 
 export const statsUI = ui;
+
+// ---------------- Jahresrückblick ----------------
+function review(y, list) {
+  if (list.length < 3) return '';
+  const { wStats, ex, prs } = idx();
+  const ids = new Set(list.map((w) => w.id));
+  const exSets = new Map();
+  for (const w of list) for (const e of w.exercises) exSets.set(e.name, (exSets.get(e.name) || 0) + e.sets.filter((q) => q.type !== 'warmup').length);
+  const fav = [...exSets.entries()].sort((a, b) => b[1] - a[1])[0];
+  const months = new Map();
+  for (const w of list) { const m = new Date(w.start).getMonth(); months.set(m, (months.get(m) || 0) + wStats.get(w.id).volume); }
+  const bestM = [...months.entries()].sort((a, b) => b[1] - a[1])[0];
+  const longest = list.reduce((a, w) => (wStats.get(w.id).duration > wStats.get(a.id).duration ? w : a), list[0]);
+  const yPrs = prs.filter((p) => ids.has(p.wid) && p.kind === 'e1rm');
+  let gain = null;
+  for (const x of ex.values()) {
+    if (x.type !== 'weight') continue;
+    const s = x.sessions.filter((q) => ids.has(q.wid) && q.bestE1rm > 0);
+    if (s.length < 4) continue;
+    const a = Math.max(...s.slice(0, 2).map((q) => q.bestE1rm));
+    const b = Math.max(...s.slice(-2).map((q) => q.bestE1rm));
+    if (!gain || b - a > gain.d) gain = { name: x.name, d: b - a, a, b };
+  }
+  const wd = WEEKDAYS.map(() => 0);
+  for (const w of list) wd[weekday(w.start)]++;
+  const favDay = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'][wd.indexOf(Math.max(...wd))];
+  return `<section class="card review">
+    <div class="card-title">✨ Dein Jahr ${y}</div>
+    <div class="review-grid">
+      <div><span>🏋️</span><b>${list.length}</b><small>Workouts</small></div>
+      <div><span>🏆</span><b>${yPrs.length}</b><small>1RM-Rekorde</small></div>
+      <div><span>❤️</span><b class="trunc">${esc(fav[0])}</b><small>Lieblingsübung · ${fav[1]} Sätze</small></div>
+      <div><span>📅</span><b>${favDay}</b><small>Lieblingstag</small></div>
+      <div><span>🚀</span><b>${esc(MONTHS[bestM[0]])}</b><small>Stärkster Monat · ${fmtVolume(bestM[1])}</small></div>
+      <div><span>⏳</span><b>${fmtDurShort(wStats.get(longest.id).duration)}</b><small>Längstes Workout</small></div>
+      ${gain && gain.d > 0 ? `<div class="wide"><span>📈</span><b>+${num(gain.d, 1)} kg</b><small>Größter Kraftzuwachs: ${esc(gain.name)} (${num(gain.a, 1)} → ${num(gain.b, 1)} kg 1RM)</small></div>` : ''}
+    </div>
+  </section>`;
+}
+
+// ---------------- Balance ----------------
+const LVL_TXT = { ok: '✓ Ausgewogen', mild: '◐ Leichte Disbalance', strong: '⚠ Deutliche Disbalance', none: '– Zu wenig Daten' };
+
+function balanceBar(share, ideal, aLabel, bLabel) {
+  const pos = Math.max(2, Math.min(98, share * 100));
+  return `<div class="bal-bar">
+    <div class="bal-track">
+      <div class="bal-zone" style="left:${ideal[0] * 100}%;width:${(ideal[1] - ideal[0]) * 100}%"></div>
+      <div class="bal-mid"></div>
+      <div class="bal-dot" style="left:${pos}%"></div>
+    </div>
+    <div class="bal-labels"><span>◀ ${esc(aLabel)} ${num(share * 100, 0)} %</span><span>${num((1 - share) * 100, 0)} % ${esc(bLabel)} ▶</span></div>
+  </div>`;
+}
+
+function scaleBar(value, ideal, range) {
+  const p = (v) => Math.max(1, Math.min(99, ((v - range[0]) / (range[1] - range[0])) * 100));
+  return `<div class="bal-bar"><div class="bal-track">
+      <div class="bal-zone" style="left:${p(ideal[0])}%;width:${p(ideal[1]) - p(ideal[0])}%"></div>
+      <div class="bal-dot" style="left:${p(value)}%"></div></div>
+    <div class="bal-labels"><span>${num(range[0], 1)}</span><span>Ideal ${num(ideal[0], 2)}–${num(ideal[1], 2)}</span><span>${num(range[1], 1)}</span></div></div>`;
+}
+
+function balance() {
+  const { from, to } = rangeBounds(ui.range);
+  const { asc, wStats } = idx();
+  const vb = volumeBalance(from, to);
+  const sb = strengthBalance();
+  const std = bodyweightStandards(sb.lifts);
+  const weeks = Math.max(1, (to - from) / (7 * DAY));
+  const RADAR = ['Brust', 'Rücken', 'Schultern', 'Bizeps', 'Trizeps', 'Bauch', 'Quadrizeps', 'Beinbeuger', 'Gesäß', 'Waden'];
+  const musc = {};
+  for (const w of inRange(asc, from, to)) for (const [m, v] of Object.entries(wStats.get(w.id).muscles)) musc[m] = (musc[m] || 0) + v;
+  const radarVals = RADAR.map((m) => (musc[m] || 0) / weeks);
+  const issues = vb.filter((r) => r.level === 'mild' || r.level === 'strong').length + sb.ratios.filter((r) => !r.missing && r.level !== 'ok').length;
+
+  const html = `
+    <div class="card bal-summary ${issues ? 'warn' : 'ok'}">
+      <span>${issues ? '⚠' : '✓'}</span>
+      <div><b>${issues ? `${issues} Auffälligkeit${issues > 1 ? 'en' : ''} gefunden` : 'Dein Training ist ausgewogen'}</b>
+      <small>Analyse auf Basis deiner Arbeitssätze im gewählten Zeitraum und deiner besten 1RM-Werte.</small></div>
+    </div>
+    <section class="card"><div class="card-title">Muskel-Profil <small>Ø Sätze pro Woche</small></div>
+      <div data-chart="radar"></div>
+      <p class="footnote">Graue Linie: 10 Sätze pro Woche als Richtwert für Muskelaufbau. Je runder die Fläche, desto ausgewogener.</p>
+    </section>
+    <h2 class="section-title">Volumen-Balance</h2>
+    ${vb.map((r) => `<section class="card bal ${r.level}">
+      <div class="bal-head"><b>${esc(r.title)}</b><span class="bal-lvl ${r.level}">${LVL_TXT[r.level]}</span></div>
+      ${r.level === 'none' ? '<p class="footnote">Zu wenige passende Sätze im Zeitraum.</p>' : balanceBar(r.share, r.ideal, r.a, r.b)}
+      ${r.level !== 'none' ? `<div class="bal-nums"><span>${esc(r.a)}: <b>${num(r.perWeekA, 1)}</b> Sätze/Wo.${r.vA != null ? ` · ${fmtVolume(r.vA)}` : ''}</span><span>${esc(r.b)}: <b>${num(r.perWeekB, 1)}</b> Sätze/Wo.${r.vB != null ? ` · ${fmtVolume(r.vB)}` : ''}</span></div>` : ''}
+      ${r.tip ? `<div class="bal-tip">💡 ${esc(r.tip)}</div>` : ''}
+      ${r.info ? `<p class="footnote">${esc(r.info)}</p>` : ''}
+    </section>`).join('')}
+    <h2 class="section-title">Kraft-Balance <small class="muted">(Gewicht)</small></h2>
+    ${sb.ratios.map((r) => r.missing ? `<section class="card bal none"><div class="bal-head"><b>${esc(nameOf(r.a))} : ${esc(nameOf(r.b))}</b><span class="bal-lvl none">– fehlt</span></div><p class="footnote">${[r.A, r.B].some((l) => l?.stale) ? `Keine Daten aus den letzten 12 Monaten für ${esc([r.A, r.B].filter((l) => l?.stale).map((l) => l.name).join(', '))}.` : 'Dafür werden beide Übungen mit Langhantel benötigt.'}</p></section>` : `<section class="card bal ${r.level}">
+      <div class="bal-head"><b>${esc(r.A.label)} : ${esc(r.B.label)}</b><span class="bal-lvl ${r.level}">${LVL_TXT[r.level]}</span></div>
+      <div class="bal-ratio"><b>${num(r.value, 2)}</b><small>${num(r.A.e1rm, 1)} kg ÷ ${num(r.B.e1rm, 1)} kg (1RM)</small></div>
+      ${scaleBar(r.value, r.ideal, r.range)}
+      ${r.tip ? `<div class="bal-tip">💡 ${esc(r.tip)}</div>` : ''}
+      <p class="footnote">${esc(r.text)} Basis: bestes 1RM der letzten 12 Monate.</p>
+    </section>`).join('')}
+    <h2 class="section-title">Kraft im Verhältnis zum Körpergewicht</h2>
+    ${std ? `<section class="card">
+      ${std.map((l) => `<div class="std">
+        <div class="std-head"><b>${esc(l.label)}</b><span>${num(l.rel, 2)}× KG · <b>${esc(l.levelName)}</b></span></div>
+        <div class="std-track">${l.th.map((t, i) => `<i style="left:${(t / l.max) * 100}%"></i>`).join('')}<div class="std-fill lv${l.lvl}" style="width:${Math.min(100, (l.rel / l.max) * 100)}%"></div></div>
+        <div class="std-lbl">${l.th.map((t, i) => `<span style="left:${(t / l.max) * 100}%">${LEVELS[i + 1].slice(0, 5)}.</span>`).join('')}</div>
+      </div>`).join('')}
+      <p class="footnote">Richtwerte (Männer) für das geschätzte 1RM relativ zu deinem Körpergewicht von ${num(state.settings.bodyweight, 1)} kg.</p>
+    </section>` : '<div class="card"><p class="footnote">Trage dein Körpergewicht unter <a class="link-btn" href="#/profile">Profil</a> ein, um deine Kraft mit Richtwerten zu vergleichen.</p></div>'}
+  `;
+  return {
+    html,
+    mount: (root) => {
+      radarChart(root.querySelector('[data-chart="radar"]'), {
+        axes: RADAR, series: [{ name: 'Sätze/Woche', values: radarVals, color: SERIES[0] }], ref: { value: 10, label: '10' },
+        fmt: (v) => `${num(v, 1)} Sätze/Woche`,
+      });
+    },
+  };
+}
+const nameOf = (k) => ({ bench: 'Bankdrücken', row: 'Rudern', ohp: 'Schulterdrücken', squat: 'Kniebeuge', deadlift: 'Kreuzheben' }[k] || k);

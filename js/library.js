@@ -16,6 +16,7 @@ export const TYPES = {
 
 // Reihenfolge ist wichtig: spezifischere Regeln zuerst
 const RULES = [
+  [/mobility|dehnen|stretch/i, 'Ganzkörper', [], 'duration'],
   [/rudermaschine|carido|cardio|radfahren|fahrrad|ergometer|laufband|crosstrainer|joggen|laufen|schwimmen|stepper|seilspringen|zone ?2/i, 'Cardio', [], 'cardio'],
   [/burpee/i, 'Ganzkörper', [], 'bodyweight'],
   [/plank|unterarmstütz/i, 'Bauch', [], 'duration'],

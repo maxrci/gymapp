@@ -22,6 +22,23 @@ Alle Daten bleiben lokal auf dem Gerät (IndexedDB).
 - **Übungsdetails**: 1RM/Max-Gewicht/Volumen/Wiederholungen im Verlauf, Wiederholungs-Maxima (1–12),
   persönliche Rekorde, komplette Historie, Muskelgruppe/Typ anpassen, Übungen umbenennen bzw. zusammenführen.
 - **Daten**: CSV-Import (mit Duplikaterkennung), CSV-Export, JSON-Backup und -Wiederherstellung.
+- **Balance-Analyse**: Push/Pull, horizontal/vertikal, Ober-/Unterkörper, Quadrizeps/Beinbeuger,
+  vordere/hintere Schulter, Bizeps/Trizeps (Volumen) sowie Kraftverhältnisse (1RM) und Kraft relativ
+  zum Körpergewicht, mit konkreten Empfehlungen. Dazu Muskel-Netzdiagramm und Körperkarte.
+- **Weitere Diagramme**: Trainingsbelastung (akut:chronisch), Trainingsdichte, Hauptübungen indexiert,
+  Intensitätsverteilung (% vom 1RM), Muskelgruppen gestapelt, Jahresrückblick.
+- **Heller und dunkler Modus** (Profil → Darstellung; Hell, Dunkel oder System).
+- **Gamification**: eigene Kämpfer-Figur, die mit der Streak in 6 Stufen wächst (Streak = Wochen mit
+  erreichtem Wochenziel), Streak-Warnung, Kampfkraft, Level/XP, Wochen-Aufgaben, Abzeichen.
+- **PR-Effekte**: Bei einem neuen Rekord wird die Satzzeile orange-gelb wie Feuer, dazu 3 Sekunden
+  Einblendung mit Power-up-Sound (abschaltbar).
+- **AI-Mode** (lokaler Algorithmus, abschaltbar): Gewichts- und Wiederholungsvorschläge pro Übung
+  (doppelte Progression, gelernte Gewichtsschritte, Deload- und Wiedereinstiegs-Erkennung),
+  Stagnationsanalyse mit Tipps, Erholungsmodell pro Muskel und Empfehlung, wann und was du als Nächstes trainierst.
+- **Cardio geführt**: Grundlage, 4×4, 30/30, Pyramide, Steigerung, Schwelle, 12-3-30, Regeneration für
+  Laufband/Rad/Crosstrainer/Rudergerät. Vollbild mit Geräte-Einstellungen, Zonen, Countdown-Tönen
+  und Sprachansage.
+- **Mobility geführt**: 6 Routinen mit automatischem Timer, Seitenwechsel und Atem-Animation.
 
 ## Auf GitHub Pages veröffentlichen
 

@@ -11,11 +11,15 @@ import {
   $, esc, uid, num, fmtClock, fmtVolume, fmtKg, fmtDate, fmtDur, parseNum, debounce,
 } from './utils.js';
 import { setLoad } from './stats.js';
+import { aiOn, suggest } from './ai.js';
+import { unlockAudio, restDoneSound, prPopup } from './fx.js';
+import { stageFor } from './gamification.js';
+import { weekStreaks } from './stats.js';
+import { e1rm } from './utils.js';
 
 let ed = null; // { mode: 'active'|'edit'|'routine', data, isNew }
 let ticker = null;
 let wakeLock = null;
-let audioCtx = null;
 let onCloseCb = () => {};
 
 const root = () => $('#editor');
@@ -33,6 +37,21 @@ export function openActive() {
 
 function blankSet(type = 'normal', target) {
   return { type, weight: null, reps: null, distance: null, duration: null, done: false, target: target || null };
+}
+
+// Neue Übung im Editor – mit AI-Vorschlag, falls der AI-Mode aktiv ist
+function makeExercise(name, templateSets, rest = null) {
+  const ex = { name, notes: '', rest, sets: null, ai: null };
+  if (aiOn() && ed?.mode !== 'routine') {
+    const sg = suggest(name);
+    if (sg) {
+      ex.sets = sg.sets.map((s) => blankSet(s.type, pickTarget(s)));
+      ex.ai = { label: sg.label, reason: sg.reason, kind: sg.kind };
+      return ex;
+    }
+  }
+  ex.sets = setsFromTemplate(name, templateSets);
+  return ex;
 }
 
 function setsFromTemplate(name, templateSets) {
@@ -54,7 +73,7 @@ export async function startWorkout({ title = 'Workout', exercises = [], routineI
   }
   const a = {
     id: uid(), title, start: Date.now(), routineId, rest: null, description: '',
-    exercises: exercises.map((e) => ({ name: e.name, notes: '', rest: e.rest ?? null, sets: setsFromTemplate(e.name, e.sets) })),
+    exercises: exercises.map((e) => makeExercise(e.name, e.sets, e.rest ?? null)),
   };
   await setActive(a);
   ed = { mode: 'active', data: a };
@@ -217,7 +236,7 @@ function exerciseHtml(e, i) {
   const rows = e.sets.map((s, j) => {
     const label = s.type === 'warmup' ? 'W' : s.type === 'dropset' ? 'D' : s.type === 'failure' ? 'F' : String(++n);
     const ps = prevSets[j];
-    return `<div class="set-row ${s.done ? 'done' : ''} c${cols.length} ${chk ? '' : 'nochk'}" data-ex="${i}" data-set="${j}">
+    return `<div class="set-row ${s.done ? 'done' : ''} ${s.pr ? 'pr' : ''} c${cols.length} ${chk ? '' : 'nochk'}" data-ex="${i}" data-set="${j}">
       <button class="set-badge t-${s.type}" data-act="set-type">${label}</button>
       <button class="set-prev" data-act="fill-prev">${esc(fmtSetShort(ps, type))}</button>
       ${cols.map((c) => `<input class="set-in" data-f="${c}" inputmode="${COL_MODE[c]}" value="${esc(colVal(s, c))}" placeholder="${esc(placeholderFor(ps, s.target, c))}" autocomplete="off" enterkeyhint="next">`).join('')}
@@ -234,6 +253,7 @@ function exerciseHtml(e, i) {
       </div>
       <button class="icon-btn" data-act="ex-menu" aria-label="Optionen">${icon('more')}</button>
     </div>
+    ${e.ai && m === 'active' ? `<div class="ai-chip k-${e.ai.kind}"><span class="ai-badge">AI</span><div><b>${esc(e.ai.label)}</b><small>${esc(e.ai.reason)}</small></div></div>` : ''}
     ${e.notes || e.showNotes ? `<textarea class="ex-notes" data-f="notes" rows="1" placeholder="Notiz hinzufügen…">${esc(e.notes || '')}</textarea>` : ''}
     <div class="set-row head c${cols.length} ${chk ? '' : 'nochk'}"><span>SATZ</span><span>VORHER</span>${colHead}${chk ? `<span>${icon('check', 'xs')}</span>` : ''}</div>
     ${rows}
@@ -298,29 +318,45 @@ function updateRestBar() {
   bar.querySelector('b').textContent = fmtClock(Math.ceil(left));
   bar.querySelector('.rest-prog i').style.width = `${(left / rest.total) * 100}%`;
 }
-function unlockAudio() {
-  try {
-    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (audioCtx.state === 'suspended') audioCtx.resume();
-  } catch { /* ignore */ }
-}
 function restDone() {
-  if (state.settings.restSound && audioCtx) {
-    const t0 = audioCtx.currentTime;
-    [0, 0.25, 0.5].forEach((dt, k) => {
-      const o = audioCtx.createOscillator();
-      const g = audioCtx.createGain();
-      o.frequency.value = k === 2 ? 1320 : 880;
-      g.gain.setValueAtTime(0.0001, t0 + dt);
-      g.gain.exponentialRampToValueAtTime(0.4, t0 + dt + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dt + 0.2);
-      o.connect(g).connect(audioCtx.destination);
-      o.start(t0 + dt);
-      o.stop(t0 + dt + 0.22);
-    });
-  }
+  restDoneSound();
   navigator.vibrate?.([200, 100, 200]);
   toast('Pause vorbei – nächster Satz! 💪');
+}
+
+// ---------- Live-Rekorde ----------
+function checkPR(ex, set) {
+  if (set.type === 'warmup') return null;
+  const x = idx().ex.get(ex.name);
+  if (!x) return null; // erste Einheit überhaupt → kein Rekord
+  const t = x.type;
+  const bw = state.settings.bodyweight;
+  const best = { e1rm: x.best.e1rm, weight: x.best.weight, reps: x.best.reps };
+  for (const e of ed.data.exercises) {
+    if (e.name !== ex.name) continue;
+    for (const q of e.sets) {
+      if (q === set || !q.done || q.type === 'warmup') continue;
+      best.e1rm = Math.max(best.e1rm, e1rm(setLoad(t, q, bw), q.reps));
+      best.weight = Math.max(best.weight, q.weight || 0);
+      best.reps = Math.max(best.reps, q.reps || 0);
+    }
+  }
+  const out = [];
+  if (t === 'weight' || t === 'weighted_bw') {
+    const est = e1rm(setLoad(t, set, bw), set.reps);
+    if (x.best.e1rm > 0 && est > best.e1rm + 1e-9) out.push({ kind: 'e1rm', value: est });
+    if (x.best.weight > 0 && (set.weight || 0) > best.weight + 1e-9) out.push({ kind: 'weight', value: set.weight });
+  } else if (t === 'bodyweight') {
+    if (x.best.reps > 0 && (set.reps || 0) > best.reps) out.push({ kind: 'reps', value: set.reps });
+  }
+  return out.length ? out : null;
+}
+
+function prDetail(ex, set, prs) {
+  const type = typeOf(ex.name);
+  const setTxt = fmtSetShort(set, type);
+  const parts = prs.map((p) => (p.kind === 'e1rm' ? `1RM ≈ ${num(p.value, 1)} kg` : p.kind === 'weight' ? 'Höchstes Gewicht' : 'Meiste Wiederholungen'));
+  return `${setTxt} · ${parts.join(' · ')}`;
 }
 
 // ---------- Bildschirm anlassen ----------
@@ -408,7 +444,7 @@ async function onClick(e) {
     case 'add-ex': {
       const names = await pickExercises({ multi: true });
       if (names?.length) {
-        for (const n of names) d.exercises.push({ name: n, notes: '', rest: null, sets: setsFromTemplate(n) });
+        for (const n of names) d.exercises.push(makeExercise(n));
         commit();
         setTimeout(() => {
           const cards = root().querySelectorAll('.ex-card');
@@ -468,9 +504,12 @@ async function onClick(e) {
           break;
         }
         set.done = true;
+        const prs = ed.mode === 'active' ? checkPR(ex, set) : null;
+        set.pr = !!prs;
+        if (prs) prPopup({ exercise: ex.name, detail: prDetail(ex, set, prs), stage: stageFor(weekStreaks().current).index });
         const meta = exerciseMeta(ex.name);
         startRest(ex.rest ?? meta.rest ?? state.settings.restDefault);
-      } else set.done = false;
+      } else { set.done = false; set.pr = false; }
       commit();
       break;
     }
