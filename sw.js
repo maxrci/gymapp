@@ -1,5 +1,5 @@
 // Service Worker: App offline verfügbar machen (stale-while-revalidate)
-const CACHE = 'gymlog-v2.5.0';
+const CACHE = 'gymlog-v3.0.0';
 const ASSETS = [
   './',
   'index.html',
@@ -13,6 +13,8 @@ const ASSETS = [
   'js/body.js',
   'js/bodymap.js',
   'js/bwEditor.js',
+  'js/challengeEditor.js',
+  'js/compete.js',
   'js/charts.js',
   'js/components.js',
   'js/csv.js',
@@ -22,6 +24,7 @@ const ASSETS = [
   'js/gamification.js',
   'js/goals.js',
   'js/intro.js',
+  'js/group.js',
   'js/guided.js',
   'js/library.js',
   'js/look.js',
@@ -30,6 +33,7 @@ const ASSETS = [
   'js/poses.js',
   'js/programs.js',
   'js/stats.js',
+  'js/sync.js',
   'js/store.js',
   'js/theme.js',
   'js/ui.js',
@@ -39,6 +43,8 @@ const ASSETS = [
   'js/views/badges.js',
   'js/views/exercises.js',
   'js/views/home.js',
+  'js/views/join.js',
+  'js/views/league.js',
   'js/views/profile.js',
   'js/views/stats.js',
   'js/views/training.js',
@@ -62,7 +68,8 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   const req = e.request;
-  if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
+  const u = new URL(req.url);
+  if (req.method !== 'GET' || u.origin !== location.origin || u.pathname.includes('/api/')) return;
   const isNav = req.mode === 'navigate';
   e.respondWith((async () => {
     const cache = await caches.open(CACHE);

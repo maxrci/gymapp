@@ -31,6 +31,10 @@ export const state = {
   version: 0,
 };
 
+// Sync-Hook: wird bei lokalen Änderungen aufgerufen (kind, ids, deleted)
+export const hooks = { change: null };
+const changed = (kind, ids, deleted = false) => { try { hooks.change?.(kind, ids, deleted); } catch (e) { console.warn(e); } };
+
 const listeners = new Set();
 export const onChange = (fn) => listeners.add(fn);
 function bump() {
@@ -60,11 +64,13 @@ export async function saveWorkout(w) {
   if (i >= 0) state.workouts[i] = w; else state.workouts.push(w);
   sortWorkouts();
   await db.put('workouts', w);
+  changed('workout', [w.id]);
   bump();
 }
 export async function deleteWorkout(id) {
   state.workouts = state.workouts.filter((w) => w.id !== id);
   await db.del('workouts', id);
+  changed('workout', [id], true);
   bump();
 }
 export const getWorkout = (id) => state.workouts.find((w) => w.id === id);
@@ -83,9 +89,33 @@ export async function importWorkouts(list) {
     await db.putMany('workouts', add);
     state.workouts.push(...add);
     sortWorkouts();
+    changed('workout', add.map((w) => w.id));
     bump();
   }
   return { added: add.length, skipped: list.length - add.length };
+}
+
+// Änderungen vom Server übernehmen (ohne erneut zu synchronisieren)
+export async function applyRemote({ workouts = [], routines = [], delWorkouts = [], delRoutines = [] }) {
+  if (!workouts.length && !routines.length && !delWorkouts.length && !delRoutines.length) return;
+  if (workouts.length) {
+    await db.putMany('workouts', workouts);
+    const m = new Map(state.workouts.map((w) => [w.id, w]));
+    for (const w of workouts) m.set(w.id, w);
+    state.workouts = [...m.values()];
+  }
+  for (const id of delWorkouts) await db.del('workouts', id);
+  if (delWorkouts.length) { const d = new Set(delWorkouts); state.workouts = state.workouts.filter((w) => !d.has(w.id)); }
+  sortWorkouts();
+  if (routines.length) {
+    await db.putMany('routines', routines);
+    const m = new Map(state.routines.map((r) => [r.id, r]));
+    for (const r of routines) m.set(r.id, r);
+    state.routines = [...m.values()].sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.name.localeCompare(b.name));
+  }
+  for (const id of delRoutines) await db.del('routines', id);
+  if (delRoutines.length) { const d = new Set(delRoutines); state.routines = state.routines.filter((r) => !d.has(r.id)); }
+  bump();
 }
 
 // ---------- Routinen ----------
@@ -94,11 +124,13 @@ export async function saveRoutine(r) {
   if (i >= 0) state.routines[i] = r;
   else { r.order = state.routines.length; state.routines.push(r); }
   await db.put('routines', r);
+  changed('routine', [r.id]);
   bump();
 }
 export async function deleteRoutine(id) {
   state.routines = state.routines.filter((r) => r.id !== id);
   await db.del('routines', id);
+  changed('routine', [id], true);
   bump();
 }
 
@@ -138,8 +170,8 @@ export async function renameExercise(from, to) {
     if (c) changedR.push(r);
   }
   if (state.active) for (const e of state.active.exercises) if (e.name === from) e.name = to;
-  if (changedW.length) await db.putMany('workouts', changedW);
-  if (changedR.length) await db.putMany('routines', changedR);
+  if (changedW.length) { await db.putMany('workouts', changedW); changed('workout', changedW.map((w) => w.id)); }
+  if (changedR.length) { await db.putMany('routines', changedR); changed('routine', changedR.map((r) => r.id)); }
   if (state.exMeta[from]) {
     const m = { ...state.exMeta[from], name: to };
     delete state.exMeta[from];
@@ -183,7 +215,7 @@ export async function importJSON(text, replace = false) {
   if (replace) await wipe(false);
   const res = await importWorkouts(data.workouts);
   for (const r of data.routines || []) {
-    if (!state.routines.some((x) => x.id === r.id)) { state.routines.push(r); await db.put('routines', r); }
+    if (!state.routines.some((x) => x.id === r.id)) { state.routines.push(r); await db.put('routines', r); changed('routine', [r.id]); }
   }
   for (const e of data.exercises || []) {
     if (!state.exMeta[e.name]) { state.exMeta[e.name] = e; await db.put('exercises', e); }

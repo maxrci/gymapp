@@ -1,0 +1,45 @@
+# GymLog – Gruppen-Server
+# Anleitung: selfhost.html (bzw. https://<dein-github-name>.github.io/gymapp/selfhost.html)
+services:
+  gymlog:
+    build: .
+    container_name: gymlog
+    restart: unless-stopped
+    environment:
+      GROUP_NAME: ${GROUP_NAME:-GymLog}
+      PUBLIC_URL: ${PUBLIC_URL:-}
+      TZ: ${TZ:-Europe/Berlin}
+    volumes:
+      - ./data:/data
+    ports:
+      - "127.0.0.1:8080:8080"
+
+  # Variante A: Cloudflare Tunnel (kein Port im Router nötig)
+  # Start mit:  docker compose --profile tunnel up -d
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    profiles: ["tunnel"]
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
+    depends_on: [gymlog]
+
+  # Variante B/C: Caddy holt automatisch ein HTTPS-Zertifikat (Ports 80/443 nötig)
+  # Start mit:  docker compose --profile caddy up -d
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["caddy"]
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:-}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on: [gymlog]
+
+volumes:
+  caddy_data:

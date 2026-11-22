@@ -1,0 +1,6 @@
+.git
+data
+*.csv
+*backup*.json
+*.db
+node_modules

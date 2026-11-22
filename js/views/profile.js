@@ -11,6 +11,8 @@ import { fighterSVG } from '../fighter.js';
 import { openAvatarEditor } from '../avatar.js';
 import { openBodyweight } from '../bwEditor.js';
 import { bwLog } from '../body.js';
+import { groupSection, groupHandlers } from '../group.js';
+import { loggedIn, resetCursor } from '../sync.js';
 
 let persisted = null;
 
@@ -41,7 +43,9 @@ export function profileView() {
       ${asc.length ? `<p class="footnote center">Dabei seit ${esc(fmtDate(asc[0].start, { month: 'long', year: 'numeric' }))} · ${st.days} Trainingstage · ${ex.size} Übungen</p>` : ''}
     </section>
 
-    ${backupWarn ? `<div class="card warn-card">${icon('info')}<div><b>Backup empfohlen</b><small>${s.lastBackup ? `Letztes Backup ${esc(fmtRelDay(s.lastBackup))}` : 'Noch kein Backup erstellt'}. Deine Daten liegen nur auf diesem Gerät.</small></div><button class="btn primary sm" data-act="backup">Sichern</button></div>` : ''}
+    ${groupSection(row)}
+
+    ${backupWarn && !loggedIn() ? `<div class="card warn-card">${icon('info')}<div><b>Backup empfohlen</b><small>${s.lastBackup ? `Letztes Backup ${esc(fmtRelDay(s.lastBackup))}` : 'Noch kein Backup erstellt'}. Deine Daten liegen nur auf diesem Gerät.</small></div><button class="btn primary sm" data-act="backup">Sichern</button></div>` : ''}
 
     <div class="list-label">Darstellung</div>
     <div class="seg" role="radiogroup">
@@ -83,7 +87,7 @@ export function profileView() {
 
     <div class="list-label">Über</div>
     <div class="card about">
-      <p><b>GymLog</b> v${APP_VERSION} · läuft komplett offline, alle Daten bleiben auf deinem Gerät.</p>
+      <p><b>GymLog</b> v${APP_VERSION} · ${loggedIn() ? 'läuft offline und gleicht sich mit dem Server deiner Gruppe ab.' : 'läuft komplett offline, alle Daten bleiben auf deinem Gerät.'}</p>
       <p class="footnote" data-persist>Speicher wird geprüft…</p>
     </div>
   `;
@@ -106,6 +110,7 @@ export function profileView() {
       backup: exportBackup,
       restore: restoreBackup,
       routines: routinesFromHistory,
+      ...groupHandlers,
       bw: () => openBodyweight(),
       avatar: () => openAvatarEditor(),
       rest: async () => {
@@ -123,9 +128,10 @@ export function profileView() {
         if (v) await saveSettings({ weekGoal: +v });
       },
       wipe: async () => {
-        if (!(await confirmDialog('Alle Workouts, Routinen und Einstellungen werden unwiderruflich gelöscht. Erstelle vorher ein Backup!', 'Alles löschen', true))) return;
+        if (!(await confirmDialog(loggedIn() ? 'Alle Daten auf diesem Gerät werden gelöscht. Deine Workouts auf dem Gruppen-Server bleiben erhalten und werden beim nächsten Sync wieder geladen.' : 'Alle Workouts, Routinen und Einstellungen werden unwiderruflich gelöscht. Erstelle vorher ein Backup!', 'Alles löschen', true))) return;
         if (!(await confirmDialog('Wirklich sicher?', 'Ja, endgültig löschen', true))) return;
         await wipe();
+        if (loggedIn()) resetCursor();
         toast('Alle Daten gelöscht');
       },
     },
