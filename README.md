@@ -44,6 +44,15 @@ Alle Daten bleiben lokal auf dem Gerät (IndexedDB).
 - **Körpergewicht-Verlauf** (Profil → Körpergewicht) und Umschalter **kg / × KG**: Kraft absolut oder relativ
   zum damaligen Körpergewicht (Übungsdetails, Statistik → Kraft, Rekorde).
 
+## Arena (Demo)
+
+Der Tab **Arena** zeigt den Gruppen-Modus: Saison-Wertung (Punkte für Fleiß), Ewige Tabelle (Workouts, Volumen,
+Trainingszeit, Cardio, Streak, Maximalkraft absolut und pro Körpergewicht), Challenges und animierte
+5-Sekunden-Kämpfe der Kämpfer – wer im gewählten Wert besser ist, gewinnt.
+
+Ohne Server läuft die Arena als **Demo mit zwei NPCs** (Kai und Mia), deren Workouts lokal passend zu deinen
+eigenen Werten erzeugt werden. Demo-Challenges werden nur auf dem Gerät gespeichert. Abschaltbar unter
+Profil → „Arena-Demo mit 2 NPCs“. Für echte Gruppen mit Freunden gibt es den Server (siehe unten).
 ## Gruppen-Server (Arena, Challenges, Accounts)
 
 Im Branch `distribution` gibt es zusätzlich einen kleinen Server, den jede Freundesgruppe selbst betreiben kann –

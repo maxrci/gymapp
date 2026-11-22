@@ -4,6 +4,7 @@
 import { state, hooks, applyRemote, saveSettings, onChange } from './store.js';
 import { idx } from './stats.js';
 import { toast } from './ui.js';
+import { demoApi, demoGroup, setSummarizer } from './demo.js';
 
 const LS = 'gymlog-srv';
 const LS_GROUP = 'gymlog-group';
@@ -20,9 +21,11 @@ export const srv = { available: false, info: null, syncing: false, error: '', li
 const emit = () => srv.listeners.forEach((f) => f());
 export const onSync = (f) => srv.listeners.add(f);
 export const loggedIn = () => !!S.token;
+// DEMO: Arena mit 2 NPCs, solange man bei keinem Server angemeldet ist
+export const demoOn = () => !S.token && !srv.available && state.settings.arenaDemo !== false;
 export const account = () => ({ user: S.user, group: S.group, lastSync: S.lastSync, pending: pendingCount() });
 export const isAdmin = () => S.user?.role === 'admin';
-export const myId = () => S.user?.id;
+export const myId = () => S.user?.id || (demoOn() ? 'me' : undefined);
 const pendingCount = () => Object.keys(S.dirty.workout).length + Object.keys(S.dirty.routine).length + S.tomb.length;
 
 // ---------- Server erkennen ----------
@@ -38,6 +41,7 @@ export async function detectServer() {
 const apiUrl = (p) => (window.__GYMLOG_API ? `${window.__GYMLOG_API}/${p}` : p);
 
 export async function api(method, path, body) {
+  if (demoOn() && !/^\/api\/(redeem|info)/.test(path)) return demoApi(method, path, body);
   const r = await fetch(apiUrl(path.replace(/^\//, '')), {
     method,
     headers: { 'Content-Type': 'application/json', ...(S.token ? { Authorization: `Bearer ${S.token}` } : {}) },
@@ -121,7 +125,7 @@ export function markAllDirty() {
 }
 
 // ---------- Zusammenfassung pro Workout (für Liga, Challenges, Ewige Tabelle) ----------
-function summarizer() {
+export function summarizer() {
   const { wStats, ex } = idx();
   const byW = new Map();
   for (const x of ex.values()) {
@@ -216,10 +220,12 @@ export function resetCursor() { S.cursor = 0; S.dirty = { workout: {}, routine: 
 
 // ---------- Gruppendaten ----------
 export function cachedGroup() {
+  if (demoOn()) return demoGroup();
   try { return JSON.parse(localStorage.getItem(LS_GROUP) || 'null'); } catch { return null; }
 }
 let groupReq = null;
 export function fetchGroup() {
+  if (demoOn()) return Promise.resolve(demoGroup());
   if (!S.token) return Promise.resolve(null);
   groupReq ??= api('GET', '/api/group').then((g) => {
     try { localStorage.setItem(LS_GROUP, JSON.stringify(g)); } catch { /* voll */ }
@@ -239,3 +245,5 @@ export function initSync() {
   window.addEventListener('online', () => scheduleSync(500));
   setInterval(() => { if (document.visibilityState === 'visible') syncNow().catch(() => {}); }, 5 * 60000);
 }
+
+setSummarizer(summarizer);

@@ -18,7 +18,7 @@ import { showIntro } from './intro.js';
 import { setLook } from './look.js';
 import { leagueView, memberView } from './views/league.js';
 import { joinView } from './views/join.js';
-import { detectServer, initSync, loggedIn, onSync } from './sync.js';
+import { detectServer, initSync, loggedIn, onSync, demoOn } from './sync.js';
 
 const TABS = [
   ['home', 'Start', 'home'],
@@ -69,7 +69,7 @@ function render({ keepScroll = true } = {}) {
 const rerender = () => render({ keepScroll: true });
 
 function renderTabbar() {
-  const tabs = TABS.filter(([k]) => k !== 'arena' || loggedIn());
+  const tabs = TABS.filter(([k]) => k !== 'arena' || loggedIn() || demoOn());
   $('#tabbar').innerHTML = tabs.map(([k, l, ic]) => `<a href="#/${k}" data-tab="${k}">${icon(ic)}<span>${l}</span></a>`).join('');
   $('#tabbar').classList.toggle('six', tabs.length > 5);
 }
@@ -121,6 +121,8 @@ async function main() {
   applyTheme(state.settings.theme || 'dark');
   setLook(state.settings.avatar);
   onChange(() => setLook(state.settings.avatar));
+  let arenaShown = loggedIn() || demoOn();
+  onChange(() => { const v = loggedIn() || demoOn(); if (v !== arenaShown) { arenaShown = v; renderTabbar(); } });
   onChange(debounce(rerender, 30));
   onEditorClose(() => { document.body.classList.remove('editor-open'); renderMinibar(); });
   window.addEventListener('hashchange', () => {

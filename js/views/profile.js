@@ -12,7 +12,7 @@ import { openAvatarEditor } from '../avatar.js';
 import { openBodyweight } from '../bwEditor.js';
 import { bwLog } from '../body.js';
 import { groupSection, groupHandlers } from '../group.js';
-import { loggedIn, resetCursor } from '../sync.js';
+import { loggedIn, resetCursor, srv } from '../sync.js';
 
 let persisted = null;
 
@@ -57,6 +57,7 @@ export function profileView() {
       <a class="set-item" href="#/badges"><span class="si-ic">${icon('medal')}</span><span class="si-l">Level & Abzeichen</span><span class="si-v">Lvl ${profileStats().level}</span>${icon('right', 'muted')}</a>
       ${toggle('aiMode', 'bolt', 'AI-Mode (Vorschläge & Analyse)')}
       ${toggle('introAnim', 'flame', 'Start-Animation beim Öffnen')}
+      ${loggedIn() || srv.available ? '' : toggle('arenaDemo', 'trophy', 'Arena-Demo mit 2 NPCs')}
       ${toggle('prEffects', 'trophy', 'PR-Animation & Feuer-Satz')}
       ${toggle('prSound', 'flame', 'Power-up-Sound bei PR')}
       ${toggle('voice', 'info', 'Sprachansagen (Cardio/Mobility)')}

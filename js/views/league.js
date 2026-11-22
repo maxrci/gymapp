@@ -5,7 +5,7 @@ import { icon, chips, sheet, confirmDialog, toast } from '../ui.js';
 import { esc, num, fmtVolume, fmtDate, fmtRelDay, fmtDurShort, fmtClock } from '../utils.js';
 import { fighterSVG, fighterFx, fighterHead } from '../fighter.js';
 import { nav } from '../nav.js';
-import { cachedGroup, fetchGroup, loggedIn, myId, api } from '../sync.js';
+import { cachedGroup, fetchGroup, loggedIn, myId, api, demoOn } from '../sync.js';
 import {
   ALLTIME, alltimeValue, CHALLENGE_TYPES, LEAGUE_RULES, VISIBILITY, STAGE_NAMES,
 } from '../compete.js';
@@ -24,13 +24,13 @@ const nameOf = (g, id) => member(g, id)?.name || 'Unbekannt';
 
 
 function refresh(rerender) {
-  if (Date.now() - lastFetch < 4000) return;
+  if (demoOn() || Date.now() - lastFetch < 4000) return;
   lastFetch = Date.now();
   fetchGroup().then(() => rerender()).catch(() => {});
 }
 
 export function leagueView({ tab = 'season' }) {
-  if (!loggedIn()) {
+  if (!loggedIn() && !demoOn()) {
     return { html: pageHead('Arena') + emptyState('users', 'Keine Gruppe', 'Melde dich mit deinem persönlichen Schlüssel an (Profil → Gruppe), um in der Arena anzutreten.', '<a class="btn primary" href="#/profile">Zum Profil</a>') };
   }
   const g = cachedGroup();
@@ -44,13 +44,17 @@ export function leagueView({ tab = 'season' }) {
   const views = { season, alltime, challenges, members };
   const v = (views[tab] || season)(g);
   return {
-    html: `${pageHead(g.group || 'Arena', { sub: `${g.members.length} Mitglieder` })}${tabs}${v.html}`,
+    html: `${pageHead(g.group || 'Arena', { sub: `${g.members.length} Mitglieder` })}${g.demo ? demoBanner() : ''}${tabs}${v.html}`,
     mount: (root) => { v.mount?.(root); },
     handlers: { ...(v.handlers || {}) },
     clicks: { ...(v.clicks || {}) },
     onShow: refresh,
   };
 }
+
+// DEMO-Hinweis
+const demoBanner = () => `<div class="card demo-banner"><span class="demo-tag">DEMO</span>
+  <div><b>Arena-Demo mit 2 NPCs</b><small>Kai und Mia sind computergesteuert und trainieren passend zu deinen Werten. Für eine echte Gruppe mit Freunden braucht ihr einen eigenen Server. Abschaltbar unter Profil.</small></div></div>`;
 
 // ---------------- Saison ----------------
 function season(g) {
@@ -235,7 +239,7 @@ const visLabel = (v) => VISIBILITY.find(([k]) => k === v)?.[1] || '';
 function members(g) {
   const me = myId();
   const html = `<div class="set-group">${g.members.map((m) => `<a class="lg-row mem ${m.id === me ? 'me' : ''}" href="#/member/${esc(m.id)}">
-      ${head(m)}<span class="lg-main"><b>${esc(m.name)}${m.role === 'admin' ? ' <em class="tag">Admin</em>' : ''}</b>
+      ${head(m)}<span class="lg-main"><b>${esc(m.name)}${m.npc ? ' <em class="tag demo">NPC</em>' : m.role === 'admin' && !g.demo ? ' <em class="tag">Admin</em>' : ''}</b>
       <small>${esc(STAGE_NAMES[m.stage])} · ${m.streak} Wo. Streak · diese Woche ${m.thisWeek}/${m.goal}</small>
       <small>${m.lastWorkout ? `Zuletzt ${esc(fmtRelDay(m.lastWorkout))}` : 'Noch kein Workout'} · ${icon('eye', 'xs')} ${esc(visLabel(m.visibility))}</small></span>${fightBtn(m.id) || icon('right', 'muted')}</a>`).join('')}</div>`;
   return { html, clicks: { fight: (el) => chooseFight(g, me, el.dataset.fight) } };

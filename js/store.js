@@ -20,6 +20,7 @@ export const DEFAULT_SETTINGS = {
   cardio: {},              // Geräte-Kalibrierung
   lastDevice: 'treadmill',
   introAnim: true,         // Start-Animation beim Öffnen
+  arenaDemo: true,         // DEMO: Arena mit 2 NPCs ohne Server
 };
 
 export const state = {

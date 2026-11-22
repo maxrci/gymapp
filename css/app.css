@@ -1256,3 +1256,8 @@ a.tr:active { background: var(--surface-2); }
 .btn.fight-btn { background: linear-gradient(90deg, #eb6834, #e34948); color: #fff; border: 0; }
 .fight.ko .fg-f.lose .aura, .fight.ko .fg-f.lose .particles, .fight.ko .fg-f.lose .bolts { opacity: 0; }
 .fight.ko .fg-f.lose .fighter { filter: saturate(.6) brightness(.8); }
+.demo-banner { display: flex; gap: 12px; align-items: flex-start; border-color: var(--gold-soft); background: linear-gradient(135deg, var(--gold-soft), var(--surface) 60%); }
+.demo-banner b { display: block; }
+.demo-banner small { color: var(--text-2); font-size: 12.5px; display: block; margin-top: 2px; }
+.demo-tag { flex: none; font-size: 11px; font-weight: 900; letter-spacing: .08em; color: #1a1300; background: var(--gold); padding: 3px 7px; border-radius: 6px; margin-top: 2px; }
+.tag.demo { color: var(--gold); background: var(--gold-soft); }
