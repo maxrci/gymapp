@@ -10,6 +10,7 @@ import { nav } from '../nav.js';
 import { profileStats, achievements, STAGES } from '../gamification.js';
 import { weeklyGoals, openGoalEditor } from '../goals.js';
 import { aiOn, nextWorkout } from '../ai.js';
+import { openAvatarEditor } from '../avatar.js';
 
 let limit = 15;
 
@@ -40,7 +41,7 @@ export function homeView() {
   }
 
   const hero = ws.length ? `<section class="card hero st${stage.index}">
-      <div class="hero-fig">${fighterFx(stage.index, { enter: nav.entering })}</div>
+      <button class="hero-fig" data-act="avatar" aria-label="Kämpfer anpassen">${fighterFx(stage.index, { enter: nav.entering })}</button>
       <div class="hero-info">
         <small>Stufe ${stage.index + 1}/${STAGES.length}</small>
         <h3>${esc(stage.name)}</h3>
@@ -129,6 +130,7 @@ export function homeView() {
       start: () => startWorkout({ title: defaultTitle() }),
       import: importCSVFlow,
       goals: () => openGoalEditor(),
+      avatar: () => openAvatarEditor(),
       more: (_, rerender) => { limit += 20; rerender(); },
       routine: (el) => {
         const r = state.routines.find((x) => x.id === el.dataset.id);

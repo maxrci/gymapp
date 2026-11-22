@@ -8,6 +8,7 @@ import { lineChart, barChart, heatmap, hbars, stackedBars, radarChart, legend, S
 import { bodyMap, mountBodyMaps } from '../bodymap.js';
 import { volumeBalance, strengthBalance, bodyweightStandards, LEVELS } from '../balance.js';
 import { setLoad } from '../stats.js';
+import { rel, relSwitch, relClick, relAvailable, fmtRel } from '../body.js';
 import { e1rm, addDays } from '../utils.js';
 import { pageHead, kpi, prValue, prLabel, emptyState } from '../components.js';
 import { icon, chips } from '../ui.js';
@@ -163,11 +164,15 @@ function overview() {
 function strength() {
   const { ex } = idx();
   const { from, to } = rangeBounds(ui.range);
+  const relOn = rel.on && relAvailable();
+  const val = (s) => (relOn ? (s.bw ? s.bestE1rm / s.bw : 0) : s.bestE1rm);
+  const vf = (v, d) => (relOn ? `${num(v, d ?? 2)}` : `${num(v, d ?? 1)}`);
+  const unitL = relOn ? '× KG' : 'kg';
   const list = [...ex.values()].filter((x) => x.type === 'weight' || x.type === 'weighted_bw');
   const rows = list.map((x) => {
-    const ses = x.sessions.filter((s) => s.date >= from && s.date <= to && s.bestE1rm > 0);
-    const tr = trend(x, 'e1rm', from, to);
-    const best = Math.max(0, ...ses.map((s) => s.bestE1rm));
+    const ses = x.sessions.filter((s) => s.date >= from && s.date <= to && s.bestE1rm > 0 && val(s) > 0);
+    const tr = trend(x, 'e1rm', from, to, relOn);
+    const best = Math.max(0, ...ses.map(val));
     return { x, ses, tr, best, last: ses[ses.length - 1] };
   }).filter((r) => r.ses.length);
   const top = [...rows].filter((r) => r.ses.length >= 3).sort((a, b) => b.ses.length - a.ses.length).slice(0, 6);
@@ -194,12 +199,12 @@ function strength() {
   const intTotal = sum(intens, (x) => x.value) || 1;
 
   const html = `
-    <p class="footnote">Kraft wird als <b>geschätztes 1RM</b> (Epley-Formel) aus deinem besten Satz pro Einheit berechnet. Der Trend ist eine lineare Regression über den Zeitraum.</p>
+    <div class="rel-head"><p class="footnote">Kraft wird als <b>geschätztes 1RM</b> (Epley-Formel) aus deinem besten Satz pro Einheit berechnet${relOn ? ', geteilt durch dein damaliges Körpergewicht' : ''}. Der Trend ist eine lineare Regression über den Zeitraum.</p>${relSwitch()}</div>
     <div class="grid2">
       ${top.map((r, i) => `<a class="card mini-card" href="#/ex/${encodeURIComponent(r.x.name)}">
         <div class="mc-name trunc">${esc(r.x.name)}</div>
-        <div class="mc-val">${num(r.last.bestE1rm, 1)}<small> kg</small></div>
-        <div class="mc-delta ${r.tr && r.tr.change > 0 ? 'up' : r.tr && r.tr.change < 0 ? 'down' : ''}">${r.tr ? `${r.tr.change > 0 ? '▲' : r.tr.change < 0 ? '▼' : '■'} ${num(Math.abs(r.tr.change), 1)} kg · ${fmtPct(r.tr.pct)}` : '–'}</div>
+        <div class="mc-val">${vf(val(r.last))}<small> ${unitL}</small></div>
+        <div class="mc-delta ${r.tr && r.tr.change > 0 ? 'up' : r.tr && r.tr.change < 0 ? 'down' : ''}">${r.tr ? `${r.tr.change > 0 ? '▲' : r.tr.change < 0 ? '▼' : '■'} ${vf(Math.abs(r.tr.change))} ${unitL} · ${fmtPct(r.tr.pct)}` : '–'}</div>
         <div data-spark="${i}"></div>
       </a>`).join('')}
     </div>
@@ -214,8 +219,8 @@ function strength() {
     </section>
     <section class="card"><div class="card-title">Kraftentwicklung aller Übungen</div>
       <div class="table strength-table">
-        <div class="tr th"><span>Übung</span><span>Best 1RM</span><span>pro Monat</span><span>Trend</span></div>
-        ${table.map((r) => `<a class="tr" href="#/ex/${encodeURIComponent(r.x.name)}"><span class="wrap">${esc(r.x.name)}<small>${r.ses.length} Einheiten</small></span><span>${num(r.best, 1)}</span><span>${r.tr.perMonth > 0 ? '+' : ''}${num(r.tr.perMonth, 1)} kg</span><span class="${r.tr.pct > 0 ? 'up' : r.tr.pct < 0 ? 'down' : ''}">${fmtPct(r.tr.pct)}</span></a>`).join('') || '<div class="tr"><span>Zu wenige Daten im Zeitraum</span></div>'}
+        <div class="tr th"><span>Übung</span><span>${relOn ? '1RM ÷ KG' : 'Best 1RM'}</span><span>pro Monat</span><span>Trend</span></div>
+        ${table.map((r) => `<a class="tr" href="#/ex/${encodeURIComponent(r.x.name)}"><span class="wrap">${esc(r.x.name)}<small>${r.ses.length} Einheiten</small></span><span>${vf(r.best)}</span><span>${r.tr.perMonth > 0 ? '+' : ''}${relOn ? num(r.tr.perMonth, 3) : num(r.tr.perMonth, 1)} ${relOn ? '×' : 'kg'}</span><span class="${r.tr.pct > 0 ? 'up' : r.tr.pct < 0 ? 'down' : ''}">${fmtPct(r.tr.pct)}</span></a>`).join('') || '<div class="tr"><span>Zu wenige Daten im Zeitraum</span></div>'}
       </div>
     </section>
   `;
@@ -235,12 +240,12 @@ function strength() {
     }
     top.forEach((r, i) => {
       lineChart(root.querySelector(`[data-spark="${i}"]`), {
-        series: [{ name: '1RM', points: r.ses.map((s) => ({ x: s.date, y: s.bestE1rm })), color: SERIES[0] }],
-        height: 64, mini: true, yFmt: (v) => `${num(v, 1)} kg`,
+        series: [{ name: '1RM', points: r.ses.map((s) => ({ x: s.date, y: val(s) })), color: SERIES[0] }],
+        height: 64, mini: true, yFmt: (v) => (relOn ? fmtRel(v) : `${num(v, 1)} kg`),
       });
     });
   };
-  return { html, mount };
+  return { html, mount, clicks: { rel: relClick } };
 }
 
 // ---------------- Volumen ----------------
@@ -442,6 +447,7 @@ function records() {
   const best = [...ex.values()].filter((x) => x.count >= 2)
     .sort((a, b) => b.count - a.count);
 
+  const relOn = rel.on && relAvailable();
   const html = `
     <div class="kpis four">
       <div class="kpi mini"><small>Rekorde</small><b>${cur.length}</b></div>
@@ -455,10 +461,10 @@ function records() {
         <div><b>${esc(p.exercise)}</b><small>${esc(prLabel(p.kind))} · ${esc(fmtDate(p.date))}</small></div>
         <span class="pr-val">${esc(prValue(p))}<small>vorher ${esc(prValue({ ...p, value: p.prev }))}</small></span></a>`).join('') : '<div class="chart-empty">Keine Rekorde im Zeitraum</div>'}
     </section>
-    <section class="card"><div class="card-title">Bestwerte (gesamt)</div>
+    <section class="card"><div class="card-title">Bestwerte (gesamt) ${relSwitch()}</div>
       <div class="table">
-        <div class="tr th"><span>Übung</span><span>1RM</span><span>Max</span><span>Wdh.</span></div>
-        ${best.map((x) => `<a class="tr" href="#/ex/${encodeURIComponent(x.name)}"><span class="trunc">${esc(x.name)}</span><span>${x.best.e1rm ? num(x.best.e1rm, 1) : '–'}</span><span>${x.best.weight ? num(x.best.weight, 1) : '–'}</span><span>${x.best.reps || '–'}</span></a>`).join('')}
+        <div class="tr th"><span>Übung</span><span>${relOn ? '1RM ÷ KG' : '1RM'}</span><span>Max</span><span>Wdh.</span></div>
+        ${best.map((x) => `<a class="tr" href="#/ex/${encodeURIComponent(x.name)}"><span class="trunc">${esc(x.name)}</span><span>${relOn ? (x.bestRel ? num(x.bestRel, 2) : '–') : x.best.e1rm ? num(x.best.e1rm, 1) : '–'}</span><span>${x.best.weight ? num(x.best.weight, 1) : '–'}</span><span>${x.best.reps || '–'}</span></a>`).join('')}
       </div>
     </section>
   `;
@@ -468,7 +474,7 @@ function records() {
       color: SERIES[3],
     });
   };
-  return { html, mount };
+  return { html, mount, clicks: { rel: relClick } };
 }
 
 export const statsUI = ui;

@@ -1,6 +1,7 @@
 // Statistik-Engine: berechnet einen Index über alle Workouts (gecacht pro Datenversion)
 
 import { state, exerciseMeta } from './store.js';
+import { bwAt, bwLog, bwKey } from './body.js';
 import { e1rm, startOfWeek, startOfMonth, addDays, addMonths, DAY, linreg, startOfDay } from './utils.js';
 
 let cache = { key: null, data: null };
@@ -39,14 +40,14 @@ export function setLoad(type, s, bw) {
 
 export function idx() {
   const st = state.settings;
-  const key = `${state.version}|${st.countWarmups}|${st.bodyweight}`;
+  const key = `${state.version}|${st.countWarmups}|${st.bodyweight}|${bwKey()}`;
   if (cache.key === key) return cache.data;
   cache = { key, data: build() };
   return cache.data;
 }
 
 function build() {
-  const bw = state.settings.bodyweight;
+  const log = bwLog();
   const countWarm = state.settings.countWarmups;
   const asc = [...state.workouts].sort((a, b) => a.start - b.start);
 
@@ -83,6 +84,7 @@ function build() {
   let n = 0;
   for (const w of asc) {
     n++;
+    const bw = bwAt(w.start, log);
     const ws = {
       n, volume: 0, sets: 0, reps: 0, warmups: 0, prs: [], muscles: {},
       duration: Math.max(0, (w.end - w.start) / 1000), distance: 0,
@@ -91,7 +93,7 @@ function build() {
       const x = getEx(e.name);
       const t = x.type;
       const ses = {
-        wid: w.id, date: w.start, sets: e.sets, volume: 0, workSets: 0, reps: 0, maxWeight: 0,
+        wid: w.id, date: w.start, bw, sets: e.sets, volume: 0, workSets: 0, reps: 0, maxWeight: 0,
         bestE1rm: 0, bestSet: null, maxReps: 0, setVolMax: 0, distance: 0, duration: 0,
       };
       for (const s of e.sets) {
@@ -160,6 +162,12 @@ function build() {
     x.count = x.sessions.length;
     x.first = x.sessions[0]?.date;
     x.last = x.sessions[x.sessions.length - 1]?.date;
+    x.bestRel = 0;
+    for (const ses of x.sessions) {
+      if (!ses.bw || !ses.bestE1rm) continue;
+      const r = ses.bestE1rm / ses.bw;
+      if (r > x.bestRel) { x.bestRel = r; x.bestRelAt = ses.date; }
+    }
   }
   return { asc, ex, wStats, prs };
 }
@@ -239,7 +247,14 @@ export function weekStreaks() {
 }
 
 // ---------- Übungs-Trends ----------
-export function sessionMetric(x, ses, metric) {
+// relativ zum Körpergewicht (nur Kraftwerte)
+export const REL_METRICS = ['e1rm', 'weight'];
+export function sessionMetric(x, ses, metric, relative = false) {
+  if (relative && REL_METRICS.includes(metric)) {
+    const v = sessionMetric(x, ses, metric);
+    const load = metric === 'weight' && x.type === 'weighted_bw' ? v + (ses.bw || 0) : v;
+    return ses.bw ? load / ses.bw : 0;
+  }
   switch (metric) {
     case 'e1rm': return ses.bestE1rm;
     case 'weight': return ses.maxWeight;
@@ -260,10 +275,10 @@ export function primaryMetric(x) {
   return 'duration';
 }
 
-export function trend(x, metric, from, to) {
+export function trend(x, metric, from, to, relative = false) {
   const pts = x.sessions
     .filter((s) => s.date >= from && s.date <= to)
-    .map((s) => ({ x: s.date / DAY, y: sessionMetric(x, s, metric) }))
+    .map((s) => ({ x: s.date / DAY, y: sessionMetric(x, s, metric, relative) }))
     .filter((p) => p.y > 0);
   if (pts.length < 3) return null;
   const lr = linreg(pts);
@@ -279,7 +294,6 @@ export function trend(x, metric, from, to) {
 
 // Bestes Gewicht für mindestens N Wiederholungen
 export function repMaxTable(x, maxReps = 12) {
-  const bw = state.settings.bodyweight;
   const rows = [];
   for (let r = 1; r <= maxReps; r++) rows.push({ reps: r, weight: 0, date: null, actualReps: 0 });
   for (const ses of x.sessions) for (const s of ses.sets) {
@@ -288,7 +302,7 @@ export function repMaxTable(x, maxReps = 12) {
     if (w == null) continue;
     for (let r = 1; r <= Math.min(s.reps, maxReps); r++) {
       if (w > rows[r - 1].weight || (w === rows[r - 1].weight && !rows[r - 1].date)) {
-        rows[r - 1] = { reps: r, weight: w, date: ses.date, actualReps: s.reps, e1rm: e1rm(setLoad(x.type, s, bw), s.reps) };
+        rows[r - 1] = { reps: r, weight: w, date: ses.date, actualReps: s.reps, bw: ses.bw, e1rm: e1rm(setLoad(x.type, s, ses.bw), s.reps) };
       }
     }
   }

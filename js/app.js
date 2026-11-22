@@ -15,6 +15,7 @@ import { applyTheme } from './theme.js';
 import { resumeGuided } from './guided.js';
 import { nav } from './nav.js';
 import { showIntro } from './intro.js';
+import { setLook } from './look.js';
 
 const TABS = [
   ['home', 'Start', 'home'],
@@ -107,6 +108,8 @@ async function main() {
   setupDelegation();
   await loadAll();
   applyTheme(state.settings.theme || 'dark');
+  setLook(state.settings.avatar);
+  onChange(() => setLook(state.settings.avatar));
   onChange(debounce(rerender, 30));
   onEditorClose(() => { document.body.classList.remove('editor-open'); renderMinibar(); });
   window.addEventListener('hashchange', () => {

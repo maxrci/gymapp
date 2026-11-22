@@ -1066,3 +1066,52 @@ a.tr:active { background: var(--surface-2); }
 .card-title .link-btn.sm { margin-left: 8px; padding: 4px; }
 .goal-row .si-l { text-align: left; display: flex; flex-direction: column; }
 .goal-row .si-l small { color: var(--muted); font-size: 12.5px; }
+
+/* ---------- v2.5: Avatar-Editor, Körpergewicht ---------- */
+.hero-fig { display: block; padding: 0; background: none; border: 0; cursor: pointer; }
+.avatar-fig { display: block; margin: -4px auto 10px; width: 112px; position: relative; }
+.avatar-fig .fighter { width: 112px; height: 146px; display: block; }
+.avatar-fig span { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); background: var(--accent); color: #fff; font-size: 11.5px; font-weight: 700; padding: 3px 9px; border-radius: 99px; display: inline-flex; gap: 4px; align-items: center; white-space: nowrap; }
+.avatar-fig span .ic { width: 12px; height: 12px; }
+.section-title .link-btn.sm { font-size: 13px; margin-left: 8px; vertical-align: middle; }
+
+.av-body { padding-bottom: 40px; }
+.av-preview { height: 260px; display: grid; place-items: center; position: relative; }
+.av-preview .fx-wrap { width: 200px; height: 260px; }
+.av-stages { display: flex; justify-content: center; gap: 6px; margin: 6px 0 2px; }
+.av-stages button { width: 32px; height: 32px; border-radius: 50%; background: var(--surface-2); font-weight: 700; color: var(--text-2); font-size: 13px; }
+.av-stages button.on { background: var(--accent); color: #fff; }
+.av-grid { display: grid; gap: 8px; }
+.av-grid.two { grid-template-columns: 1fr 1fr; }
+.av-grid.three { grid-template-columns: repeat(3, 1fr); }
+.av-grid.four { grid-template-columns: repeat(4, 1fr); }
+.av-opt { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 8px 4px 6px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.av-opt svg { width: 100%; height: 72px; display: block; }
+.av-grid.four .av-opt svg { height: 86px; }
+.av-opt small { font-size: 11.5px; font-weight: 650; color: var(--text-2); }
+.av-opt.on { border-color: var(--accent); box-shadow: inset 0 0 0 1.5px var(--accent); background: var(--accent-soft); }
+.av-opt .aura, .av-opt .bolts { display: none; }
+.av-swatches { display: flex; flex-wrap: wrap; gap: 8px; padding: 2px 2px 4px; justify-content: space-between; }
+.av-sw { width: 34px; height: 34px; border-radius: 50%; background: var(--c); border: 2px solid var(--line-2); }
+.av-sw.on { box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--accent); }
+.fighter.head-only { overflow: hidden; }
+.av-opt { overflow: hidden; }
+.fighter.head-only .aura, .fighter.head-only .bolts, .fighter.head-only ellipse[opacity] { display: none; }
+
+.rel-switch { display: inline-flex; background: var(--surface-2); border-radius: 10px; padding: 3px; gap: 2px; flex: none; }
+.rel-switch button { padding: 5px 10px; border-radius: 8px; font-size: 12.5px; font-weight: 700; color: var(--text-2); }
+.rel-switch button.on { background: var(--accent); color: #fff; }
+.rel-row { display: flex; justify-content: flex-end; margin: 4px 0 2px; }
+.rel-head { display: flex; align-items: flex-start; gap: 10px; }
+.rel-head .footnote { flex: 1; }
+.rel-head .rel-switch { margin-top: 6px; }
+.card-title .rel-switch { margin-left: auto; }
+.tr small { display: block; color: var(--muted); font-size: 11px; }
+
+.bw-now { text-align: center; margin: 6px 0 16px; }
+.bw-now b { font-size: 44px; font-weight: 800; letter-spacing: -.02em; }
+.bw-now span { font-size: 18px; color: var(--muted); margin-left: 4px; font-weight: 650; }
+.bw-now small { display: block; color: var(--muted); font-weight: 600; margin-top: 2px; }
+.bw-now small.up { color: var(--warn, #e8a33d); }
+.bw-now small.down { color: var(--good, #3fb27f); }
+.bw-editor .card { margin-top: 12px; }

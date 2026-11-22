@@ -7,6 +7,10 @@ import { importCSVFlow, exportCSV, exportBackup, restoreBackup, routinesFromHist
 import { APP_VERSION } from '../version.js';
 import { applyTheme } from '../theme.js';
 import { profileStats } from '../gamification.js';
+import { fighterSVG } from '../fighter.js';
+import { openAvatarEditor } from '../avatar.js';
+import { openBodyweight } from '../bwEditor.js';
+import { bwLog } from '../body.js';
 
 let persisted = null;
 
@@ -28,7 +32,7 @@ export function profileView() {
   const html = `
     ${pageHead('Profil')}
     <section class="card profile-card">
-      <div class="avatar-lg">${icon('user')}</div>
+      <button class="avatar-fig" data-act="avatar" aria-label="Kämpfer anpassen">${fighterSVG(profileStats().stage.index)}<span>${icon('edit', 'xs')} Anpassen</span></button>
       <div class="pc-stats">
         <div><b>${num(asc.length, 0)}</b><small>Workouts</small></div>
         <div><b>${fmtVolume(totalVol)}</b><small>Volumen</small></div>
@@ -57,14 +61,14 @@ export function profileView() {
 
     <div class="list-label">Training</div>
     <div class="set-group">
-      ${row('bw', 'weight', 'Körpergewicht', s.bodyweight ? `${num(s.bodyweight, 1)} kg` : 'nicht gesetzt')}
+      ${row('bw', 'weight', 'Körpergewicht', s.bodyweight ? `${num(s.bodyweight, 1)} kg${bwLog().filter((e) => e.t).length > 1 ? ` · ${bwLog().filter((e) => e.t).length} Einträge` : ''}` : 'nicht gesetzt')}
       ${row('rest', 'timer', 'Standard-Pausenzeit', s.restDefault ? fmtClock(s.restDefault) : 'Aus')}
       ${row('goal', 'target', 'Wochenziel', `${s.weekGoal} Workouts`)}
       ${toggle('countWarmups', 'flame', 'Aufwärmsätze ins Volumen')}
       ${toggle('keepAwake', 'bolt', 'Bildschirm während Workout an')}
       ${toggle('restSound', 'clock', 'Ton nach Pause')}
     </div>
-    <p class="footnote">Das Körpergewicht wird für Klimmzüge, Dips & Co. zum Zusatzgewicht addiert (1RM und Volumen).</p>
+    <p class="footnote">Das Körpergewicht wird für Klimmzüge, Dips & Co. zum Zusatzgewicht addiert und für die Kraft relativ zum Körpergewicht (× KG) genutzt.</p>
 
     <div class="list-label">Daten</div>
     <div class="set-group">
@@ -102,12 +106,8 @@ export function profileView() {
       backup: exportBackup,
       restore: restoreBackup,
       routines: routinesFromHistory,
-      bw: async () => {
-        const r = await formDialog({ title: 'Körpergewicht', fields: [{ name: 'v', label: 'Gewicht in kg (leer = aus)', type: 'text', inputmode: 'decimal', value: s.bodyweight ?? '' }] });
-        if (!r) return;
-        const v = parseFloat(String(r.v).replace(',', '.'));
-        await saveSettings({ bodyweight: isNaN(v) || v <= 0 ? null : v });
-      },
+      bw: () => openBodyweight(),
+      avatar: () => openAvatarEditor(),
       rest: async () => {
         const v = await sheet({ title: 'Standard-Pausenzeit', options: [0, 30, 60, 90, 120, 150, 180, 240, 300].map((x) => ({ label: x ? fmtClock(x) : 'Aus', value: String(x), active: x === s.restDefault })) });
         if (v != null) await saveSettings({ restDefault: +v });

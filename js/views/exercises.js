@@ -1,5 +1,6 @@
 import { state, allExerciseNames, exerciseMeta, saveExerciseMeta, renameExercise } from '../store.js';
-import { idx, RANGES, rangeBounds, trend, sessionMetric, primaryMetric, repMaxTable, PR_LABELS } from '../stats.js';
+import { idx, RANGES, rangeBounds, trend, sessionMetric, primaryMetric, repMaxTable, PR_LABELS, REL_METRICS } from '../stats.js';
+import { rel, relSwitch, relClick, relAvailable, fmtRel } from '../body.js';
 import { MUSCLES, TYPES } from '../library.js';
 import { lineChart, SERIES } from '../charts.js';
 import { pageHead, kpi, fmtSet, setBadge, emptyState } from '../components.js';
@@ -106,11 +107,12 @@ export function exerciseDetailView({ name }) {
   const metrics = METRICS[type] || METRICS.weight;
   if (!metrics.some(([k]) => k === ui.metric)) ui.metric = metrics[0][0];
   const { from, to } = rangeBounds(ui.range);
-  const ses = x.sessions.filter((s) => s.date >= from && s.date <= to);
-  const pts = ses.map((s) => ({ x: s.date, y: sessionMetric(x, s, ui.metric), s })).filter((p) => p.y > 0);
-  const tr = trend(x, ui.metric, from, to);
-  const f = metricFmt(ui.metric);
   const isW = type === 'weight' || type === 'weighted_bw';
+  const relOn = isW && rel.on && relAvailable() && REL_METRICS.includes(ui.metric);
+  const ses = x.sessions.filter((s) => s.date >= from && s.date <= to);
+  const pts = ses.map((s) => ({ x: s.date, y: sessionMetric(x, s, ui.metric, relOn), s })).filter((p) => p.y > 0);
+  const tr = trend(x, ui.metric, from, to, relOn);
+  const f = relOn ? fmtRel : metricFmt(ui.metric);
 
   const kpis = isW ? `
       ${kpi('Bestes 1RM', fmtKg(x.best.e1rm), null, 'trophy')}
@@ -118,7 +120,7 @@ export function exerciseDetailView({ name }) {
       ${kpi('Einheiten', `${x.count}`, null, 'calendar')}
       ${kpi('Gesamtvolumen', fmtVolume(x.totalVolume), null, 'layers')}
       ${kpi('Arbeitssätze', num(x.totalSets, 0), null, 'repeat')}
-      ${kpi('Seit', esc(fmtDate(x.first, { month: 'short', year: 'numeric' })), null, 'clock')}`
+      ${x.bestRel ? kpi('1RM ÷ Körpergew.', fmtRel(x.bestRel), null, 'user') : kpi('Seit', esc(fmtDate(x.first, { month: 'short', year: 'numeric' })), null, 'clock')}`
     : type === 'cardio' ? `
       ${kpi('Längste Distanz', `${num(x.best.distance, 2)} km`, null, 'trophy')}
       ${kpi('Einheiten', `${x.count}`, null, 'calendar')}
@@ -150,6 +152,7 @@ export function exerciseDetailView({ name }) {
     <div class="filter-row">${chips(RANGES, ui.range, 'data-range')}</div>
     <section class="card">
       <div class="chips scroll">${metrics.map(([k, l]) => `<button class="chip ${k === ui.metric ? 'on' : ''}" data-metric="${k}">${l}</button>`).join('')}</div>
+      ${isW && REL_METRICS.includes(ui.metric) ? `<div class="rel-row">${relSwitch()}</div>` : ''}
       <div data-chart="main"></div>
       ${tr ? `<div class="trend-line ${tr.change > 0 ? 'up' : tr.change < 0 ? 'down' : ''}">${icon('chart', 'xs')} Trend: <b>${tr.perMonth > 0 ? '+' : ''}${esc(f(tr.perMonth))}</b> pro Monat · ${esc(fmtPct(tr.pct))} im Zeitraum (${tr.n} Einheiten)</div>` : ''}
     </section>
@@ -158,7 +161,7 @@ export function exerciseDetailView({ name }) {
       <p class="footnote">Höchstes Gewicht, das du für mindestens N Wiederholungen bewegt hast.</p>
       <div class="table">
         <div class="tr th"><span>Wdh.</span><span>Gewicht</span><span>Satz</span><span>Datum</span></div>
-        ${rm.map((r) => `<div class="tr"><span>${r.reps}</span><span><b>${num(r.weight, 1)} kg</b></span><span>${num(r.weight, 1)} × ${r.actualReps}</span><span>${esc(fmtDate(r.date, { day: '2-digit', month: '2-digit', year: '2-digit' }))}</span></div>`).join('')}
+        ${rm.map((r) => `<div class="tr"><span>${r.reps}</span><span><b>${num(r.weight, 1)} kg</b>${rel.on && r.bw && type === 'weight' ? `<small>${esc(fmtRel(r.weight / r.bw))}</small>` : ''}</span><span>${num(r.weight, 1)} × ${r.actualReps}</span><span>${esc(fmtDate(r.date, { day: '2-digit', month: '2-digit', year: '2-digit' }))}</span></div>`).join('')}
       </div></section>` : ''}
     <h2 class="section-title">Verlauf</h2>
     ${hist}
@@ -170,7 +173,7 @@ export function exerciseDetailView({ name }) {
       mountPose(root.querySelector('[data-demo]'), poseFor(name), { stage: stageFor(weekStreaks().current).index });
       lineChart(root.querySelector('[data-chart="main"]'), {
         series: [{ name: ui.metric, points: pts, color: SERIES[0] }],
-        yFmt: axisFmt(ui.metric),
+        yFmt: relOn ? (v) => num(v, 2) : axisFmt(ui.metric),
         yZero: ['volume', 'sets', 'totalReps'].includes(ui.metric),
         tipFmt: (p) => {
           const bs = p.s.bestSet;
@@ -186,6 +189,7 @@ export function exerciseDetailView({ name }) {
     clicks: {
       range: (el, rr) => { ui.range = el.dataset.range; rr(); },
       metric: (el, rr) => { ui.metric = el.dataset.metric; rr(); },
+      rel: relClick,
     },
   };
 }

@@ -3,10 +3,30 @@
 
 const L = { torso: 50, neck: 8, head: 12, ua: 28, fa: 26, th: 36, sh: 34 };
 const GROUND = 182, CX = 110, BAR = 30;
+import { getLook, palette, lookKey } from './look.js';
+
 const C = {
   gi: '#f28c28', giF: '#cf6d14', skin: '#f3c9a0', skinF: '#dcae84',
-  blue: '#2b4fa8', blueF: '#223f86', hair: '#1d1d22', gold: '#ffd23f', plate: '#3b3b40', plateIn: '#5b5b62',
+  blue: '#2b4fa8', blueF: '#223f86', hair: '#1d1d22', gold: '#ffd23f', plate: '#3b3b40', plateIn: '#5b5b62', fem: false,
 };
+// Farben der Figur an den eigenen Kämpfer anpassen
+let lastLook = '';
+function syncLook() {
+  const k = lookKey();
+  if (k === lastLook) return;
+  lastLook = k;
+  const l = getLook();
+  const p = palette(l);
+  const darker = (hex, f = 0.85) => '#' + [1, 3, 5].map((i) => Math.round(parseInt(hex.slice(i, i + 2), 16) * f).toString(16).padStart(2, '0')).join('');
+  const top = p.main;
+  Object.assign(C, {
+    gi: top, giF: darker(top), blue: p.accent, blueF: darker(p.accent),
+    legs: l.outfit === 'tank' || l.outfit === 'vest' ? p.accentDark : top,
+    hair: p.hair, fem: l.sex === 'f',
+    arm: l.outfit === 'suit' ? top : '#f3c9a0', armF: l.outfit === 'suit' ? darker(top) : '#dcae84',
+  });
+  C.legsF = darker(C.legs);
+}
 
 const rad = (a) => (a * Math.PI) / 180;
 const dir = (a) => [Math.cos(rad(a)), Math.sin(rad(a))];
@@ -87,6 +107,7 @@ function hair(J, gold) {
     ? 'M-12,3 L-19,-8 L-11,-9 L-15,-25 L-6,-15 L-2,-31 L3,-16 L10,-27 L9,-13 L17,-16 L12,-5 L14,1 L6,-6 L0,-9 L-6,-6 Z'
     : 'M-12,3 L-21,-3 L-13,-7 L-19,-17 L-9,-14 L-8,-25 L-1,-15 L5,-24 L7,-13 L15,-17 L11,-7 L14,-1 L6,-6 L0,-9 L-6,-5 Z';
   return `<g transform="translate(${J.head[0].toFixed(1)},${J.head[1].toFixed(1)}) rotate(${rot.toFixed(1)})">
+    ${C.fem ? `<path d="M-6,-9 Q-22,-12 -24,3 Q-25,14 -18,22 L-18,10 L-13,16 L-13,4 Q-12,-2 -4,-4 Z" fill="${gold ? C.gold : C.hair}"/>` : ''}
     ${circ([0, 0], 12, C.skin)}
     <path d="${h}" fill="${gold ? C.gold : C.hair}"/>
     <ellipse cx="6" cy="0" rx="1.7" ry="2.2" fill="#222"/>
@@ -99,10 +120,11 @@ function figure(J, M, stage) {
   const w = { torso: 21 + 6 * m, th: 13 + 3 * m, sh: 11 + 2 * m, ua: 9 + 4 * m, fa: 8 + 3 * m };
   const hold = M.hold;
   const leg = (k, gi, blue) => `${seg(J.hip, J[`k${k}`], w.th, gi)}${seg(J[`k${k}`], J[`f${k}`], w.sh, gi)}${boot(J[`f${k}`], J[`boot${k}`], blue)}`;
+  if (C.fem) { w.torso -= 3; w.ua -= 1.5; w.fa -= 1; }
   const arm = (k, skin, blue) => {
     const e = J[`e${k}`], h = J[`h${k}`];
     const wb = add(e, mul([h[0] - e[0], h[1] - e[1]], 0.72));
-    return `${seg(J.sh, e, w.ua, skin)}${seg(e, h, w.fa, skin)}${seg(wb, add(e, mul([h[0] - e[0], h[1] - e[1]], 0.9)), w.fa + 1.5, blue)}${circ(h, 4.8 + m, skin)}`;
+    return `${seg(J.sh, e, w.ua, skin)}${seg(e, h, w.fa, skin)}${seg(wb, add(e, mul([h[0] - e[0], h[1] - e[1]], 0.9)), w.fa + 1.5, blue)}${circ(h, 4.8 + m, k === 'f' ? C.skinF : C.skin)}`;
   };
   // Oberkörper (mit Krümmung)
   const u = dir(J.t);
@@ -111,16 +133,16 @@ function figure(J, M, stage) {
   const torso = `<path d="M${J.hip[0].toFixed(1)},${J.hip[1].toFixed(1)} Q${mid[0].toFixed(1)},${mid[1].toFixed(1)} ${J.sh[0].toFixed(1)},${J.sh[1].toFixed(1)}" stroke="${C.gi}" stroke-width="${w.torso}" stroke-linecap="round" fill="none"/>`;
   const beltA = add(J.hip, mul(u, 4)), beltB = add(J.hip, mul(u, 9));
   return `
-    ${leg('f', C.giF, C.blueF)}
-    ${arm('f', C.skinF, C.blueF)}${hold && hold !== 'bbBack' ? weight(hold, J.hf) : ''}
+    ${leg('f', C.legsF, C.blueF)}
+    ${arm('f', C.armF || C.skinF, C.blueF)}${hold && hold !== 'bbBack' ? weight(hold, J.hf) : ''}
     ${seg(J.sh, J.neck, 9, C.skin)}
     ${torso}
     ${seg(beltA, beltB, w.torso + 1, C.blue)}
     ${hair(J, stage >= 5)}
     ${circ(J.sh, w.ua / 2 + 3.5, C.gi)}
-    ${leg('n', C.gi, C.blue)}
+    ${leg('n', C.legs, C.blue)}
     ${hold === 'bbBack' ? weight('bb', add(J.sh, [-2, -6])) : ''}
-    ${arm('n', C.skin, C.blue)}${hold && hold !== 'bbBack' ? weight(hold, J.hn) : ''}`;
+    ${arm('n', C.arm || C.skin, C.blue)}${hold && hold !== 'bbBack' ? weight(hold, J.hn) : ''}`;
 }
 
 // ---------- Requisiten ----------
@@ -297,6 +319,7 @@ function frameJoints(id, t) {
 }
 
 export function poseFrame(id, t, stage = 0) {
+  syncLook();
   const M = POSES[id] || POSES.stand;
   const J = frameJoints(id, t);
   return `${M.machine ? machine(M.machine, J) : ''}${props(J, M)}${figure(J, M, stage)}`;
@@ -328,7 +351,8 @@ function viewBox(id, pad = 18) {
 // Statisches Bild (z. B. als Avatar)
 const thumbCache = new Map();
 export function poseSVG(id, { stage = 0, t = 0.5, cls = '' } = {}) {
-  const key = `${id}|${stage}|${t}|${cls}`;
+  syncLook();
+  const key = `${id}|${stage}|${t}|${cls}|${lastLook}`;
   if (thumbCache.has(key)) return thumbCache.get(key);
   const s = `<svg class="pose ${cls}" viewBox="${viewBox(id)}" aria-hidden="true">${poseFrame(id, t, stage)}</svg>`;
   thumbCache.set(key, s);

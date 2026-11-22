@@ -28,7 +28,7 @@ Alle Daten bleiben lokal auf dem Gerät (IndexedDB).
 - **Weitere Diagramme**: Trainingsbelastung (akut:chronisch), Trainingsdichte, Hauptübungen indexiert,
   Intensitätsverteilung (% vom 1RM), Muskelgruppen gestapelt, Jahresrückblick.
 - **Heller und dunkler Modus** (Profil → Darstellung; Hell, Dunkel oder System).
-- **Gamification**: eigene Kämpfer-Figur, die mit der Streak in 6 Stufen wächst (Killstreaks: Blutrünstig, Gnadenlos, Skrupellos, Unnachgiebig, Brutal, Nuklear, Unaufhaltsam) (Streak = Wochen mit
+- **Gamification**: eigene Kämpfer-Figur, die mit der Streak in 8 Stufen wächst (Killstreaks: Blutrünstig, Gnadenlos, Skrupellos, Unnachgiebig, Brutal, Nuklear, Unaufhaltsam) (Streak = Wochen mit
   erreichtem Wochenziel), Streak-Warnung, Kampfkraft, Level/XP, Wochen-Aufgaben, Abzeichen.
 - **PR-Effekte**: Bei einem neuen Rekord wird die Satzzeile orange-gelb wie Feuer, dazu 3 Sekunden
   Einblendung mit Power-up-Sound (abschaltbar).
@@ -39,6 +39,10 @@ Alle Daten bleiben lokal auf dem Gerät (IndexedDB).
   Laufband/Rad/Crosstrainer/Rudergerät. Vollbild mit Geräte-Einstellungen, Zonen, Countdown-Tönen
   und Sprachansage.
 - **Mobility geführt**: 6 Routinen mit automatischem Timer, Seitenwechsel und Atem-Animation.
+- **Eigener Kämpfer**: männlich oder weiblich, Haarfarbe, Kleidung (4 Stile, 8 Farben) und 3 Gesichter
+  wählbar (Profil → Anpassen). Höhere Stufen verwandeln die Figur automatisch; auch die Übungsdemos nutzen deinen Look.
+- **Körpergewicht-Verlauf** (Profil → Körpergewicht) und Umschalter **kg / × KG**: Kraft absolut oder relativ
+  zum damaligen Körpergewicht (Übungsdetails, Statistik → Kraft, Rekorde).
 
 ## Auf GitHub Pages veröffentlichen
 
