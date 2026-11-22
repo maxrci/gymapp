@@ -28,10 +28,10 @@ export function config(env = process.env) {
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
-  '.webmanifest': 'application/manifest+json', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon',
+  '.webmanifest': 'application/manifest+json', '.json': 'application/json', '.png': 'image/png', '.m4a': 'audio/mp4', '.svg': 'image/svg+xml', '.ico': 'image/x-icon',
 };
 // Nur diese Pfade werden ausgeliefert (keine Daten, kein Server-Code)
-const ALLOWED = /^\/(index\.html|manifest\.webmanifest|sw\.js|selfhost\.html|(css|js|icons)\/[\w./-]+)$/;
+const ALLOWED = /^\/(index\.html|manifest\.webmanifest|sw\.js|selfhost\.html|(css|js|icons|sounds)\/[\w./-]+)$/;
 
 function serveStatic(cfg, req, res, url) {
   let p = decodeURIComponent(url.pathname);

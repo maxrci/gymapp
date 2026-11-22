@@ -37,7 +37,7 @@ function slides() {
       fig: () => `<div class="onb-stages">${[0, 3, 5, 7].map((i) => `<div class="onb-st"><div>${fighterSVG(i, { powerUp: i >= 3 })}</div><small>${esc(STAGES[i].name)}</small></div>`).join('')}</div>`,
       title: 'Streak & Kämpfer',
       text: 'Erreiche dein Wochenziel, dann wächst deine Streak. Je länger sie hält, desto stärker verwandelt sich dein Kämpfer – 8 Stufen bis „Unaufhaltsam“.',
-      bullets: [['star', 'EP & Level für Workouts, Sätze, Rekorde sowie 2 EP pro Cardio- und Pilates-Minute'], ['volume', 'Neuer Rekord? Dann gibt’s Power-up und Kampfschrei']],
+      bullets: [['star', 'EP & Level für Workouts, Sätze, Rekorde sowie 2 EP pro Cardio- und Pilates-Minute'], ['volume', 'Neuer Rekord? Dann gibt’s Power-up und Rekord-Sound']],
       extra: () => `<div class="onb-q"><b>Wie oft pro Woche willst du trainieren?</b>
         <div class="onb-chips">${[1, 2, 3, 4, 5, 6, 7].map((n) => `<button class="chip ${s.weekGoal === n ? 'on' : ''}" data-goal="${n}">${n}×</button>`).join('')}</div>
         <button class="link-btn" data-avatar>${icon('edit', 'xs')} Kämpfer anpassen (Figur, Haare, Outfit, Gesicht)</button></div>`,

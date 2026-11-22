@@ -63,8 +63,8 @@ export function profileView() {
       ${toggle('introAnim', 'flame', 'Start-Animation beim Öffnen')}
       ${loggedIn() ? '' : toggle('arenaDemo', 'trophy', 'Arena-Demo mit 2 NPCs')}
       ${toggle('prEffects', 'trophy', 'PR-Animation & Feuer-Satz')}
-      ${toggle('prSound', 'flame', 'Power-up-Sound bei PR')}
-      ${toggle('prScream', 'volume', 'Kampfschrei bei PR')}
+      ${toggle('prSound', 'volume', 'Rekord-Sound (Musik-Einspieler)')}
+      ${toggle('fightMusic', 'bolt', 'Musik bei Arena-Kämpfen')}
       ${row('soundtest', 'play', 'Rekord-Sound testen')}
       ${toggle('voice', 'info', 'Sprachansagen (Cardio/Mobility)')}
       ${row('hr', 'target', 'Max. Herzfrequenz', s.hrMax ? `${s.hrMax} bpm` : 'nicht gesetzt')}

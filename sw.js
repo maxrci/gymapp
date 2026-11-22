@@ -1,5 +1,5 @@
 // Service Worker: App offline verfügbar machen (stale-while-revalidate)
-const CACHE = 'gymlog-v3.4.6';
+const CACHE = 'gymlog-v3.4.7';
 const ASSETS = [
   './',
   'index.html',
@@ -60,6 +60,8 @@ const ASSETS = [
   'icons/icon-512.png',
   'icons/apple-touch-icon.png',
   'icons/icon-maskable-512.png',
+  'sounds/rekord.m4a',
+  'sounds/arena.m4a',
 ];
 
 // Beim Update immer frisch vom Server laden (nicht aus dem Browser-Cache, GitHub Pages cacht 10 Minuten)

@@ -18,9 +18,65 @@ export function unlockAudio() {
       const s = ctx.createBufferSource();
       s.buffer = b; s.connect(ctx.destination); s.start(0);
       primed = true;
+      preloadClips();
     }
   } catch { /* kein Audio */ }
   return ctx;
+}
+
+// ---------- Musik-Clips (Rekord-Einspieler, Arena-Kampfmusik) ----------
+// Einmal laden und dekodieren, danach sofort abspielbar (offline aus dem Service-Worker-Cache).
+const CLIPS = { pr: 'sounds/rekord.m4a', arena: 'sounds/arena.m4a' };
+const clipBuf = {};
+const clipLoad = {};
+function loadClip(key) {
+  if (clipBuf[key]) return Promise.resolve(clipBuf[key]);
+  const c = ctx;
+  if (!c) return Promise.resolve(null);
+  clipLoad[key] ||= fetch(CLIPS[key])
+    .then((r) => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
+    .then((a) => new Promise((res, rej) => c.decodeAudioData(a, res, rej)))
+    .then((b) => { clipBuf[key] = b; return b; })
+    .catch(() => { delete clipLoad[key]; return null; });
+  return clipLoad[key];
+}
+export function preloadClips() { for (const k of Object.keys(CLIPS)) loadClip(k); }
+
+// Spielt einen Clip; gibt ein Objekt mit stop(fade) zurück. Lädt der Clip noch, startet er, sobald er da ist
+// (aber nur innerhalb von maxWait Sekunden – sonst passt er nicht mehr zur Animation).
+export function playClip(key, { gain = 0.9, fadeOut = 0.4, maxWait = 1.2, onFail } = {}) {
+  const c = unlockAudio();
+  const h = { stopped: false, src: null, g: null, stop(f = 0.3) {
+    h.stopped = true;
+    if (!h.src || !c) return;
+    const now = c.currentTime;
+    h.g.gain.cancelScheduledValues(now);
+    h.g.gain.setValueAtTime(h.g.gain.value, now);
+    h.g.gain.linearRampToValueAtTime(0, now + f);
+    try { h.src.stop(now + f + 0.05); } catch { /* schon gestoppt */ }
+  } };
+  if (!c) { onFail?.(); return h; }
+  const asked = performance.now();
+  loadClip(key).then((b) => {
+    if (h.stopped) return;
+    if (!b || (performance.now() - asked) / 1000 > maxWait) { onFail?.(); return; }
+    const t = c.currentTime + 0.01;
+    const src = c.createBufferSource();
+    src.buffer = b;
+    const g = c.createGain();
+    g.gain.setValueAtTime(gain, t);
+    g.gain.setValueAtTime(gain, t + b.duration - fadeOut);
+    g.gain.linearRampToValueAtTime(0, t + b.duration);
+    src.connect(g).connect(c.destination);
+    src.start(t);
+    h.src = src; h.g = g;
+  });
+  return h;
+}
+// Arena-Kampfmusik (abschaltbar)
+export function fightMusic() {
+  if (state.settings.prSound === false || state.settings.fightMusic === false) return { stop() {} };
+  return playClip('arena', { gain: 0.75, fadeOut: 0.3, maxWait: 1 });
 }
 // Bei jeder Berührung Audio wach halten, damit Rekord-Sounds auch nach der Satzpause (Bildschirm gesperrt) kommen
 if (typeof document !== 'undefined') {
@@ -29,15 +85,18 @@ if (typeof document !== 'undefined') {
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') wake(); });
 }
 
-// Test aus den Einstellungen: Power-up + Kampfschrei (unabhängig von den Schaltern)
+// Test aus den Einstellungen: Rekord-Einspieler (unabhängig vom Schalter)
 export function testPrSound() {
   const c = unlockAudio();
   if (!c) return false;
-  const saved = { ...state.settings };
-  state.settings.prSound = true; state.settings.prScream = true;
-  battleCry(0.05);
-  state.settings.prSound = saved.prSound; state.settings.prScream = saved.prScream;
+  playClip('pr', { maxWait: 4 });
   return true;
+}
+
+// Beim Rekord: Musik-Einspieler; falls der Clip nicht geladen werden kann, der synthetische Schrei als Ersatz
+export function prSound() {
+  if (state.settings.prSound === false) return;
+  playClip('pr', { onFail: () => battleCry(0) });
 }
 
 export function beep(freq = 880, dur = 0.15, vol = 0.35, delay = 0, type = 'sine') {
@@ -140,7 +199,7 @@ export const CRY_SECONDS = 3.4;
 
 export function battleCry(delay = 0) {
   const c = unlockAudio();
-  if (!c || state.settings.prSound === false || state.settings.prScream === false) return;
+  if (!c || state.settings.prSound === false) return;
   const t0 = c.currentTime + delay;
   const SYL = [['h', 'o'], ['k', 'a'], ['m', 'i'], ['n', 'a']];
   const sylDur = 0.34, gap = 0.06;
@@ -304,7 +363,7 @@ let popTimer = null;
 export function prPopup({ exercise, detail, stage = 3 }) {
   // Sounds hängen nur an ihren eigenen Schaltern (Power-up / Kampfschrei), nicht an der Animation
   unlockAudio();
-  if (state.settings.prScream !== false) battleCry(0.05); else powerUpSound();
+  prSound();
   navigator.vibrate?.([60, 40, 60, 40, 200]);
   if (state.settings.prEffects === false) return;
   document.querySelector('.pr-pop')?.remove();
@@ -321,5 +380,5 @@ export function prPopup({ exercise, detail, stage = 3 }) {
     el.classList.remove('show');
     el.classList.add('hide');
     setTimeout(() => el.remove(), 450);
-  }, 3600);
+  }, 4600);
 }

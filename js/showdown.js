@@ -4,7 +4,7 @@
 // Dehnen: der Beweglichste landet im Spagat, der Steifste bleibt mit „Knack!“ und Rückenschmerzen stehen.
 
 import { poseFrame } from './poses.js';
-import { unlockAudio, powerUpSound, beep } from './fx.js';
+import { unlockAudio, powerUpSound, beep, fightMusic } from './fx.js';
 import { state } from './store.js';
 import { icon } from './ui.js';
 import { esc } from './utils.js';
@@ -32,6 +32,7 @@ function noise(dur = 0.3, vol = 0.4, freq = 900) {
   src.start();
 }
 const sfx = (fn) => { if (state.settings.prSound !== false) fn(); };
+const musicOn = () => state.settings.prSound !== false && state.settings.fightMusic !== false;
 
 const BOLTS = `<svg class="sd-bolts" viewBox="0 0 100 100" aria-hidden="true">
   <path d="M60 2 38 40h14l-10 30 26-42H54z"/><path d="M14 30 4 50h8l-6 18 16-24h-9z"/><path d="M90 46 80 64h7l-5 16 14-22h-8z"/></svg>`;
@@ -83,6 +84,7 @@ export function startShowdown({ kind, title, people, sub = '' }) {
     <button class="fg-skip" data-skip aria-label="Überspringen">${icon('skip')}</button>`;
   document.body.appendChild(o);
   requestAnimationFrame(() => o.classList.add('open'));
+  let music = fightMusic();
 
   const lanes = [...o.querySelectorAll('.sd-lane')];
   const figs = lanes.map((l) => l.querySelector('.sd-fig'));
@@ -102,20 +104,20 @@ export function startShowdown({ kind, title, people, sub = '' }) {
       [650, () => { say('LOS!'); sfx(() => beep(990, 0.2, 0.35)); }],
       [1600, () => P.forEach((p, i) => { if (p.worst) pop(i, 'Uff …'); })],
       [2300, () => P.forEach((p, i) => { if (p.best) { pop(i, 'Zisch!'); noise(0.5, 0.35, 2600); } })],
-      [4250, () => { o.classList.add('done'); if (!tie) powerUpSound(); }],
+      [4250, () => { o.classList.add('done'); if (!tie && !musicOn()) powerUpSound(); }],
     ],
     lift: [
       [0, () => say('Hantel greifen …')],
       [600, () => say('DRÜCKEN!')],
       [2600, () => P.forEach((p, i) => { if (p.worst) { pop(i, 'Ächz!'); } })],
       [3150, () => P.forEach((p, i) => { if (p.worst) { noise(0.7, 0.7, 500); flashIt(); } })],
-      [3500, () => P.forEach((p, i) => { if (p.best) { pop(i, 'Leicht!'); if (!tie) powerUpSound(); } })],
+      [3500, () => P.forEach((p, i) => { if (p.best) { pop(i, 'Leicht!'); if (!tie && !musicOn()) powerUpSound(); } })],
       [4250, () => o.classList.add('done')],
     ],
     stretch: [
       [0, () => say('Und dehnen …')],
       [1700, () => P.forEach((p, i) => { if (p.worst) { pop(i, 'KNACK!'); noise(0.12, 0.8, 3200); } })],
-      [2200, () => P.forEach((p, i) => { if (p.best) { pop(i, 'Spagat!'); flashIt(); if (!tie) powerUpSound(); } })],
+      [2200, () => P.forEach((p, i) => { if (p.best) { pop(i, 'Spagat!'); flashIt(); if (!tie && !musicOn()) powerUpSound(); } })],
       [4250, () => o.classList.add('done')],
     ],
   }[kind];
@@ -195,13 +197,14 @@ export function startShowdown({ kind, title, people, sub = '' }) {
 
   const restart = () => {
     cancelAnimationFrame(raf);
+    music.stop(0.1); music = fightMusic();
     o.classList.remove('done');
     figs.forEach((f) => { f.style.transform = ''; f.classList.remove('zoom', 'charged'); });
     P.forEach((p) => { p.phase = Math.random() * 0.3; });
     fired = 0; t0 = performance.now(); prev = t0;
     raf = requestAnimationFrame(frame);
   };
-  const close = () => { cancelAnimationFrame(raf); o.classList.remove('open'); setTimeout(() => o.remove(), 250); };
+  const close = () => { cancelAnimationFrame(raf); music.stop(0.4); o.classList.remove('open'); setTimeout(() => o.remove(), 250); };
   o.addEventListener('click', (e) => {
     if (e.target.closest('[data-close]')) return close();
     if (e.target.closest('[data-again]')) return restart();

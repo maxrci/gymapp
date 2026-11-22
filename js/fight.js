@@ -2,7 +2,7 @@
 // Ablauf: Auftritt → Aufladen → zwei Schlagabtausche → Energiestrahl-Duell → K.o. → Siegerpose.
 
 import { fighterSVG } from './fighter.js';
-import { unlockAudio, powerUpSound } from './fx.js';
+import { unlockAudio, powerUpSound, fightMusic } from './fx.js';
 import { state } from './store.js';
 import { sheet, icon } from './ui.js';
 import { esc, num, fmtVolume } from './utils.js';
@@ -65,6 +65,7 @@ export async function chooseFight(g, aId, bId) {
 }
 
 // ---------- Sounds ----------
+const musicOn = () => state.settings.prSound !== false && state.settings.fightMusic !== false;
 function noise(dur = 0.35, vol = 0.5, freq = 900) {
   const c = unlockAudio();
   if (!c || state.settings.prSound === false) return;
@@ -198,6 +199,7 @@ export function startFight(g, aId, bId, key, rel = false) {
     <button class="fg-skip" data-skip aria-label="Überspringen">${icon('skip')}</button>`;
   document.body.appendChild(o);
   requestAnimationFrame(() => o.classList.add('open'));
+  let music = fightMusic();
 
   const $ = (s) => o.querySelector(s);
   const stage = $('.fg-stage'), fa = $('.fg-f.a'), fb = $('.fg-f.b');
@@ -221,13 +223,13 @@ export function startFight(g, aId, bId, key, rel = false) {
   window.addEventListener('resize', layout);
 
   const events = [
-    [500, () => { o.classList.add('charged'); powerUpSound(); }],
+    [500, () => { o.classList.add('charged'); if (!musicOn()) powerUpSound(); }],
     [1650, () => { noise(0.3, 0.6, 1200); }],
     [2250, () => { noise(0.3, 0.6, 1500); }],
     [2750, () => { beamHum(1.2); }],
     [3900, () => { noise(0.8, 0.8, 600); o.classList.add('ko'); if (winner !== 'a') fa.classList.add('lose'); if (winner !== 'b') fb.classList.add('lose'); }],
     [4300, () => { o.classList.add('done'); }],
-    [4400, () => { if (winner) powerUpSound(); }],
+    [4400, () => { if (winner && !musicOn()) powerUpSound(); }],
   ];
   let t0 = performance.now();
   let raf = 0;
@@ -306,6 +308,7 @@ export function startFight(g, aId, bId, key, rel = false) {
 
   const restart = () => {
     cancelAnimationFrame(raf);
+    music.stop(0.1); music = fightMusic();
     o.classList.remove('charged', 'ko', 'done');
     fa.classList.remove('lose'); fb.classList.remove('lose');
     fired = 0; t0 = performance.now();
@@ -313,6 +316,7 @@ export function startFight(g, aId, bId, key, rel = false) {
   };
   const close = () => {
     cancelAnimationFrame(raf);
+    music.stop(0.4);
     window.removeEventListener('resize', layout);
     o.classList.remove('open');
     setTimeout(() => o.remove(), 250);
