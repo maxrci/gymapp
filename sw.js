@@ -1,5 +1,5 @@
 // Service Worker: App offline verfügbar machen (stale-while-revalidate)
-const CACHE = 'gymlog-v3.4.1';
+const CACHE = 'gymlog-v3.4.2';
 const ASSETS = [
   './',
   'index.html',
@@ -58,6 +58,7 @@ const ASSETS = [
   'icons/icon-192.png',
   'icons/icon-512.png',
   'icons/apple-touch-icon.png',
+  'icons/icon-maskable-512.png',
 ];
 
 self.addEventListener('install', (e) => {
