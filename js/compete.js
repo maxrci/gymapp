@@ -181,8 +181,9 @@ export function streakInfo(sums, goal = 3, now = Date.now()) {
 }
 
 // ---------- Arena-Saison (Fleiß): 1 Jahr, jeder Monat wird einzeln gewonnen ----------
-export const LEAGUE_POINTS = { workout: 10, goalWeek: 30, pr: 5, win: 50, finish: 10, activeMin: 0.2 };
-export const LEAGUE_RULES = 'Eine Saison dauert ein Kalenderjahr. Jeden Monat gibt es einen Monatssieger, das Jahr gewinnt, wer über alle Monate die meisten Punkte sammelt. Punkte: 10 pro Workout (max. 2 pro Tag) · 1 pro 5 Minuten Cardio oder Mobility · 30 pro erreichtem Wochenziel · 5 pro Rekord · 50 pro Challenge-Sieg · 10 pro beendeter Challenge.';
+// Arena-Wertung in EP – dieselben Regeln wie im Level-System (plus Challenges)
+export const LEAGUE_POINTS = { workout: 100, set: 4, pr: 50, goalWeek: 250, activeMin: 2, win: 500, finish: 100 };
+export const LEAGUE_RULES = 'Eine Saison dauert ein Kalenderjahr. Jeden Monat gibt es einen Monatssieger, das Jahr gewinnt, wer über alle Monate die meisten Punkte sammelt. Gewertet wird in EP wie im Level-System: 100 pro Workout (max. 2 pro Tag) · 4 pro Arbeitssatz · 2 pro Minute Cardio oder Mobility · 50 pro Rekord · 250 pro erreichtem Wochenziel · 500 pro Challenge-Sieg · 100 pro beendeter Challenge.';
 
 // Woche zählt für den Monat, in dem ihr Donnerstag liegt
 const weekMonth = (wk) => startOfMonth(wk + 3 * DAY);
@@ -195,8 +196,14 @@ export function activeMinutes(w) {
   return sec / 60;
 }
 
+// EP eines einzelnen Workouts aus der Zusammenfassung (für die Anzeige bei anderen Mitgliedern)
+export function summaryEp(w, prCount = 0) {
+  const P = LEAGUE_POINTS;
+  return P.workout + (w.sets || 0) * P.set + prCount * P.pr + Math.round(activeMinutes(w) * P.activeMin);
+}
+
 export function seasonScore({ sums, prs, goal, results = [] }, from, to) {
-  const b = { workouts: 0, goalWeeks: 0, prs: 0, wins: 0, finished: 0, minutes: 0 };
+  const b = { workouts: 0, goalWeeks: 0, prs: 0, wins: 0, finished: 0, minutes: 0, sets: 0 };
   const perDay = new Map();
   for (const w of sums) {
     if (w.start < from || w.start >= to) continue;
@@ -206,6 +213,7 @@ export function seasonScore({ sums, prs, goal, results = [] }, from, to) {
     if (c < 2) b.workouts++;
     b.prs += prs.get(w.id) || 0;
     b.minutes += activeMinutes(w);
+    b.sets += w.sets || 0;
   }
   const st = streakInfo(sums, goal, Math.min(Date.now(), to - 1));
   const nowW = startOfWeek(Date.now());
@@ -217,7 +225,7 @@ export function seasonScore({ sums, prs, goal, results = [] }, from, to) {
   }
   const P = LEAGUE_POINTS;
   b.minutes = Math.round(b.minutes);
-  const points = b.workouts * P.workout + b.goalWeeks * P.goalWeek + b.prs * P.pr + b.wins * P.win + b.finished * P.finish + Math.round(b.minutes * P.activeMin);
+  const points = b.workouts * P.workout + b.sets * P.set + b.goalWeeks * P.goalWeek + b.prs * P.pr + b.wins * P.win + b.finished * P.finish + Math.round(b.minutes * P.activeMin);
   return { points, ...b };
 }
 

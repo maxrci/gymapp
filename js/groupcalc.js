@@ -4,7 +4,7 @@
 
 import {
   prMap, streakInfo, seasonScore, alltimeStats, challengeValue, challengeStatus,
-  startOfMonth, addMonths, startOfYear, addYears, STAGE_NAMES, VISIBILITY, kingStats, exerciseBests,
+  startOfMonth, addMonths, startOfYear, addYears, STAGE_NAMES, VISIBILITY, kingStats, exerciseBests, summaryEp,
 } from './compete.js';
 
 export const visOf = (p) => (VISIBILITY.some(([k]) => k === p?.visibility) ? p.visibility : 'full');
@@ -108,7 +108,7 @@ export function feedFor(u, viewerId, items, before = Infinity, limit = 20) {
   const workouts = list.map(({ id, data, summary: s }) => {
     const base = {
       id, start: s.start, end: s.end, title: s.title, vol: s.vol, sets: s.sets, dur: s.dur, km: s.km,
-      prs: u.prs?.get(id) || 0, ex: (s.ex || []).map((x) => ({ n: x.n, t: x.t, s: x.s, e: x.e, d: x.d })),
+      prs: u.prs?.get(id) || 0, ep: summaryEp(s, u.prs?.get(id) || 0), ex: (s.ex || []).map((x) => ({ n: x.n, t: x.t, s: x.s, e: x.e, d: x.d })),
     };
     if (vis === 'full' && data) {
       base.exercises = (data.exercises || []).map((e) => ({ name: e.name, notes: e.notes, sets: (e.sets || []).map(({ type, weight, reps, distance, duration }) => ({ type, weight, reps, distance, duration })) }));

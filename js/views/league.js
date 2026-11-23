@@ -78,7 +78,7 @@ function rankRows(g, rows, me, sub) {
   return rows.map((r, i) => `<a class="lg-row ${r.id === me ? 'me' : ''}" href="#/member/${esc(r.id)}">
     <span class="lg-rank ${i < 3 && r.points ? `m${i + 1}` : ''}">${i + 1}</span>${head(member(g, r.id))}
     <span class="lg-main"><b>${esc(nameOf(g, r.id))}</b><small>${sub(r)}</small></span>
-    <span class="lg-val">${num(r.points, 0)}<small>P</small></span>${fightBtn(r.id)}</a>`).join('');
+    <span class="lg-val">${num(r.points, 0)}<small>EP</small></span>${fightBtn(r.id)}</a>`).join('');
 }
 const rowSub = (r) => `${r.workouts} Workouts${r.minutes ? ` · ${r.minutes} Min. Cardio/Mobility` : ''} · ${r.goalWeeks} Wochenziele · ${r.prs} Rekorde${r.wins ? ` · ${r.wins} Siege` : ''}`;
 
@@ -155,7 +155,7 @@ function season(g) {
         const r = podium[i]; const m = member(g, r.id);
         return `<div class="pod p${i + 1} ${r.id === me ? 'me' : ''}">
           <div class="pod-fig">${i === 0 ? fighterFx(m?.stage || 0, { look: look(m), enter: nav.entering }) : fighterSVG(m?.stage || 0, { look: look(m) })}</div>
-          <b>${esc(m?.name || '')}</b><small>${num(r.points, 0)} P</small><div class="pod-base">${i + 1}</div></div>`;
+          <b>${esc(m?.name || '')}</b><small>${num(r.points, 0)} EP</small><div class="pod-base">${i + 1}</div></div>`;
       }).join('')}</div>
       <div class="pod-hint">Komplette Rangliste ${icon('right', 'xs')}</div>
     </section>
@@ -169,7 +169,7 @@ function season(g) {
       <div class="card-title">${icon('trophy', 'gold')} Monatssieger ${year}</div>
       <div class="month-grid">${(s.months || []).map((x) => `<div class="mg ${x.running ? 'run' : ''} ${x.winners.includes(me) ? 'me' : ''}">
         <small>${esc(monthName(x.from, false))}${x.running ? ' · läuft' : ''}</small>
-        ${x.winners.length ? `<span class="lg-head">${fighterHead(member(g, x.winners[0])?.stage || 0, look(member(g, x.winners[0])))}</span><b>${esc(x.winners.map((id) => nameOf(g, id)).join(' & '))}</b><small>${num(x.top[0]?.points || 0, 0)} P</small>` : '<b class="muted">–</b>'}
+        ${x.winners.length ? `<span class="lg-head">${fighterHead(member(g, x.winners[0])?.stage || 0, look(member(g, x.winners[0])))}</span><b>${esc(x.winners.map((id) => nameOf(g, id)).join(' & '))}</b><small>${num(x.top[0]?.points || 0, 0)} EP</small>` : '<b class="muted">–</b>'}
       </div>`).join('')}</div>
       <p class="footnote">Das Jahr gewinnt, wer über alle Monate die meisten Punkte holt – nicht, wer die meisten Monate gewinnt.</p>
     </section>
@@ -430,7 +430,7 @@ function memberWorkout(w) {
   return `<section class="card mw ${w.exercises ? 'full' : ''}">
     <div class="mw-head" ${w.exercises ? 'data-wopen="1"' : ''}>
       <div><b>${esc(w.title || 'Workout')}</b><small>${esc(fmtDate(w.start, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }))}</small></div>
-      ${w.prs ? `<span class="mw-pr">${icon('trophy', 'xs')} ${w.prs}</span>` : ''}
+      <span class="mw-side">${w.ep ? `<span class="mw-ep">+${num(w.ep, 0)} EP</span>` : ''}${w.prs ? `<span class="mw-pr">${icon('trophy', 'xs')} ${w.prs}</span>` : ''}</span>
     </div>
     <div class="mw-meta"><span>${icon('clock', 'xs')} ${fmtDurShort(w.dur)}</span>${w.vol ? `<span>${icon('weight', 'xs')} ${fmtVolume(w.vol)}</span>` : ''}${w.km ? `<span>${num(w.km, 1)} km</span>` : ''}<span>${w.sets || 0} Sätze</span></div>
     <div class="mw-ex">${(w.ex || []).map((x) => `<span>${x.s ? `${x.s}× ` : ''}${esc(x.n)}</span>`).join('')}</div>

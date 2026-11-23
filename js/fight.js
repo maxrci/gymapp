@@ -13,7 +13,7 @@ export const DURATION = 5000;
 
 // ---------- Kategorien ----------
 export const FIGHT_CATS = [
-  { key: 'season', label: 'Saison-Punkte' },
+  { key: 'season', label: 'Saison-EP' },
   ...KINGS.map((k) => ({ key: `king:${k.key}`, label: `${k.label} (Saison)`, king: k })),
   ...ALLTIME,
 ];
@@ -40,7 +40,7 @@ export function fmtCat(key, v, rel, g, id) {
   const cat = FIGHT_CATS.find((c) => c.key === key) || {};
   if (cat.king && g) return fmtKing(cat.king.key, g.kings?.season?.[id]);
   if (!v) return '–';
-  if (key === 'season') return `${num(v, 0)} P`;
+  if (key === 'season') return `${num(v, 0)} EP`;
   if (rel) return `${num(v, 2)} × KG`;
   if (key === 'volume') return fmtVolume(v);
   if (key === 'hours') return `${num(v, 0)} h`;
