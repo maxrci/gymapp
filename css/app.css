@@ -1503,3 +1503,8 @@ a.tr:active { background: var(--surface-2); }
 .onb:has(.s-stats) { --onb-glow: rgba(0,150,255,.25); }
 @media (prefers-reduced-motion: reduce) { .onb-slide, .onb-st > div, .onb-chart rect, .onb-line { animation: none !important; } }
 @media (max-height: 700px) { .onb-fig { height: 150px; } .onb-slide h2 { font-size: 24px; } .onb-list li { padding: 7px 10px; font-size: 13.5px; } }
+
+/* ---------- EP pro Workout ---------- */
+.ep-card { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: linear-gradient(120deg, var(--gold-soft), var(--surface) 70%); }
+.ep-badge { flex: none; font-weight: 900; font-size: 17px; color: #1a1300; background: var(--gold); padding: 4px 10px; border-radius: 10px; }
+.ep-card small { color: var(--text-2); font-size: 12.5px; line-height: 1.35; }

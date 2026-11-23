@@ -16,7 +16,7 @@ export function badgesView() {
     <section class="card level-card">
       <div class="lv-ring" style="--p:${Math.round(P.levelProgress * 100)}"><b>${P.level}</b><small>Level</small></div>
       <div><b>${num(P.xp, 0)} EP</b><small>Noch ${num(P.xpToNext, 0)} EP bis Level ${P.level + 1}</small>
-      <small class="muted">EP: ${esc(EP_RULES)}</small>${P.enduranceEp ? `<small class="muted">Davon aus Cardio & Pilates: ${num(P.enduranceEp, 0)} EP (${num(P.mins.cardio, 0)} + ${num(P.mins.pilates, 0)} Min.)</small>` : ''}</div>
+      <small class="muted">EP: ${esc(EP_RULES)}</small>${P.enduranceEp ? `<small class="muted">Davon aus Cardio & Mobility: ${num(P.enduranceEp, 0)} EP (${num(P.mins.cardio, 0)} + ${num(P.mins.mobility, 0)} Min.)</small>` : ''}</div>
     </section>
     <h2 class="section-title">Killstreaks <button class="link-btn sm" data-act="avatar">${icon('edit', 'xs')} Kämpfer anpassen</button></h2>
     <div class="stage-row">${STAGES.map((st, i) => `<div class="stage ${i <= P.stage.index ? 'got' : ''} ${i === P.stage.index ? 'cur' : ''}">

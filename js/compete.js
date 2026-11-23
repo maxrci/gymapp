@@ -52,23 +52,38 @@ export const exKey = (n) => String(n || '').toLowerCase().replace(/ä/g, 'a').re
 // ---------- Cardio & Mobility ----------
 export const MOBILITY_RE = /mobility|dehn|stretch|yoga|pilates|faszien|beweglich/i;
 export const PILATES_RE = /pilates|yoga/i;
+// Reihenfolge wichtig: Spezielles zuerst (z. B. „Skilanglauf“/„Eislaufen“ vor „Laufen“)
 const CARDIO_KINDS = [
-  ['sprint', /sprint/i], ['walk', /gehen|walk|spazier|wander/i], ['run', /lauf|jogg|run|treadmill/i],
-  ['bike', /radfahr|fahrrad|ergometer|spinning|bike|cycling|\brad\b/i], ['row', /rudermaschine|rudergerät|rower|carido|rudern|rundern|row/i],
+  ['sprint', /sprint/i], ['hike', /wander|hike|hiking|trekking/i], ['walk', /gehen|walk|spazier/i],
+  ['ski', /\bski|langlauf|snowboard|rodel/i], ['skate', /inliner|inline|skat|rollschuh|longboard|eislauf/i],
+  ['run', /lauf|jogg|run|treadmill/i],
+  ['bike', /radfahr|fahrrad|ergometer|spinning|bike|cycling|\brad\b|mtb/i], ['row', /rudermaschine|rudergerät|rower|carido|rudern|rundern|row/i],
   ['elliptical', /crosstrainer|ellipt/i], ['swim', /schwimm|swim/i], ['stairs', /stepper|treppe|stair/i],
-  ['rope', /seilspring|jump ?rope/i], ['generic', /cardio|zone ?2|hiit|ausdauer/i],
+  ['rope', /seilspring|jump ?rope/i],
+  ['ball', /fu(ß|ss)ball|basketball|tennis|badminton|squash|volleyball|handball|hockey|padel|rugby|football|frisbee|golf/i],
+  ['combat', /\bbox|kickbox|kampfsport|mma|judo|karate|taekwondo|ringen|muay|jiu|bjj/i],
+  ['dance', /tanz|zumba|aerobic|dance/i], ['climb', /klettern|bouldern|climb/i],
+  ['water', /surf|paddel|\bsup\b|kajak|kanu|segeln|wakeboard/i],
+  ['generic', /cardio|zone ?2|hiit|ausdauer|crossfit|circuit|zirkel|tabata/i],
 ];
-// Art der Cardio-Einheit (nur für Distanz-/Zeit-Übungen, Mobility zählt nicht)
+// Halteübungen mit Dauer sind kein Cardio
+const STATIC_RE = /plank|unterarmstütz|stütz|hang|hängen|wall ?sit|wandsitz|l-sit|halte|hold|isometr|hollow|superman|brücke|bridge|dead ?bug/i;
+// Art der Cardio-Einheit (nur für Distanz-/Zeit-Übungen, Mobility zählt nicht).
+// Unbekannte Sportarten (z. B. „Inliner“ nur mit Dauer) zählen als allgemeines Cardio.
 export function cardioKind(name, type) {
   if (type !== 'cardio' && type !== 'duration') return null;
   if (MOBILITY_RE.test(name)) return null;
   for (const [k, re] of CARDIO_KINDS) if (re.test(name)) return k;
-  return type === 'cardio' ? 'generic' : null;
+  if (type === 'duration' && STATIC_RE.test(name)) return null;
+  return 'generic';
 }
 // Leistungsmodell: mechanische Arbeit in kJ, damit Rad, Laufen, Rudern & Co. vergleichbar sind.
 // Laufen ≈ 1,05 kJ pro kg und km, Rad ≈ 22 kJ/km, Rudern ≈ 50 kJ/km; ohne Distanz zählt eine typische Leistung × Zeit.
-const KM_KJ = { run: (bw) => 1.05 * bw, sprint: (bw) => 1.05 * bw, walk: (bw) => 0.55 * bw, bike: () => 22, row: () => 50, elliptical: () => 35, swim: () => 250 };
-const WATT = { run: 210, sprint: 450, walk: 60, bike: 140, row: 170, elliptical: 140, swim: 150, stairs: 160, rope: 200, generic: 140 };
+const KM_KJ = { run: (bw) => 1.05 * bw, sprint: (bw) => 1.05 * bw, walk: (bw) => 0.55 * bw, hike: (bw) => 0.8 * bw, skate: () => 28, ski: () => 40, bike: () => 22, row: () => 50, elliptical: () => 35, swim: () => 250 };
+const WATT = {
+  run: 210, sprint: 450, walk: 60, hike: 120, ski: 200, skate: 160, bike: 140, row: 170, elliptical: 140, swim: 150, stairs: 160,
+  rope: 200, ball: 180, combat: 220, dance: 140, climb: 160, water: 150, generic: 140,
+};
 export const KM_EQ_KJ = 79; // 1 km Laufen bei 75 kg
 export function cardioWork(kind, km, sec, bw) {
   if (!kind) return 0;
@@ -166,14 +181,22 @@ export function streakInfo(sums, goal = 3, now = Date.now()) {
 }
 
 // ---------- Arena-Saison (Fleiß): 1 Jahr, jeder Monat wird einzeln gewonnen ----------
-export const LEAGUE_POINTS = { workout: 10, goalWeek: 30, pr: 5, win: 50, finish: 10 };
-export const LEAGUE_RULES = 'Eine Saison dauert ein Kalenderjahr. Jeden Monat gibt es einen Monatssieger, das Jahr gewinnt, wer über alle Monate die meisten Punkte sammelt. Punkte: 10 pro Workout (max. 2 pro Tag) · 30 pro erreichtem Wochenziel · 5 pro Rekord · 50 pro Challenge-Sieg · 10 pro beendeter Challenge.';
+export const LEAGUE_POINTS = { workout: 10, goalWeek: 30, pr: 5, win: 50, finish: 10, activeMin: 0.2 };
+export const LEAGUE_RULES = 'Eine Saison dauert ein Kalenderjahr. Jeden Monat gibt es einen Monatssieger, das Jahr gewinnt, wer über alle Monate die meisten Punkte sammelt. Punkte: 10 pro Workout (max. 2 pro Tag) · 1 pro 5 Minuten Cardio oder Mobility · 30 pro erreichtem Wochenziel · 5 pro Rekord · 50 pro Challenge-Sieg · 10 pro beendeter Challenge.';
 
 // Woche zählt für den Monat, in dem ihr Donnerstag liegt
 const weekMonth = (wk) => startOfMonth(wk + 3 * DAY);
 
+// Minuten Cardio + Mobility eines Workouts (aus der Zusammenfassung)
+export function activeMinutes(w) {
+  let sec = 0;
+  for (const x of w.ex || []) if (x.sec && (MOBILITY_RE.test(x.n) || cardioKind(x.n, x.t))) sec += x.sec;
+  if (!sec && w.mob) sec = w.dur || 0;
+  return sec / 60;
+}
+
 export function seasonScore({ sums, prs, goal, results = [] }, from, to) {
-  const b = { workouts: 0, goalWeeks: 0, prs: 0, wins: 0, finished: 0 };
+  const b = { workouts: 0, goalWeeks: 0, prs: 0, wins: 0, finished: 0, minutes: 0 };
   const perDay = new Map();
   for (const w of sums) {
     if (w.start < from || w.start >= to) continue;
@@ -182,6 +205,7 @@ export function seasonScore({ sums, prs, goal, results = [] }, from, to) {
     perDay.set(k, c + 1);
     if (c < 2) b.workouts++;
     b.prs += prs.get(w.id) || 0;
+    b.minutes += activeMinutes(w);
   }
   const st = streakInfo(sums, goal, Math.min(Date.now(), to - 1));
   const nowW = startOfWeek(Date.now());
@@ -192,7 +216,8 @@ export function seasonScore({ sums, prs, goal, results = [] }, from, to) {
     if (r.won) b.wins++;
   }
   const P = LEAGUE_POINTS;
-  const points = b.workouts * P.workout + b.goalWeeks * P.goalWeek + b.prs * P.pr + b.wins * P.win + b.finished * P.finish;
+  b.minutes = Math.round(b.minutes);
+  const points = b.workouts * P.workout + b.goalWeeks * P.goalWeek + b.prs * P.pr + b.wins * P.win + b.finished * P.finish + Math.round(b.minutes * P.activeMin);
   return { points, ...b };
 }
 

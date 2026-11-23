@@ -3,7 +3,7 @@
 import { state } from './store.js';
 import { idx, weekStreaks } from './stats.js';
 import { startOfWeek, sum, DAY, num, fmtVolume } from './utils.js';
-import { cardioKind, PILATES_RE } from './compete.js';
+import { cardioKind, MOBILITY_RE } from './compete.js';
 
 // Killstreak-Stufen (1 Woche mit erreichtem Wochenziel ≈ 2,5 Kills)
 export const STAGES = [
@@ -29,21 +29,39 @@ export function stageFor(streak) {
 }
 
 // EP-Regeln (auch für die Anzeige)
-export const EP = { workout: 100, set: 4, pr: 50, goalWeek: 250, cardioMin: 2, pilatesMin: 2 };
-export const EP_RULES = `${EP.workout} EP pro Workout · ${EP.set} EP pro Arbeitssatz · ${EP.pr} EP pro Rekord · ${EP.goalWeek} EP pro erreichtem Wochenziel · ${EP.cardioMin} EP pro Cardio-Minute · ${EP.pilatesMin} EP pro Pilates-/Yoga-Minute · Bonus-EP für Streak-Stufen`;
+export const EP = { workout: 100, set: 4, pr: 50, goalWeek: 250, cardioMin: 2, mobilityMin: 2 };
+export const EP_RULES = `${EP.workout} EP pro Workout · ${EP.set} EP pro Arbeitssatz · ${EP.pr} EP pro Rekord · ${EP.goalWeek} EP pro erreichtem Wochenziel · ${EP.cardioMin} EP pro Cardio-Minute · ${EP.mobilityMin} EP pro Mobility-/Pilates-/Yoga-Minute · Bonus-EP für Streak-Stufen`;
 
-// Minuten Cardio und Pilates/Yoga aus allen Einheiten
-export function enduranceMinutes() {
+// Minuten Cardio sowie Mobility/Pilates/Yoga – gesamt oder für ein einzelnes Workout (wid)
+export function enduranceMinutes(wid = null) {
   const { ex } = idx();
-  let cardio = 0, pilates = 0;
+  let cardio = 0, mobility = 0;
   for (const x of ex.values()) {
-    const p = PILATES_RE.test(x.name);
-    const c = !p && cardioKind(x.name, x.type);
-    if (!p && !c) continue;
-    const min = sum(x.sessions, (s) => s.duration) / 60;
-    if (p) pilates += min; else cardio += min;
+    const mob = MOBILITY_RE.test(x.name);
+    const car = !mob && cardioKind(x.name, x.type);
+    if (!mob && !car) continue;
+    for (const s of x.sessions) {
+      if (wid && s.wid !== wid) continue;
+      if (mob) mobility += s.duration / 60; else cardio += s.duration / 60;
+    }
   }
-  return { cardio, pilates };
+  return { cardio, mobility };
+}
+
+// EP eines einzelnen Workouts (für die Anzeige im Workout)
+export function workoutEp(w) {
+  const { wStats } = idx();
+  const ws = wStats.get(w.id);
+  if (!ws) return null;
+  const m = enduranceMinutes(w.id);
+  const parts = [
+    ['Workout', EP.workout],
+    ['Sätze', ws.sets * EP.set],
+    ['Rekorde', ws.prs.length * EP.pr],
+    ['Cardio', Math.round(m.cardio * EP.cardioMin)],
+    ['Mobility', Math.round(m.mobility * EP.mobilityMin)],
+  ].filter(([, v]) => v > 0);
+  return { total: parts.reduce((a, [, v]) => a + v, 0), parts, minutes: m };
 }
 
 export function profileStats() {
@@ -53,7 +71,7 @@ export function profileStats() {
   const sets = sum(asc, (w) => wStats.get(w.id).sets);
   const stageEp = STAGES.filter((x) => x.min > 0 && st.longest >= x.min).reduce((a, x) => a + x.ep, 0);
   const mins = enduranceMinutes();
-  const enduranceEp = Math.round(mins.cardio * EP.cardioMin + mins.pilates * EP.pilatesMin);
+  const enduranceEp = Math.round(mins.cardio * EP.cardioMin + mins.mobility * EP.mobilityMin);
   const xp = asc.length * EP.workout + sets * EP.set + prs.length * EP.pr + st.goalWeeks * EP.goalWeek + stageEp + enduranceEp;
   const lvl = levelFor(xp);
   const power = Math.round(Math.sqrt(totalVol) * 10 + prs.length * 25 + st.current * 150 + st.longest * 50);

@@ -19,6 +19,8 @@ const RULES = [
   [/pilates|yoga/i, 'Bauch', ['Ganzkörper'], 'duration'],
   [/mobility|dehnen|stretch/i, 'Ganzkörper', [], 'duration'],
   [/rudermaschine|carido|cardio|radfahren|fahrrad|ergometer|laufband|crosstrainer|joggen|laufen|schwimmen|stepper|seilspringen|zone ?2/i, 'Cardio', [], 'cardio'],
+  [/inliner|inline|skat|rollschuh|eislauf|longboard|wander|trekking|\bski|langlauf|snowboard/i, 'Cardio', [], 'cardio'],
+  [/fu(ß|ss)ball|basketball|tennis|badminton|squash|volleyball|handball|hockey|padel|kampfsport|kickbox|\bboxen|tanz|zumba|aerobic|klettern|bouldern|surf|kajak|kanu/i, 'Cardio', [], 'duration'],
   [/burpee/i, 'Ganzkörper', [], 'bodyweight'],
   [/plank|unterarmstütz/i, 'Bauch', [], 'duration'],
   [/butterfly reverse|reverse butterfly|face ?pull|reverse fly|hintere schulter/i, 'Schultern', ['Rücken'], 'weight'],
@@ -80,5 +82,5 @@ export const LIBRARY = [
   'Ausfallschritt (Kurzhantel)', 'Beinstrecken (Maschine)', 'Liegendes Beinbeugen (Maschine)',
   'Beinbeugen sitzend', 'Hip Thrust (Langhantel)', 'Hüftabduktion (Maschine)', 'Hüftadduktion (Maschine)',
   'Wadenheben stehend (Maschine)', 'Wadenheben sitzend', 'Crunch', 'Negativer Crunch',
-  'Beinheben hängend', 'Plank', 'Pilates', 'Yoga', 'Radfahren', 'Laufband', 'Crosstrainer', 'Rudermaschine',
+  'Beinheben hängend', 'Plank', 'Pilates', 'Yoga', 'Inliner', 'Wandern', 'Fußball', 'Tennis', 'Klettern', 'Radfahren', 'Laufband', 'Crosstrainer', 'Rudermaschine',
 ];

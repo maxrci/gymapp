@@ -5,7 +5,7 @@ import { icon, sheet, confirmDialog, toast } from '../ui.js';
 import { esc, fmtDateLong, fmtTime, fmtDur, fmtVolume, num, e1rm, fmtKg } from '../utils.js';
 import { editWorkout } from '../workout.js';
 import { poseSVG, poseFor } from '../poses.js';
-import { stageFor } from '../gamification.js';
+import { stageFor, workoutEp } from '../gamification.js';
 import { weekStreaks } from '../stats.js';
 import { routineFromWorkout, repeatWorkout } from '../actions.js';
 
@@ -15,6 +15,7 @@ export function workoutDetailView({ id }) {
   const { wStats, ex } = idx();
   const stg = stageFor(weekStreaks().current).index;
   const s = wStats.get(w.id) || {};
+  const ep = workoutEp(w);
   const prsByEx = {};
   for (const p of s.prs || []) (prsByEx[p.exercise] ||= []).push(p);
 
@@ -50,6 +51,7 @@ export function workoutDetailView({ id }) {
       ${kpi('Arbeitssätze', `${s.sets ?? 0}`, null, 'layers')}
       ${kpi('Wiederholungen', num(s.reps, 0), null, 'repeat')}
     </div>
+    ${ep ? `<div class="card ep-card"><span class="ep-badge">+${num(ep.total, 0)} EP</span><small>${ep.parts.map(([l, v]) => `${esc(l)} ${num(v, 0)}`).join(' · ')}</small></div>` : ''}
     ${s.prs?.length ? `<div class="card pr-card">${icon('trophy', 'gold')}<div><b>${s.prs.length} persönliche Rekorde</b><small>in diesem Workout</small></div></div>` : ''}
     ${exHtml}
     <div class="btn-row">
