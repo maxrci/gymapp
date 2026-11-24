@@ -52,6 +52,14 @@ Alle Daten bleiben lokal auf dem Gerät (IndexedDB).
 - **Ernährung** (optional, Einstellungen → App personalisieren): Tagebuch mit Mahlzeiten, Suche in Open Food Facts
   (über den Server, zwischengespeichert), eigener Barcode-Scanner (EAN/UPC, ohne fremde Bibliothek), Favoriten,
   eigene Produkte und Gerichte, alle Nährwerte; Ziel und Verbrauch aus Körperdaten, Training und Coach. Nur privat.
+- **Live-Arena**: Wer gerade trainiert, steht in der Arena und macht seine Übung, alle anderen sitzen auf der Tribüne.
+  Nur in Gruppen, in denen „Live zeigen“ an ist (Status nur im Arbeitsspeicher des Servers, nach 90 s ohne Meldung weg).
+- **Mitteilung „Pause vorbei“** per Web-Push vom eigenen Server (VAPID + RFC 8291, ohne Fremdbibliothek; iPhone nur mit
+  Gym auf dem Home-Bildschirm). Optional **Workout auf dem Sperrbildschirm** (Media Session; pausiert dafür Musik).
+- **Schritte aus Apple Health** über einen iOS-Kurzbefehl mit eigenem Schlüssel, der nur Schritte melden kann
+  (Profil → Verbindungen → Schritte). Fließen in den Kalorienverbrauch ein, bleiben privat.
+- **Events**: Weihnachten, Advent, Nikolaus, Silvester, Neujahr, Valentinstag, Fasching, Ostern, 1. Mai, Oktoberfest,
+  Tag der Deutschen Einheit, Halloween, St. Martin – mit Deko, Begrüßung und passenden Mützen (aus im Simple Mode).
 - **Abzeichen** (über 100, mit Medaillen-Stufen) schalten **Objekte für den Kämpfer** frei (Hüte, Brillen, Hanteln …).
 - **Cardio geführt**: Grundlage, 4×4, 30/30, Pyramide, Steigerung, Schwelle, 12-3-30, Regeneration für
   Laufband/Rad/Crosstrainer/Rudergerät. Vollbild mit Geräte-Einstellungen, Zonen, Countdown-Tönen

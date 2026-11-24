@@ -18,6 +18,8 @@ import { showOnboarding } from '../onboarding.js';
 import { testPrSound } from '../fx.js';
 import { openCoachSetup } from '../coach/setup.js';
 import { openStrava, stravaText } from '../strava.js';
+import { openSteps, stepsConnected } from '../steps.js';
+import { enablePush, disablePush, testPush, pushSupported } from '../push.js';
 
 let persisted = null;
 
@@ -74,6 +76,8 @@ export function profileView({ section = '' } = {}) {
         ${toggle('countWarmups', 'flame', 'Aufwärmsätze ins Volumen')}
         ${toggle('keepAwake', 'bolt', 'Bildschirm während Workout an')}
         ${toggle('restSound', 'clock', 'Ton nach Pause')}
+        ${toggle('lockScreen', 'timer', 'Workout auf dem Sperrbildschirm', ' <em class="tag demo">BETA</em><small class="si-sub">Übung, Satz und Pausenzeit wie bei einem Musikplayer. Achtung: Dafür pausiert iOS deine Musik.</small>')}
+        ${loggedIn() ? `<label class="set-item"><span class="si-ic">${icon('bolt')}</span><span class="si-l">Mitteilung, wenn die Pause vorbei ist<small class="si-sub">Auch wenn die App im Hintergrund ist und Musik läuft${pushSupported() ? '' : ' – auf dem iPhone nur mit Gym auf dem Home-Bildschirm'}</small></span><input type="checkbox" class="switch" data-push ${s.restPush ? 'checked' : ''}></label>` : ''}
       </div>
       <p class="footnote">Das Körpergewicht wird für Klimmzüge, Dips & Co. zum Zusatzgewicht addiert und für die Kraft relativ zum Körpergewicht (× KG) genutzt.</p>`],
     coach: ['AI-Coach', `
@@ -86,7 +90,7 @@ export function profileView({ section = '' } = {}) {
     group: ['Gruppen & Privacy', `
       ${groupSection(row)}
       ${loggedIn() ? '' : `<div class="set-group">${toggle('arenaDemo', 'trophy', 'Arena-Demo mit 2 NPCs')}</div>`}`],
-    connect: ['Verbindungen', loggedIn() ? `<div class="set-group">${row('strava', 'bolt', 'Strava', esc(stravaText()))}</div>
+    connect: ['Verbindungen', loggedIn() ? `<div class="set-group">${row('strava', 'bolt', 'Strava', esc(stravaText()))}${row('steps', 'heart', 'Schritte (Apple Health)', stepsConnected() ? 'verbunden' : 'nicht verbunden')}</div>
       <p class="footnote">Strava-Aktivitäten siehst nur du. In der Arena zählen nur die EP.</p>` : '<p class="footnote">Verbindungen brauchen eine Gruppen-Anmeldung (Gruppen & Privacy).</p>'],
     data: ['Daten & Backup', `
       <div class="set-group">
@@ -135,7 +139,7 @@ export function profileView({ section = '' } = {}) {
       ${link('training', 'dumbbell', 'Training', '', 'Körpergewicht, Wochenziel, Pausen')}
       ${link('coach', 'bolt', 'AI-Coach', s.aiWorkout || s.aiCardio || s.aiMobility ? 'an' : 'aus', 'Trainingsplan, Ziele, Ernährung')}
       ${link('group', 'users', 'Gruppen & Privacy', loggedIn() ? esc(account().group || '') : '', loggedIn() ? 'Gruppe, Sichtbarkeit, Abmelden' : 'Bei einer Gruppe anmelden')}
-      ${loggedIn() ? link('connect', 'share', 'Verbindungen', esc(stravaText()), 'Strava') : ''}
+      ${loggedIn() ? link('connect', 'share', 'Verbindungen', esc(stravaText()), 'Strava, Schritte') : ''}
       ${link('data', 'download', 'Daten & Backup', '', 'Import, Export, Backup')}
       ${link('help', 'info', 'Hilfe & Feedback', ticketBadge(), 'Einführung, Wünsche & Fehler, Version')}
     </div>
@@ -152,6 +156,11 @@ export function profileView({ section = '' } = {}) {
         if (kind && el.checked && !state.settings.coach?.[kind]) openCoachSetup(kind);
       }));
       root.querySelectorAll('[data-theme-set]').forEach((el) => el.addEventListener('click', () => { applyTheme(el.dataset.themeSet); saveSettings({ theme: el.dataset.themeSet }); }));
+      root.querySelector('[data-push]')?.addEventListener('change', async (e) => {
+        const el = e.target;
+        if (!el.checked) { await disablePush(); return; }
+        try { await enablePush(); const r = await testPush(); toast(r.sent ? 'Mitteilungen an – Test geschickt' : 'Mitteilungen an'); } catch (err) { el.checked = false; toast(err.message, 6000); }
+      });
       root.querySelectorAll('[data-accent-set]').forEach((el) => el.addEventListener('click', () => saveSettings({ accent: el.dataset.accentSet })));
       const p = root.querySelector('[data-persist]');
       if (!p) return;
@@ -171,6 +180,7 @@ export function profileView({ section = '' } = {}) {
       bw: () => openBodyweight(),
       tickets: () => openTickets(),
       strava: () => openStrava(),
+      steps: () => openSteps(),
       onboarding: () => showOnboarding(),
       soundtest: () => {
         if (!testPrSound()) return toast('Audio wird auf diesem Gerät nicht unterstützt');

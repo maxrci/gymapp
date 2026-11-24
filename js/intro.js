@@ -3,6 +3,7 @@ import { state } from './store.js';
 import { weekStreaks } from './stats.js';
 import { stageFor } from './gamification.js';
 import { fighterSVG } from './fighter.js';
+import { currentEvent, eventGreeting, eventsEnabled, introParticles } from './events.js';
 
 const DURATION = 3000;
 let hiddenAt = null;
@@ -13,16 +14,21 @@ export function showIntro() {
   if (document.querySelector('.intro')) return;
   const stage = stageFor(weekStreaks().current);
   const el = document.createElement('div');
-  el.className = `intro st${stage.index}`;
+  const ev = eventsEnabled() ? currentEvent() : null;
+  const greet = ev ? eventGreeting() : null;
+  el.className = `intro st${stage.index}${ev ? ` ev-${ev.id}` : ''}`;
+  if (ev) el.dataset.event = ev.id;
   el.innerHTML = `
     <div class="in-bg"></div>
     <div class="in-rays"></div>
     <div class="in-fire">${Array.from({ length: 16 }, (_, i) => `<i style="--x:${(i * 6.6 + (i % 3) * 1.7).toFixed(1)}%;--d:${(1 + (i % 5) * 0.09).toFixed(2)}s;--w:${10 + (i % 4) * 4}%;--s:${(0.75 + (i % 3) * 0.12).toFixed(2)}s"></i>`).join('')}</div>
+    ${ev ? `<div class="in-ev t-${ev.theme}">${introParticles(ev)}</div>` : ''}
     <div class="in-flash"></div>
     <div class="in-stage">
       <div class="in-glow"></div>
       <div class="in-fighter">${fighterSVG(stage.index, { intro: true })}</div>
-    </div>`;
+    </div>
+    ${greet ? `<div class="in-greet">${greet}</div>` : ''}`;
   document.body.appendChild(el);
   const end = () => {
     if (!el.isConnected) return;

@@ -1,0 +1,74 @@
+/* Saison-Specials – alle Regeln hängen an :root[data-event] bzw. .ev-layer / .intro.ev-* */
+.ev-layer { position: fixed; inset: 0; z-index: 20; pointer-events: none; overflow: hidden; contain: strict; }
+.in-ev { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.ev-layer i, .in-ev i { position: absolute; top: -6%; left: var(--x); display: block; font-style: normal; will-change: transform; backface-visibility: hidden; }
+.ev-layer.light { opacity: .55; }
+
+/* Fallende Teilchen */
+@keyframes evFall { from { transform: translate3d(0, 0, 0) rotate(0); } to { transform: translate3d(var(--dx, 0px), 112vh, 0) rotate(var(--rot, 0deg)); } }
+@keyframes evRise { from { transform: translate3d(0, 0, 0) scale(.8); opacity: 0; } 15% { opacity: .8; } to { transform: translate3d(var(--dx, 0px), -110vh, 0) scale(1.1); opacity: 0; } }
+.t-snow i { width: var(--s); height: var(--s); border-radius: 50%; background: #fff; opacity: .8; box-shadow: 0 0 4px rgba(255,255,255,.6); animation: evFall var(--d) linear var(--dl) infinite; --rot: 0deg; }
+.t-confetti i { width: 6px; height: 10px; background: var(--c); opacity: .85; border-radius: 1px; animation: evFall var(--d) linear var(--dl) infinite; --rot: 540deg; }
+.t-hearts i { top: auto; bottom: -6%; color: #ff5d8f; font-size: var(--s); opacity: .4; animation: evRise var(--d) ease-in var(--dl) infinite; }
+.t-hearts i::before { content: "\2665"; }
+.t-hearts i { font-size: 0; } .t-hearts i::before { font-size: var(--s); }
+.t-eggs i { width: 9px; height: 12px; border-radius: 50% 50% 50% 50% / 62% 62% 38% 38%; background: linear-gradient(var(--c) 0 38%, rgba(255,255,255,.65) 38% 50%, var(--c) 50%); opacity: .5; animation: evFall var(--d) linear var(--dl) infinite; --rot: 200deg; --dx: 20px; }
+.t-petals i { width: 8px; height: 11px; border-radius: 80% 0 80% 0; background: #ffb7d0; opacity: .75; animation: evFall var(--d) linear var(--dl) infinite; --rot: 400deg; }
+.t-lantern i { top: auto; bottom: 8%; width: 10px; height: 10px; border-radius: 50%; background: #ffd57a; box-shadow: 0 0 14px 6px rgba(255, 190, 70, .55); opacity: .7; animation: evGlow var(--d) ease-in-out var(--dl) infinite alternate; }
+@keyframes evGlow { from { opacity: .25; transform: translate3d(0, 0, 0); } to { opacity: .8; transform: translate3d(0, -14px, 0); } }
+
+/* Halloween */
+.t-spooky .bat { position: absolute; left: -12%; top: var(--y); width: 34px; height: 16px; filter: drop-shadow(0 0 4px rgba(190,120,255,.7)); transform: scale(var(--sc, 1)); will-change: transform; animation: evBat var(--d) linear var(--dl) infinite;
+  background: #6b3fa8; opacity: .65; clip-path: polygon(0 20%, 18% 0, 32% 40%, 50% 18%, 68% 40%, 82% 0, 100% 20%, 86% 80%, 68% 55%, 50% 100%, 32% 55%, 14% 80%); }
+@keyframes evBat { from { transform: translate3d(0, 0, 0) scale(var(--sc, 1)); } 25% { transform: translate3d(35vw, -22px, 0) scale(var(--sc, 1), .6); } 50% { transform: translate3d(70vw, 10px, 0) scale(var(--sc, 1)); } 75% { transform: translate3d(105vw, -16px, 0) scale(var(--sc, 1), .6); } to { transform: translate3d(140vw, 0, 0) scale(var(--sc, 1)); } }
+.pk { position: absolute; bottom: calc(64px + env(safe-area-inset-bottom)); font-size: 26px; line-height: 1; opacity: .85; filter: drop-shadow(0 0 8px rgba(255, 120, 0, .5)); }
+.pk.l { left: 8px; } .pk.r { right: 8px; bottom: auto; top: calc(var(--st, 0px) + 6px); }
+:root[data-event="halloween"] .ev-layer::after { content: ""; position: absolute; inset: 0; background: radial-gradient(120% 80% at 50% 110%, rgba(255, 110, 0, .12), transparent 60%), radial-gradient(90% 40% at 50% -10%, rgba(120, 60, 200, .16), transparent 70%); }
+
+/* Girlanden (Oktoberfest blau-weiß, 3.10. schwarz-rot-gold) */
+.flags { position: absolute; left: 0; right: 0; top: 0; height: 30px; display: flex; justify-content: space-around; }
+.flags i { position: static; width: 0; height: 0; border-left: 11px solid transparent; border-right: 11px solid transparent; border-top: 18px solid var(--fc); transform-origin: 50% 0; animation: evSway 3s ease-in-out infinite alternate; animation-delay: calc(var(--i) * -.3s); opacity: .9; }
+.flags i::after { content: none; }
+.t-bunting .flags i:nth-child(odd) { --fc: #4aa3df; } .t-bunting .flags i:nth-child(even) { --fc: #f2f2f2; }
+.t-flag .flags i:nth-child(3n+1) { --fc: #111; } .t-flag .flags i:nth-child(3n+2) { --fc: #d62828; } .t-flag .flags i:nth-child(3n) { --fc: #ffcc00; }
+@keyframes evSway { from { transform: rotate(-6deg); } to { transform: rotate(6deg); } }
+.flags::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: rgba(255, 255, 255, .35); }
+
+/* Akzente: Hero-Karte, Podium, Live-Arena */
+:root[data-event="weihnachten"] .hero, :root[data-event="advent"] .hero, :root[data-event="nikolaus"] .hero { box-shadow: inset 0 2px 0 rgba(255, 255, 255, .55), 0 0 22px rgba(216, 58, 52, .18); }
+:root[data-event="weihnachten"] .podium, :root[data-event="advent"] .podium, :root[data-event="nikolaus"] .podium, :root[data-event="winter"] .podium { background: radial-gradient(60% 40% at 50% 100%, rgba(255, 255, 255, .12), transparent 70%); }
+:root[data-event="halloween"] .hero { box-shadow: 0 0 22px rgba(255, 120, 0, .22); border-color: rgba(255, 120, 0, .35); }
+:root[data-event="halloween"] .hero::before { background: radial-gradient(circle at 18% 60%, rgba(255, 120, 0, .25), transparent 55%); }
+:root[data-event="halloween"] .podium, :root[data-event="halloween"] .live-arena { background: radial-gradient(60% 45% at 50% 100%, rgba(255, 120, 0, .22), transparent 70%); }
+:root[data-event="silvester"] .hero, :root[data-event="neujahr"] .hero, :root[data-event="fasching"] .hero { box-shadow: 0 0 22px rgba(255, 210, 63, .2); }
+:root[data-event="silvester"] .podium, :root[data-event="neujahr"] .podium, :root[data-event="fasching"] .podium, :root[data-event="silvester"] .live-arena { background: radial-gradient(60% 45% at 50% 100%, rgba(255, 210, 63, .18), rgba(228, 106, 168, .08) 50%, transparent 72%); }
+:root[data-event="valentin"] .hero { box-shadow: 0 0 22px rgba(255, 93, 143, .22); }
+:root[data-event="valentin"] .podium { background: radial-gradient(60% 45% at 50% 100%, rgba(255, 93, 143, .2), transparent 70%); }
+:root[data-event="ostern"] .hero { box-shadow: 0 0 22px rgba(123, 216, 143, .2); }
+:root[data-event="ostern"] .podium { background: radial-gradient(60% 40% at 50% 100%, rgba(123, 216, 143, .18), transparent 70%); }
+:root[data-event="martin"] .podium, :root[data-event="martin"] .live-arena { background: radial-gradient(60% 45% at 50% 100%, rgba(255, 190, 70, .2), transparent 70%); }
+:root[data-event="oktoberfest"] .podium { background: radial-gradient(60% 45% at 50% 100%, rgba(74, 163, 223, .2), transparent 70%); }
+:root[data-event="einheit"] .podium { background: linear-gradient(to top, rgba(255, 204, 0, .14), rgba(214, 40, 40, .12) 40%, transparent 70%); }
+:root[data-event="mai"] .podium { background: radial-gradient(60% 40% at 50% 100%, rgba(255, 183, 208, .2), transparent 70%); }
+:root[data-event="weihnachten"] .pod.p1 .pod-fig, :root[data-event] .pod.p1 .pod-fig { filter: drop-shadow(0 0 10px var(--ev-glow, transparent)); }
+:root[data-event="weihnachten"], :root[data-event="advent"], :root[data-event="nikolaus"] { --ev-glow: rgba(255, 255, 255, .35); }
+:root[data-event="halloween"] { --ev-glow: rgba(255, 120, 0, .5); }
+:root[data-event="silvester"], :root[data-event="neujahr"], :root[data-event="fasching"] { --ev-glow: rgba(255, 210, 63, .5); }
+
+/* Start-Animation */
+.in-greet { position: relative; margin-top: 18px; padding: 0 24px; max-width: 340px; text-align: center; font-size: 20px; font-weight: 800; line-height: 1.25; color: #fff; text-shadow: 0 2px 14px rgba(0, 0, 0, .7); opacity: 0; animation: evGreet .6s ease-out .5s both; }
+@keyframes evGreet { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.intro.ev-halloween { --f1: #f4e6ff; --f2: #b46cff; --f3: #ff7a1a; --glow: rgba(170, 90, 255, .7); }
+.intro.ev-halloween .in-bg { background: radial-gradient(120% 80% at 50% 60%, #2b1240 0%, #120819 55%, #07030b 100%); }
+.intro.ev-halloween .in-greet { color: #ffb066; }
+.intro.ev-weihnachten, .intro.ev-advent, .intro.ev-nikolaus, .intro.ev-winter { --f1: #fff; --f2: #ffd0d0; --f3: #e0554d; --glow: rgba(255, 220, 220, .65); }
+.intro.ev-weihnachten .in-bg, .intro.ev-advent .in-bg, .intro.ev-nikolaus .in-bg, .intro.ev-winter .in-bg { background: radial-gradient(120% 80% at 50% 60%, #14233a 0%, #0a1220 55%, #04070d 100%); }
+.intro.ev-silvester, .intro.ev-neujahr, .intro.ev-fasching { --f1: #fff6c8; --f2: #ffd23f; --f3: #e46aa8; --glow: rgba(255, 210, 90, .65); }
+.intro.ev-silvester .in-bg, .intro.ev-neujahr .in-bg { background: radial-gradient(120% 80% at 50% 60%, #1c1440 0%, #0c0824 55%, #04030c 100%); }
+.intro.ev-valentin { --f2: #ff8fb1; --f3: #e0245e; --glow: rgba(255, 110, 160, .65); }
+.intro.ev-ostern { --f2: #c9f0a8; --f3: #7bd88f; --glow: rgba(160, 230, 150, .6); }
+.intro .in-ev { z-index: 1; }
+
+/* Ruhe & Einfach-Modus */
+@media (prefers-reduced-motion: reduce) { .ev-layer, .in-ev { display: none; } .in-greet { animation: none; opacity: 1; } }
+.simple .ev-layer, .simple .in-ev, .simple .in-greet { display: none !important; }

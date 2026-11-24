@@ -15,6 +15,10 @@ import { planView } from './views/plan.js';
 import { historyView } from './views/history.js';
 import { foodView } from './views/food.js';
 import { loadFood } from './food.js';
+import { initPresence } from './presence.js';
+import { refreshSteps } from './steps.js';
+import { initNowPlaying } from './nowplaying.js';
+import { applyEvent } from './events.js';
 import { applyTheme, applyLook } from './theme.js';
 import { resumeGuided } from './guided.js';
 import { nav, goBack } from './nav.js';
@@ -173,11 +177,12 @@ async function main() {
   const lookKey = () => `${state.settings.accent || 'blau'}|${state.settings.simple ? 1 : 0}`;
   let lookNow = lookKey();
   applyLook(state.settings);
+  await applyEvent().catch(() => {}); // Events (Weihnachten, Halloween …) vor dem ersten Zeichnen
   onChange(() => {
     setLook(state.settings.avatar);
     const t = state.settings.theme || 'dark';
     if (t !== themeNow) { themeNow = t; applyTheme(t); }
-    if (lookKey() !== lookNow) { lookNow = lookKey(); applyLook(state.settings); }
+    if (lookKey() !== lookNow) { lookNow = lookKey(); applyLook(state.settings); applyEvent().then(rerender).catch(() => {}); }
   });
   onChange(debounce(rerender, 30));
   onEditorClose(() => { document.body.classList.remove('editor-open'); renderMinibar(); });
@@ -219,11 +224,13 @@ async function main() {
     if (loggedIn() !== wasIn) { wasIn = loggedIn(); renderTabbar(); initSync(); initStrava(); }
     rerender();
   }, 60));
-  detectServer().then((ok) => { if (ok) { ensureSession(); refreshConfig(); initSync(); renderTabbar(); rerender(); welcomeMoved(); } initStrava(); maybeShowMigration(); });
+  detectServer().then((ok) => { if (ok) { ensureSession(); refreshConfig().then(() => applyEvent()).catch(() => {}); refreshSteps().then(() => rerender()); initSync(); renderTabbar(); rerender(); welcomeMoved(); } initStrava(); maybeShowMigration(); });
 
   render({ keepScroll: false });
   document.body.classList.add('ready');
   if (state.settings.food) loadFood().then(() => rerender());
+  initPresence();
+  initNowPlaying();
   // Beim ersten Öffnen: Onboarding statt Start-Animation (nicht bei Anmelde-Links)
   const viaLink = /^#\/(join|login)/.test(location.hash) || justMoved();
   if (shouldOnboard() && !viaLink) showOnboarding();

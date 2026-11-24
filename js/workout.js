@@ -9,6 +9,7 @@ import { pickExercises } from './picker.js';
 import { vibrate, keepAwake, releaseAwake } from './platform.js';
 import { icon, sheet, confirmDialog, formDialog, toast, toastAction, overlay } from './ui.js';
 import { swipeToDelete } from './swipe.js';
+import { scheduleRestPush, cancelRestPush } from './push.js';
 import {
   $, esc, uid, num, fmtClock, fmtVolume, fmtKg, fmtDate, fmtDur, parseNum, debounce,
 } from './utils.js';
@@ -306,6 +307,15 @@ function startRest(sec) {
   ed.data.rest = { end: Date.now() + sec * 1000, total: sec, notified: false };
   saveSoon();
   updateRestBar();
+  scheduleRestPush(ed.data.rest.end, restNextText());
+}
+// Text für die Mitteilung: nächster offener Satz
+function restNextText() {
+  for (const e of ed?.data?.exercises || []) {
+    const i = e.sets.findIndex((s) => !s.done);
+    if (i >= 0) return `${e.name} · Satz ${i + 1}${e.sets[i].weight ? ` · ${num(e.sets[i].weight, 1)} kg` : ''}${e.sets[i].reps ? ` × ${e.sets[i].reps}` : ''}`;
+  }
+  return '';
 }
 function updateRestBar() {
   const bar = root().querySelector('.rest-bar');
@@ -614,9 +624,9 @@ async function onClick(e) {
       if (v === 'remove' && await confirmDialog(`„${ex.name}“ entfernen?`, 'Entfernen', true)) { d.exercises.splice(i, 1); commit(); }
       break;
     }
-    case 'rest-minus': if (d.rest) { d.rest.end -= 15000; d.rest.total = Math.max(d.rest.total - 15, 1); updateRestBar(); saveSoon(); } break;
-    case 'rest-plus': if (d.rest) { d.rest.end += 15000; d.rest.total += 15; updateRestBar(); saveSoon(); } break;
-    case 'rest-skip': d.rest = null; updateRestBar(); saveSoon(); break;
+    case 'rest-minus': if (d.rest) { d.rest.end -= 15000; d.rest.total = Math.max(d.rest.total - 15, 1); updateRestBar(); saveSoon(); scheduleRestPush(d.rest.end, restNextText()); } break;
+    case 'rest-plus': if (d.rest) { d.rest.end += 15000; d.rest.total += 15; updateRestBar(); saveSoon(); scheduleRestPush(d.rest.end, restNextText()); } break;
+    case 'rest-skip': d.rest = null; updateRestBar(); saveSoon(); cancelRestPush(); break;
     case 'discard':
       if (await confirmDialog('Das laufende Workout wird gelöscht.', 'Workout verwerfen', true)) {
         await setActive(null);

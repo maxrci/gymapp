@@ -72,7 +72,9 @@ export function profileStats() {
   const xp = Math.max(X.score.points, me?.xp || 0);
   const lvl = levelFor(xp);
   const recs = [...X.prs.values()].reduce((a, b) => a + b, 0);
-  const power = Math.round(Math.sqrt(totalVol) * 10 + recs * 25 + st.current * 150 + st.longest * 50);
+  // Kampfkraft wie EP: nur zählende Workouts (keine Importe, nichts vor „EP zählen ab“)
+  const countVol = sum(asc.filter((w) => countsW(w)), (w) => wStats.get(w.id).volume);
+  const power = Math.round(Math.sqrt(countVol) * 10 + recs * 25 + st.current * 150 + st.longest * 50);
   return { st, totalVol, sets, xp, ...lvl, power, prs: recs, stage: stageFor(st.current), score: X.score };
 }
 

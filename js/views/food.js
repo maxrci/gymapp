@@ -15,6 +15,7 @@ import { coachOn, bodyComplete } from '../coach/core.js';
 import { weekPlan } from '../coach/plan.js';
 import { nutrition } from '../coach/nutrition.js';
 import { openCoachSetup } from '../coach/setup.js';
+import { stepsOn, stepsKcal } from '../steps.js';
 
 const ui = { day: null };
 let rerenderRef = null;
@@ -23,12 +24,15 @@ let foodReady = false;
 loadFood().then(() => { foodReady = true; });
 
 // Ziele und Verbrauch für einen Tag
+const kgNow = () => Number(state.settings.bodyweight) || 75;
 export function foodTargets(t = Date.now()) {
   const n = bodyComplete() ? nutrition(coachOn() ? weekPlan() : null, t) : null;
   const goal = Number(state.settings.foodGoal) || n?.kcal || null;
-  const burned = n ? Math.round(n.base + n.items.filter((i) => i.done).reduce((a, i) => a + i.kcal, 0)) : null;
+  // Schritte bekannt? Dann Grundumsatz × 1,2 (sitzend) + Schritte statt pauschalem Alltagsfaktor
+  const st = stepsOn(dayId(t));
+  const burned = n ? Math.round((st != null ? n.bmr * 1.2 + stepsKcal(st, kgNow()) : n.base) + n.items.filter((i) => i.done).reduce((a, i) => a + i.kcal, 0)) : null;
   const sc = n && goal ? goal / n.kcal : 1;
-  return { goal, burned, n, protein: n ? Math.round(n.protein * sc) : null, carbs: n ? Math.round(n.carbs * sc) : null, fat: n ? Math.round(n.fat * sc) : null };
+  return { goal, burned, steps: st, n, protein: n ? Math.round(n.protein * sc) : null, carbs: n ? Math.round(n.carbs * sc) : null, fat: n ? Math.round(n.fat * sc) : null };
 }
 
 const ring = (val, goal) => {
@@ -63,7 +67,7 @@ export function foodView() {
       ${ring(tot.kcal, T.goal)}
       <div class="fd-side">
         ${T.goal ? `<div class="fd-rest"><small>${tot.kcal > T.goal ? 'Über dem Ziel' : 'Noch übrig'}</small><b>${num(Math.abs(T.goal - tot.kcal), 0)} kcal</b></div>` : ''}
-        ${T.burned ? `<div class="fd-burn"><small>Verbraucht${isToday ? ' bisher' : ''}</small><b>${num(T.burned, 0)} kcal</b></div>` : ''}
+        ${T.burned ? `<div class="fd-burn"><small>Verbraucht${isToday ? ' bisher' : ''}</small><b>${num(T.burned, 0)} kcal</b>${T.steps != null ? `<small>inkl. ${num(T.steps, 0)} Schritte</small>` : ''}</div>` : ''}
       </div>
       <div class="fd-macros">${macro('Eiweiß', tot.protein, T.protein, 'p')}${macro('Kohlenhydrate', tot.carbs, T.carbs, 'c')}${macro('Fett', tot.fat, T.fat, 'f')}</div>
       ${T.n ? `<button class="link-btn sm" data-act="why">${icon('info', 'xs')} So rechnet der Coach</button>` : `<button class="btn ghost sm block" data-act="body">Körperdaten ergänzen – für Ziel und Verbrauch</button>`}

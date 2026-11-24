@@ -14,10 +14,11 @@ import {
 import { openChallengeEditor } from '../challengeEditor.js';
 import { startFight, chooseFight, fightSuggestions, catLabel, fmtCat, kingValue, fmtKing, startKingShowdown } from '../fight.js';
 import { exercisesView } from './exercises.js';
+import { liveView } from './live.js';
 import { lineChart, SERIES } from '../charts.js';
 import { loginFlow } from '../group.js';
 
-const TABS = [['season', 'Saison'], ['leaders', 'Wer führt?'], ['kings', 'Könige'], ['alltime', 'Ewig'], ['exercises', 'Übungen'], ['challenges', 'Challenges'], ['members', 'Mitglieder']];
+const TABS = [['season', 'Saison'], ['live', 'Live'], ['leaders', 'Wer führt?'], ['kings', 'Könige'], ['alltime', 'Ewig'], ['exercises', 'Übungen'], ['challenges', 'Challenges'], ['members', 'Mitglieder']];
 const ui = { cat: 'workouts', rel: false, kp: 'season' };
 let lastFetch = 0;
 
@@ -71,7 +72,7 @@ export function leagueView({ tab = 'season' }) {
       onShow: refresh,
     };
   }
-  const views = { season, leaders, kings, alltime, challenges, members };
+  const views = { season, live: liveView, leaders, kings, alltime, challenges, members };
   const v = (views[tab] || season)(g);
   return {
     html: `${pageHead(g.group || 'Arena', { sub: `${g.members.length} Mitglieder` })}${g.demo ? demoBanner() : ''}${switcher}${tabs}${v.html}`,
@@ -269,6 +270,7 @@ function kings(g) {
   const LOW = { race: 'Rentner', lift: 'Plattgedrückt', stretch: 'Steif' };
   const html = `
     <div class="filter-row">${chips(PL, per, 'data-kp')}</div>
+    <p class="footnote">${per === 'all' ? 'Ewig: alle Workouts, auch importierte aus der Zeit vor der App.' : 'Nur was in der App getrackt wurde – importierte Workouts zählen hier nicht.'}</p>
     ${KINGS.map((k) => {
       const rows = g.members.map((m) => ({ m, v: kingValue(st[m.id], k.key) })).sort((a, b) => b.v - a.v);
       const top = rows[0]?.v || 0;
@@ -317,6 +319,7 @@ function alltime(g) {
   };
   const best = rows[0]?.v || 1;
   const html = `
+    <p class="footnote">Ewige Tabelle: alle Workouts, auch importierte aus der Zeit vor der App (Strava ausgenommen).</p>
     <div class="chips scroll">${ALLTIME.map((c) => `<button class="chip ${c.key === cat.key ? 'on' : ''}" data-cat="${c.key}">${esc(c.label)}</button>`).join('')}</div>
     ${cat.strength ? `<div class="rel-row"><div class="rel-switch"><button class="${rel ? '' : 'on'}" data-arel="0">kg</button><button class="${rel ? 'on' : ''}" data-arel="1">× KG</button></div></div>` : ''}
     <section class="card">

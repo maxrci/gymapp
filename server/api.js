@@ -9,6 +9,7 @@ import { cleanSummary } from './summary.js';
 import * as strava from './strava.js';
 import * as G from './groups.js';
 import * as food from './food.js';
+import * as push from './push.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import * as garmin from './garmin.js';
@@ -322,6 +323,86 @@ export function makeApi(D, cfg) {
   on('PATCH', '/api/groups/:id/members/:uid', 'user', ({ me, params, body }) => { const r = gx(() => G.setMemberRole(D, me, params.id, params.uid, body.role)); bump(); return r; });
   on('DELETE', '/api/groups/:id/members/:uid', 'user', ({ me, params }) => { const r = gx(() => G.removeMember(D, me, params.id, params.uid)); bump(); return r; });
   on('DELETE', '/api/groups/:id', 'user', ({ me, params }) => { const r = gx(() => G.deleteGroup(D, me, params.id)); bump(); return r; });
+
+  // ---- Live: wer trainiert gerade? (nur im Speicher, nur wenn in der Gruppe „Live zeigen“ an ist) ----
+  const live = new Map(); // userId → { kind, exercise, since, at }
+  const LIVE_KINDS = new Set(['gym', 'cardio', 'mobility']);
+  on('POST', '/api/presence', 'user', ({ me, body }) => {
+    if (!body.active) { live.delete(me.id); return { ok: true }; }
+    const since = Number(body.since);
+    live.set(me.id, {
+      kind: LIVE_KINDS.has(body.kind) ? body.kind : 'gym', exercise: str(body.exercise, 60),
+      since: Number.isFinite(since) && since > Date.now() - 12 * 3600e3 ? since : Date.now(), at: Date.now(),
+    });
+    if (live.size > 5000) for (const [k, v] of live) if (v.at < Date.now() - 120000) live.delete(k);
+    return { ok: true };
+  });
+  on('GET', '/api/live', 'user', ({ me, url }) => {
+    const gid = groupFor(me, url);
+    if (!gid) return { members: [] };
+    const fresh = Date.now() - 90000; // Herzschlag alle 30 s – nach 90 s ohne Meldung gilt man als fertig
+    const rows = D.all(`SELECT u.id, u.name, u.profile, m.share FROM group_members m JOIN users u ON u.id = m.user_id
+      WHERE m.group_id = ? AND m.status = 'member' AND u.disabled = 0 ORDER BY m.joined`, gid);
+    const g = groupData(D, gid);
+    return { now: Date.now(), members: rows.map((r) => {
+      const share = G.cleanShare(parse(r.share, null));
+      const p = live.get(r.id);
+      const on = share.live && p && p.at > fresh;
+      const m = g.members.find((x) => x.id === r.id);
+      return { id: r.id, name: r.name, look: parse(r.profile, {})?.avatar || null, stage: m?.stage || 0, active: !!on, ...(on ? { kind: p.kind, exercise: p.exercise, since: p.since } : {}) };
+    }) };
+  });
+
+  // ---- Schritte (Apple Health über einen iOS-Kurzbefehl, Android z. B. per Automatisierung) ----
+  // Eigener Schlüssel, der NUR Schritte melden kann – falls er in einem Kurzbefehl landet, ist sonst nichts zugänglich.
+  on('POST', '/api/steps/key', 'user', ({ me, req }) => {
+    const key = `st_${newToken()}`;
+    D.run('UPDATE users SET steps_key = ? WHERE id = ?', sha(key), me.id);
+    return { key, url: `${publicBase(req, cfg)}/api/steps` };
+  });
+  on('DELETE', '/api/steps/key', 'user', ({ me }) => { D.run('UPDATE users SET steps_key = NULL WHERE id = ?', me.id); return { ok: true }; });
+  on('POST', '/api/steps', null, ({ req, body }) => {
+    const ip = clientIp(req);
+    if (rateLimited(`steps:${ip}`, 20)) fail(429, 'Zu viele Versuche.');
+    const m = /^Bearer (st_[A-Za-z0-9_-]{20,})$/.exec(req.headers.authorization || '') || [null, typeof body.key === 'string' ? body.key : ''];
+    const u = m[1] && D.get('SELECT id FROM users WHERE steps_key = ? AND disabled = 0', sha(m[1]));
+    if (!u) { noteFail(`steps:${ip}`); fail(401, 'Schritte-Schlüssel ungültig'); }
+    if (tooMany(`stepsu:${u.id}`, 60, 3600e3)) fail(429, 'Zu viele Meldungen.');
+    const days = Array.isArray(body.days) ? body.days : [{ date: body.date, steps: body.steps }];
+    let n = 0;
+    for (const d of days.slice(0, 31)) {
+      const now = new Date();
+      const local = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const day = /^\d{4}-\d{2}-\d{2}$/.test(String(d?.date || '')) ? d.date : local;
+      // „8.432“ / „8,432“ (Tausenderpunkt) oder „8432,0“ / „8432.0“ (Dezimal) – Kurzbefehle liefern je nach Sprache verschieden
+      const raw = String(d?.steps ?? '').trim().replace(/\s/g, '');
+      const st = Math.round(/^\d{1,3}([.,]\d{3})+$/.test(raw) ? Number(raw.replace(/[.,]/g, '')) : Number(raw.replace(',', '.')));
+      if (!Number.isFinite(st) || st < 0 || st > 150000) continue;
+      D.run('INSERT INTO steps (user_id, day, steps, updated) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, day) DO UPDATE SET steps = excluded.steps, updated = excluded.updated', u.id, day, st, Date.now());
+      n++;
+    }
+    return { ok: true, saved: n };
+  });
+  on('GET', '/api/steps', 'user', ({ me, url }) => {
+    const from = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('from') || '') ? url.searchParams.get('from') : '2000-01-01';
+    return { connected: !!D.get('SELECT steps_key FROM users WHERE id = ?', me.id)?.steps_key, days: D.all('SELECT day, steps FROM steps WHERE user_id = ? AND day >= ? ORDER BY day', me.id, from) };
+  });
+
+  // ---- Mitteilungen (Web-Push), z. B. „Pause vorbei“ ----
+  const pushSubject = (req) => (/^https:/.test(publicBase(req, cfg)) ? publicBase(req, cfg) : 'https://localhost');
+  on('GET', '/api/push/key', 'user', () => ({ key: push.vapidPublic(D) }));
+  on('POST', '/api/push/subscribe', 'user', ({ me, body }) => { gx(() => push.subscribe(D, me.id, body.subscription)); return { ok: true }; });
+  on('DELETE', '/api/push/subscribe', 'user', ({ me, body }) => { push.unsubscribe(D, me.id, body?.endpoint); return { ok: true }; });
+  on('POST', '/api/push/rest', 'user', ({ me, body, req }) => {
+    if (body.cancel) { push.cancelRest(me.id); return { ok: true }; }
+    if (tooMany(`rest:${me.id}`, 120, 3600e3)) fail(429, 'Zu viele Timer.');
+    const ok = push.scheduleRest(D, me.id, Number(body.at), { title: str(body.title, 80) || 'Pause vorbei', body: str(body.body, 140) || 'Weiter geht’s mit dem nächsten Satz.', tag: 'rest' }, pushSubject(req));
+    return { ok };
+  });
+  on('POST', '/api/push/test', 'user', async ({ me, req }) => {
+    if (tooMany(`ptest:${me.id}`, 5, 60000)) fail(429, 'Bitte kurz warten.');
+    return { sent: await push.sendPush(D, me.id, { title: 'Gym', body: 'Mitteilungen funktionieren 💪', tag: 'test' }, pushSubject(req)) };
+  });
 
   // ---- Lebensmittel (Open Food Facts über den Server) ----
   on('GET', '/api/food/search', 'user', async ({ me, url }) => {

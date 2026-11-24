@@ -138,6 +138,20 @@ export function openDb(dir) {
       created INTEGER NOT NULL,
       PRIMARY KEY (a, b)
     );
+    CREATE TABLE IF NOT EXISTS steps (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      day TEXT NOT NULL,
+      steps INTEGER NOT NULL,
+      updated INTEGER NOT NULL,
+      PRIMARY KEY (user_id, day)
+    );
+    CREATE TABLE IF NOT EXISTS push_subs (
+      endpoint TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      created INTEGER NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS app_config (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,
@@ -198,6 +212,8 @@ export function openDb(dir) {
   if (!cols.includes('prefs')) db.exec('ALTER TABLE users ADD COLUMN prefs TEXT');
   // Migration (v3.13.1): EP zählen erst ab diesem Zeitpunkt (ältere Workouts nur privat)
   if (!cols.includes('count_from')) db.exec('ALTER TABLE users ADD COLUMN count_from INTEGER NOT NULL DEFAULT 0');
+  // Migration (v3.15): eigener Schlüssel nur für Schritte (Kurzbefehl auf dem iPhone)
+  if (!cols.includes('steps_key')) db.exec('ALTER TABLE users ADD COLUMN steps_key TEXT');
   if (!cols.includes('prefs_updated')) db.exec('ALTER TABLE users ADD COLUMN prefs_updated INTEGER NOT NULL DEFAULT 0');
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS users_username ON users (username) WHERE username IS NOT NULL');
 

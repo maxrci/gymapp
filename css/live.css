@@ -1,0 +1,56 @@
+/* Live-Arena (3D per CSS-Transforms) */
+.live-view { display: grid; gap: 10px; }
+.lv-head { font-weight: 700; text-align: center; padding: 6px 0 0; color: var(--text-2); }
+.lv-head.on { color: var(--accent); }
+.lv-head.on::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-right: 8px; animation: lv-pulse 1.4s infinite; }
+@keyframes lv-pulse { 50% { opacity: .25; transform: scale(.7); } }
+.lv-fit { width: 100%; max-width: 575px; margin: 0 auto; position: relative; }
+.lv-scene { position: absolute; left: 50%; top: 0; margin-left: -230px; transform-origin: 50% 0; overflow: hidden; border-radius: 18px; background: #1b2140; isolation: isolate;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .35), inset 0 0 0 1px var(--line-2); }
+.lv-sky { position: absolute; inset: 0; background:
+  radial-gradient(60% 28% at 50% 46%, rgba(255, 214, 140, .85), transparent 70%),
+  linear-gradient(#1d2a55 0%, #5b4f86 26%, #d2788a 44%, #f2a368 56%, #f7cf86 66%, #7a5a45 67%, #4a3626 100%); }
+.lv-view { position: absolute; inset: 0; perspective: 1050px; perspective-origin: 50% 20%; }
+.lv-cam { position: absolute; inset: 0; transform-style: preserve-3d; animation: lv-sway 12s ease-in-out infinite alternate; }
+@keyframes lv-sway { from { transform: rotateY(-5deg); } to { transform: rotateY(5deg); } }
+.lv-world { position: absolute; left: 50%; top: 64%; width: 0; height: 0; transform-style: preserve-3d; transform: scale(1.12) rotateX(62deg); }
+
+/* Sand */
+.lv-sand { position: absolute; width: 300px; height: 210px; left: -150px; top: -105px; border-radius: 50%;
+  background:
+    radial-gradient(circle at 30% 40%, rgba(120, 80, 30, .22) 0 1px, transparent 1.5px) 0 0 / 7px 9px,
+    radial-gradient(circle at 70% 60%, rgba(255, 245, 210, .35) 0 1px, transparent 1.5px) 3px 4px / 9px 7px,
+    radial-gradient(ellipse at 45% 62%, #efd9a6 0%, #dcbf85 55%, #b8935a 100%);
+  box-shadow: inset 0 -34px 40px -10px rgba(70, 40, 10, .45), inset 0 26px 40px 4px rgba(50, 25, 5, .55), 0 0 0 5px #6b4a2c; }
+.lv-lines { position: absolute; inset: 0; border-radius: 50%; background: repeating-linear-gradient(90deg, rgba(120, 80, 30, .08) 0 14px, transparent 14px 28px); }
+.lv-mat { position: absolute; left: 50%; top: 50%; width: 130px; height: 130px; margin: -65px; border-radius: 50%; border: 3px solid color-mix(in srgb, var(--accent) 55%, #f4e6c0); opacity: .75; }
+.lv-step { position: absolute; left: 0; top: 0; border-radius: 50%; }
+
+/* Mauer: Segmente mit Arkaden */
+.lv-seg { position: absolute; left: 0; transform-origin: 50% 100%; display: flex; flex-direction: column; backface-visibility: hidden;
+  background: linear-gradient(90deg, #d6b987, #e8d3a4 50%, #d0b17c); }
+.lv-seg::after { content: ""; position: absolute; inset: 0; background: rgba(40, 14, 0, var(--s, .2)); pointer-events: none; }
+.lv-seg .att { flex: 0 0 24px; background: repeating-linear-gradient(0deg, rgba(110, 70, 30, .14) 0 1px, transparent 1px 8px), linear-gradient(#cdb078, #e0c995); border-bottom: 3px solid #f0dfb4; box-shadow: 0 3px 4px rgba(60, 30, 5, .4); position: relative; }
+.lv-seg .att::before { content: ""; position: absolute; left: 38%; width: 24%; top: 6px; height: 10px; background: #4a2f1a; box-shadow: inset 0 2px 3px #000; }
+.lv-seg .t { flex: 1; position: relative; background: repeating-linear-gradient(0deg, rgba(110, 70, 30, .12) 0 1px, transparent 1px 7px); border-bottom: 3px solid #f2e2b8; box-shadow: 0 3px 3px rgba(60, 30, 5, .35); }
+.lv-seg .t b { position: absolute; left: 20%; right: 20%; top: 16%; bottom: 0; border-radius: 50% 50% 0 0 / 38% 38% 0 0; background: linear-gradient(#1f120a, #5a3b24); box-shadow: inset 0 5px 8px rgba(0, 0, 0, .7), 0 0 0 2px rgba(255, 236, 190, .45); }
+.lv-seg .t.g b { top: 10%; left: 16%; right: 16%; }
+
+/* Figuren */
+.lv-pl { position: absolute; left: 0; top: 0; transform: translate3d(var(--x), var(--y), var(--z, 0px)); transform-style: preserve-3d; }
+.lv-sh { position: absolute; left: -26px; top: -9px; width: 52px; height: 18px; border-radius: 50%; background: radial-gradient(closest-side, rgba(60, 30, 5, .6), transparent); }
+.lv-bb { position: absolute; left: -48px; bottom: 0; width: 96px; height: 96px; transform-origin: 50% 100%; transform: rotateX(-62deg); }
+.lv-pl.fan .lv-bb { left: -22px; width: 44px; height: 33px; }
+.lv-fig { width: 96px; height: 96px; padding: 0; border: 0; background: none; cursor: pointer; display: block; filter: drop-shadow(0 4px 4px rgba(0, 0, 0, .3)); }
+.lv-fig svg, .lv-fan svg { width: 100%; height: 100%; overflow: visible; display: block; }
+.lv-fan { position: relative; width: 44px; height: 33px; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; animation: lv-hop .6s ease-in-out infinite; animation-delay: var(--d, 0s); }
+.lv-fan .lv-nm { display: none; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); white-space: nowrap; font-size: 11px; background: var(--surface); color: var(--text); padding: 1px 6px; border-radius: 8px; z-index: 5; }
+.lv-fan:active .lv-nm, .lv-fan:focus-visible .lv-nm { display: block; }
+@keyframes lv-hop { 50% { transform: translateY(-4px); } }
+.lv-tag { position: absolute; left: 50%; bottom: 84%; transform: translateX(-50%); white-space: nowrap; background: color-mix(in srgb, var(--surface) 90%, transparent); color: var(--text); border: 1px solid var(--accent); border-radius: 10px; padding: 0 6px 1px; text-align: center; line-height: 1.15; pointer-events: none; box-shadow: 0 2px 8px rgba(0, 0, 0, .4); }
+.lv-tag b { display: block; font-size: 9px; } .lv-tag small { font-size: 7.5px; color: var(--text-2); }
+.lv-vig { position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 60px rgba(20, 8, 30, .55); border-radius: 18px; }
+.lv-scene.still .lv-cam, .lv-scene.still .lv-fan { animation: none; }
+.lv-scene.paused .lv-cam, .lv-scene.paused .lv-fan { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) { .lv-cam, .lv-fan, .lv-head.on::before { animation: none; } }
+.lv-fan svg { overflow: hidden; }

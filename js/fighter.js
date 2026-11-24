@@ -3,6 +3,7 @@
 // Muskelmasse wächst, ab Stufe 3 Aura, ab 5 goldene Haare, ab 6 zerrissener Anzug + Blitze.
 
 import { getLook, normLook, palette } from './look.js';
+import { activeEventHat } from './events.js';
 
 let uidc = 0;
 const SKIN = '#f3c9a0';
@@ -188,7 +189,7 @@ export function fighterSVG(stage = 0, { powerUp = false, cls = '', intro = false
   }
 
   // Mit Hut (außer Stirnband): Haare nur als Pony/Strähnen unter dem Hut
-  const hat = L.items.hat;
+  const hat = L.items.hat || activeEventHat(); // Event-Hut nur zur Anzeige, Look bleibt unverändert
   if (hat && hat !== 'headband') {
     const bang = fem ? '' : `<path d="M88,${hy - 12} L92,${hy - 1} L98,${hy - 13} L101,${hy - 3} L106,${hy - 14} L112,${hy - 2} L113,${hy - 13} Z" fill="${hairCol}"/>`;
     const side = fem

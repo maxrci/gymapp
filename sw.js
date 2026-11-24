@@ -1,5 +1,5 @@
 // Service Worker: App offline verfügbar machen (stale-while-revalidate)
-const CACHE = 'gymlog-v3.14.0';
+const CACHE = 'gymlog-v3.15.0';
 const ASSETS = [
   './',
   'index.html',
@@ -9,6 +9,8 @@ const ASSETS = [
   'css/stats.css',
   'css/scanner.css',
   'css/mobility.css',
+  'css/events.css',
+  'css/live.css',
   'js/actions.js',
   'js/ai.js',
   'js/app.js',
@@ -61,6 +63,12 @@ const ASSETS = [
   'js/food.js',
   'js/views/food.js',
   'js/mobilityBuilder.js',
+  'js/presence.js',
+  'js/steps.js',
+  'js/push.js',
+  'js/nowplaying.js',
+  'js/events.js',
+  'js/views/live.js',
   'js/views/history.js',
   'js/garmin.js',
   'js/store.js',
@@ -130,4 +138,20 @@ self.addEventListener('fetch', (e) => {
     if (cached) { e.waitUntil(network); return cached; }
     return (await network) || new Response('Offline', { status: 503 });
   })());
+});
+
+// Mitteilungen vom eigenen Server (z. B. „Pause vorbei“)
+self.addEventListener('push', (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch { d = { title: 'Gym', body: e.data ? e.data.text() : '' }; }
+  e.waitUntil(self.registration.showNotification(String(d.title || 'Gym').slice(0, 80), {
+    body: String(d.body || '').slice(0, 160), tag: String(d.tag || 'gym'), renotify: true, icon: 'icons/icon-192.png', badge: 'icons/icon-192.png', vibrate: [200, 100, 200],
+  }));
+});
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+    const c = list.find((x) => 'focus' in x);
+    return c ? c.focus() : self.clients.openWindow('./');
+  }));
 });

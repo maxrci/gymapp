@@ -18,8 +18,10 @@ export function prepUsers(users) {
     // sums = was andere sehen dürfen: ohne Historie (h) und ohne Strava (ext, zählt nur als XP)
     const el = eligible(all);
     const sums = all.filter((s) => !s.ext && !s.h);
+    // hist = alles für „Ewig“: auch alte Importe (Historie), aber nie Strava (zählt nur als EP)
+    const hist = all.filter((s) => !s.ext);
     return {
-      ...u, profile, sums, all, el, prs: xpScoreRecords(el), // Rekorde neu ab dem ersten zählenden Workout
+      ...u, profile, sums, all, el, hist, prs: xpScoreRecords(el), // Rekorde neu ab dem ersten zählenden Workout
       goal: Math.max(1, Math.min(14, profile.weekGoal || 3)),
       bwLog: Array.isArray(profile.bwLog) ? profile.bwLog : [],
     };
@@ -68,7 +70,7 @@ export function buildGroup(rawUsers, rawChallenges, now = Date.now(), points = n
     return {
       id: u.id, name: u.name, role: u.role, look: u.profile.avatar || null, visibility: visOf(u.profile),
       stage: st.stage, stageName: STAGE_NAMES[st.stage], streak: st.current, longest: st.longest, goal: u.goal,
-      thisWeek: st.thisWeek, workouts: u.sums.length, lastWorkout: last?.start || null, npc: !!u.npc,
+      thisWeek: st.thisWeek, workouts: u.hist.length, lastWorkout: last?.start || null, npc: !!u.npc,
       xp: score(u, 0, Infinity).points,
     };
   });
@@ -106,11 +108,12 @@ export function buildGroup(rawUsers, rawChallenges, now = Date.now(), points = n
   for (const u of users) {
     kings.month[u.id] = kingStats(u.sums, u.bwLog, from, to);
     kings.season[u.id] = kingStats(u.sums, u.bwLog, yFrom, yTo);
-    kings.all[u.id] = kingStats(u.sums, u.bwLog);
+    kings.all[u.id] = kingStats(u.hist, u.bwLog); // Ewig: inkl. alter Importe
   }
   const exercises = Object.fromEntries(users.map((u) => [u.id, exerciseBests(u.sums, u.bwLog)]));
 
-  const alltime = Object.fromEntries(users.map((u) => [u.id, alltimeStats(u.sums, u.bwLog, u.goal)]));
+  // Ewige Tabelle: alle Workouts inkl. alter Importe; Saison, Monat, Könige (Monat/Saison), Challenges: nur in der App Getracktes
+  const alltime = Object.fromEntries(users.map((u) => [u.id, alltimeStats(u.hist, u.bwLog, u.goal)]));
 
   // Verläufe der letzten 12 Monate: wer führt wo, und wie haben sich alle entwickelt (nur in der App Getracktes)
   const mStarts = Array.from({ length: 12 }, (_, i) => addMonths(from, i - 11));

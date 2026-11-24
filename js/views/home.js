@@ -17,6 +17,7 @@ import { nutrition } from '../coach/nutrition.js';
 import { openCoachSetup } from '../coach/setup.js';
 import { startPlanned } from './plan.js';
 import { foodTargets } from './food.js';
+import { stepsOn } from '../steps.js';
 import { dayOf, dayId, totals } from '../food.js';
 
 // Geplante Einheiten pro Wochentag (AI-Coach)
@@ -163,7 +164,7 @@ export function homeView() {
     ${ws.length ? `<section class="card week-card">
       <div class="week-top">
         <div><small>Diese Woche</small><div class="week-count"><b>${thisWeek.length}</b><span>/ ${goal} Workouts</span></div></div>
-        <div class="week-meta col"><span>${icon('weight', 'xs')} ${fmtVolume(vol)}</span><span>${icon('clock', 'xs')} ${fmtDurShort(dur)}</span></div>
+        <div class="week-meta col"><span>${icon('weight', 'xs')} ${fmtVolume(vol)}</span><span>${icon('clock', 'xs')} ${fmtDurShort(dur)}</span>${stepsOn() != null ? `<span>${icon('heart', 'xs')} ${num(stepsOn(), 0)} Schritte</span>` : ''}</div>
       </div>
       <div class="week-dots">${WEEKDAYS.map((d, i) => `<div class="wd ${days.has(i) ? 'on' : ''} ${i === today ? 'today' : ''}"><i>${days.has(i) ? icon('check') : ''}</i><span>${d}</span></div>`).join('')}</div>
       <div class="week-bar"><i style="width:${Math.min(100, (thisWeek.length / goal) * 100)}%"></i></div>
