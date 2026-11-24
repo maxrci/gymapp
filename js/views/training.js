@@ -29,11 +29,12 @@ function weekNumbers() {
   return { cardio: Math.round(cardio), mob: Math.round(mob), gym };
 }
 import { openCardioSetup, openMobilitySetup, hasGuided, resumeGuided } from '../guided.js';
-import { coachOn, SPORTS, goalW, goalC } from '../coach/core.js';
+import { coachOn, workoutCoachOn, cardioCoachOn, SPORTS, goalW, goalC } from '../coach/core.js';
+import { masterSlot, mountMasters } from '../master.js';
 import { openCoachSetup } from '../coach/setup.js';
 import { weekPlan, nextSession } from '../coach/plan.js';
-import { startPlanned } from './plan.js';
-import { WEEKDAYS } from '../utils.js';
+import { startPlanned, musclesOf } from './plan.js';
+import { WEEKDAYS, weekday } from '../utils.js';
 
 const pctCls = (r) => (r >= 0.8 ? 'good' : r >= 0.5 ? 'warn' : 'crit');
 
@@ -46,18 +47,6 @@ function coachHtml() {
   const progress = stag.filter((s) => s.status === 'progress');
   const rmVals = Object.fromEntries(Object.entries(nw.readiness).map(([m, v]) => [m, v.readiness]));
   return `
-    <section class="card coach">
-      <div class="coach-head"><span class="ai-badge">AI</span><b>Nächstes Training</b><span class="demo-tag sm">DEMO</span></div>
-      <div class="coach-when">${esc(nw.whenText)}</div>
-      <div class="coach-goal">${esc(nw.goalText)}</div>
-      <div class="coach-best">
-        <div><small>Empfohlen</small><b>${esc(b.name)}</b><small>Fokus: ${esc(b.focus.join(', '))}${b.lastDone ? ` · zuletzt ${esc(fmtRelDay(b.lastDone))}` : ''}</small></div>
-        <div class="ready-pill ${pctCls(b.ready)}">${num(b.ready * 100, 0)} %<small>erholt</small></div>
-      </div>
-      <button class="btn primary block" data-act="coach-start" data-name="${esc(b.name)}">${icon('play', 'xs')} ${esc(b.name)} starten</button>
-      ${nw.list.length > 1 ? `<div class="list-label">Weitere Optionen</div>
-        ${nw.list.slice(1, 5).map((c) => `<div class="cand"><span>${esc(c.name)}</span><div class="cand-bar"><i class="${pctCls(c.ready)}" style="width:${Math.round(c.ready * 100)}%"></i></div><b>${num(c.ready * 100, 0)} %</b></div>`).join('')}` : ''}
-    </section>
     <section class="card">
       <div class="card-title">Erholung pro Muskel</div>
       <p class="footnote">Modell: Jeder Arbeitssatz ermüdet den Muskel, die Ermüdung baut sich über ca. 2–3 Tage ab.</p>
@@ -78,16 +67,46 @@ function coachHtml() {
     </section>`;
 }
 
-function planCard() {
+// Eine Karte für den AI-Coach: Meister-Animation, darunter das nächste Training (nur ein Start-Button)
+function coachHero() {
   if (!coachOn()) return '';
+  const kinds = [workoutCoachOn() && 'gym', cardioCoachOn() && 'cardio'].filter(Boolean);
   const plan = weekPlan();
-  const nx = nextSession(plan);
-  if (!plan.sessions.length) return `<a class="card coach-mini" href="#/plan"><span class="ai-badge">AI</span><div><b>Trainingsplan erstellen</b><small>Ziel festlegen – der Coach plant deine Woche</small></div>${icon('right', 'muted')}</a>`;
-  const t = nx ? (nx.kind === 'gym' ? nx.title : `${SPORTS[nx.sport].label} · ${nx.title}`) : 'Woche geschafft!';
-  return `<section class="card coach plan-mini">
-    <div class="coach-head"><span class="ai-badge">AI</span><b>Dein Plan</b><span class="demo-tag sm">DEMO</span></div>
-    <div class="coach-best"><div><small>${nx ? `Als Nächstes · ${esc(WEEKDAYS[nx.day] || '')}` : `${plan.doneCount}/${plan.total} erledigt`}</small><b>${esc(t)}</b><small>${nx ? esc(nx.kind === 'gym' ? nx.exercises.map((e) => e.name).slice(0, 4).join(' · ') : nx.sub) : 'Alles Weitere ist Bonus'}</small></div></div>
-    <div class="row-btns">${nx ? `<button class="btn primary" data-act="plan-go" data-sid="${esc(nx.id)}">${icon('play', 'xs')} Starten</button>` : ''}<a class="btn ghost" href="#/plan">Ganze Woche</a></div>
+  const today = weekday(Date.now());
+  const dayLabel = (d) => (d === today ? 'heute' : d === today + 1 ? 'morgen' : WEEKDAYS[d]);
+  let small = 'Nächstes Training', title = '', sub = '', start = '', bubble = '';
+  if (plan.sessions.length) {
+    const nx = nextSession(plan);
+    if (nx) {
+      small += ` · ${dayLabel(nx.day)}`;
+      title = nx.kind === 'gym' ? nx.title : `${SPORTS[nx.sport].label} · ${nx.title}`;
+      sub = nx.kind === 'gym' ? `${nx.exercises.length} Übungen · ${musclesOf(nx)}` : nx.sub;
+      start = `<button class="btn primary" data-act="plan-go" data-sid="${esc(nx.id)}">${icon('play', 'xs')} Starten</button>`;
+    } else { title = 'Woche geschafft!'; sub = `${plan.doneCount}/${plan.total} Einheiten erledigt – alles Weitere ist Bonus`; }
+    const ph = plan.gym?.phase || plan.cardio?.phase;
+    bubble = plan.notes.length ? 'Willkommen zurück! Wir starten locker – die Kraft kommt schnell wieder.'
+      : nx && nx.day === today ? `Heute wird trainiert! ${ph?.text || ''}`.trim()
+        : nx ? 'Heute Ruhetag – auch Erholung macht stark.' : 'Starke Woche! Genieß die Erholung.';
+  } else if (workoutCoachOn() && state.workouts.length && nextWorkout()) {
+    const nw = nextWorkout();
+    title = nw.best.name;
+    sub = nw.whenText;
+    start = `<button class="btn primary" data-act="coach-start" data-name="${esc(nw.best.name)}">${icon('play', 'xs')} Starten</button>`;
+    bubble = 'Leg ein Ziel fest – dann plane ich deine ganze Woche.';
+  } else {
+    title = 'Ziel festlegen';
+    sub = 'Der Coach erstellt daraus deinen Wochenplan';
+    start = `<a class="btn primary" href="#/plan">${icon('target', 'xs')} Los geht\'s</a>`;
+    bubble = 'Sag mir, wohin du willst – ich zeige dir den Weg.';
+  }
+  return `<section class="card coach-hero">
+    <div class="ch-head"><span class="ai-badge">AI</span><b>AI Coach</b><span class="demo-tag sm">DEMO</span></div>
+    <div class="ch-stage n${kinds.length}">
+      ${bubble ? `<div class="ch-bubble">${esc(bubble)}</div>` : ''}
+      <div class="ch-masters">${kinds.map((k) => masterSlot(k, kinds.length > 1)).join('')}</div>
+    </div>
+    <div class="ch-next"><small>${esc(small)}</small><b>${esc(title)}</b><small>${esc(sub)}</small></div>
+    <div class="row-btns">${start}${plan.sessions.length ? '<a class="btn ghost" href="#/plan">Ganze Woche</a>' : ''}</div>
     <button class="link-btn sm plan-edit" data-act="coach-goals">${icon('edit', 'xs')} Ziele & Einstellungen ändern</button>
   </section>`;
 }
@@ -122,7 +141,7 @@ export function trainingView() {
       <button class="t-tile cardio" data-act="cardio"><i class="tt-fx"></i><div class="tt-fig" data-tfig="sprint"></div><b>Cardio</b><small>Lauf allen davon</small><em>${wk.cardio ? `Woche: ${wk.cardio} Min.` : 'Intervalle'}</em></button>
       <button class="t-tile mobility" data-act="mobility"><i class="tt-fx"></i><div class="tt-fig" data-tfig="splits"></div><b>Mobility</b><small>Geschmeidig wie ein Ninja</small><em>${wk.mob ? `Woche: ${wk.mob} Min.` : 'Geführt'}</em></button>
     </div>
-    ${planCard()}
+    ${coachHero()}
     ${ai && state.workouts.length ? coachHtml() : ''}
     <div class="section-row" id="gym-list"><h2 class="section-title">${icon('dumbbell')} Gym-Workouts</h2><button class="link-btn" data-act="new">${icon('plus', 'xs')} Neu</button></div>
     ${rs.length ? cards : emptyState('layers', 'Noch keine Routinen', 'Routinen sind Vorlagen für deine Workouts (z. B. Push, Pull, Beine).',
@@ -140,6 +159,7 @@ export function trainingView() {
       const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       root.querySelectorAll('[data-tfig]').forEach((h) => mountPose(h, h.dataset.tfig, { stage: Math.max(stg, 3), speed: reduce ? 0 : h.dataset.tfig === 'sprint' ? 1 : 0.8 }));
       mountBodyMaps(root);
+      mountMasters(root);
       stagData.forEach((s, i) => {
         const host = root.querySelector(`[data-stag="${i}"]`);
         if (host) lineChart(host, { series: [{ name: '1RM', points: s.series.map((q) => ({ x: q.date, y: q.bestE1rm })), color: s.status === 'decline' ? SERIES[7] : SERIES[3] }], height: 60, mini: true, yFmt: (v) => `${num(v, 1)} kg` });

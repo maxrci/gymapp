@@ -102,7 +102,44 @@ function weight(kind, p) {
   return '';
 }
 
+// ---------- Meister des AI-Coaches ----------
+let MASTER = null;
+let PH = 0;
+const MASTER_C = {
+  gym: { gi: '#5b2a86', giF: '#46206a', blue: '#e2b13c', blueF: '#b98d22', legs: '#2b2235', legsF: '#201a28', arm: '#e6b58c', armF: '#cc9b72', skin: '#e6b58c', skinF: '#cc9b72', fem: false },
+  cardio: { gi: '#0fa3b5', giF: '#0b8291', blue: '#f2f2f2', blueF: '#cfcfcf', legs: '#173647', legsF: '#112a37', arm: '#f0c39b', armF: '#d6a87f', skin: '#f0c39b', skinF: '#d6a87f', fem: false },
+};
+function masterHead(J) {
+  const rot = J.ha + 90;
+  const tr = `translate(${J.head[0].toFixed(1)},${J.head[1].toFixed(1)}) rotate(${rot.toFixed(1)})`;
+  if (MASTER === 'gym') {
+    // weiser Kraft-Meister: Glatze, weiße Seitenhaare, buschige Brauen, langer weißer Bart
+    return `<g transform="${tr}">
+      <path d="M-11,-3 Q-18,3 -13,12 L-8,6 Z" fill="#f2f2f2"/>
+      ${circ([0, 0], 12.5, C.skin)}
+      <ellipse cx="-3" cy="-7.5" rx="4.5" ry="2.2" fill="#fff" opacity=".35"/>
+      <path d="M-4,3 Q2,9 11,5 Q14,13 9,22 Q6,31 1,36 Q0,27 -3,22 Q-8,14 -4,3 Z" fill="#f4f4f4" stroke="#d6d6d6" stroke-width=".8"/>
+      <path d="M3,4 Q8,1 13,5 Q8,4 3,6 Z" fill="#fff"/>
+      <ellipse cx="6.5" cy="-0.5" rx="1.5" ry="1.9" fill="#222"/>
+      <path d="M1,-6 L12,-5.5 L11,-2.8 L2,-3.6 Z" fill="#fff"/>
+    </g>`;
+  }
+  // Tempo-Meister: nach hinten wehendes Silberhaar, Stirnband mit flatternden Bändern, kurzer Bart
+  const w = Math.sin(PH * Math.PI * 2 * 3);
+  return `<g transform="${tr}">
+    <path d="M-6,-10 L-32,${(-16 + w * 2).toFixed(1)} L-15,-6 L-36,${(-3 - w * 2).toFixed(1)} L-14,0 L-30,${(9 + w * 2).toFixed(1)} L-9,5 Z" fill="#e8ebf2"/>
+    ${circ([0, 0], 12, C.skin)}
+    <path d="M-12,-2 Q-8,-14 4,-12 Q12,-10 13,-3 L8,-6 Q0,-9 -6,-4 Z" fill="#e8ebf2"/>
+    <path d="M-12,-5 L12,-6 L12,-2 L-12,-1 Z" fill="#e0453a"/>
+    <path d="M-12,-3 Q-24,${(-6 + w * 4).toFixed(1)} -34,${(-2 - w * 3).toFixed(1)} M-12,-2 Q-22,${(2 - w * 3).toFixed(1)} -32,${(6 + w * 4).toFixed(1)}" stroke="#e0453a" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <path d="M2,6 Q7,11 11,6 Q9,13 4,12 Z" fill="#f2f2f2"/>
+    <ellipse cx="6" cy="1" rx="1.6" ry="2" fill="#222"/>
+    <path d="M3,-4 L10,-3.5" stroke="#f2f2f2" stroke-width="2" stroke-linecap="round"/>
+  </g>`;
+}
+
 function hair(J, gold) {
+  if (MASTER) return masterHead(J);
   const rot = J.ha + 90;
   const h = gold
     ? 'M-12,3 L-19,-8 L-11,-9 L-15,-25 L-6,-15 L-2,-31 L3,-16 L10,-27 L9,-13 L17,-16 L12,-5 L14,1 L6,-6 L0,-9 L-6,-6 Z'
@@ -122,6 +159,8 @@ function figure(J, M, stage) {
   const hold = M.hold;
   const leg = (k, gi, blue) => `${seg(J.hip, J[`k${k}`], w.th, gi)}${seg(J[`k${k}`], J[`f${k}`], w.sh, gi)}${boot(J[`f${k}`], J[`boot${k}`], blue)}`;
   if (C.fem) { w.torso -= 3; w.ua -= 1.5; w.fa -= 1; }
+  if (MASTER === 'gym') { w.torso *= 1.5; w.ua *= 1.45; w.fa *= 1.35; w.th *= 1.3; w.sh *= 1.2; }
+  if (MASTER === 'cardio') { w.torso *= 0.92; w.th *= 0.95; }
   const arm = (k, skin, blue) => {
     const e = J[`e${k}`], h = J[`h${k}`];
     const wb = add(e, mul([h[0] - e[0], h[1] - e[1]], 0.72));
@@ -334,21 +373,24 @@ function frameJoints(id, t) {
   return shift(J, targetX - J[a][0], GROUND - maxY - (J.lift || 0));
 }
 
-export function poseFrame(id, t, stage = 0, look = null, { plate = 1, noShadow = false } = {}) {
+export function poseFrame(id, t, stage = 0, look = null, { plate = 1, noShadow = false, master = null } = {}) {
   syncLook(look);
+  let saved = null;
+  if (master) { saved = { ...C }; Object.assign(C, MASTER_C[master]); MASTER = master; PH = t; }
   plateScale = plate;
   const M = POSES[id] || POSES.stand;
   const J = frameJoints(id, t);
   const pr = props(J, M);
   const out = `${M.machine ? machine(M.machine, J) : ''}${noShadow ? pr.replace(/<ellipse[^>]*pose-shadow[^>]*\/>/, '') : pr}${figure(J, M, stage)}`;
   plateScale = 1;
+  if (saved) { Object.assign(C, saved); MASTER = null; }
   return out;
 }
 export const GROUND_Y = GROUND;
 
 // Begrenzungsrahmen über mehrere Frames (für ein ruhiges, zentriertes Bild)
 const vbCache = new Map();
-function viewBox(id, pad = 18) {
+export function viewBox(id, pad = 18) {
   if (vbCache.has(id)) return vbCache.get(id);
   const M = POSES[id] || POSES.stand;
   let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;

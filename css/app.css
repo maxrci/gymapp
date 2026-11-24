@@ -1666,3 +1666,29 @@ a.tr:active { background: var(--surface-2); }
 .pse-more { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 8px 0 4px; border-top: 1px solid var(--line); }
 .plan-edit { display: flex; align-items: center; gap: 6px; margin: 10px auto 0; }
 .goal-card .gc-top .btn.sm { flex: none; height: 30px; padding: 0 10px; font-size: 13px; }
+
+/* ---------- AI-Coach-Karte mit den Meistern ---------- */
+.coach-hero { padding: 16px; background: radial-gradient(120% 80% at 50% 0%, rgba(98, 80, 214, .22), transparent 60%), var(--surface); overflow: hidden; }
+.ch-head { display: flex; align-items: center; gap: 8px; font-size: 17px; }
+.ch-head .demo-tag { margin-left: auto; }
+.ch-stage { position: relative; margin: 6px 0 4px; }
+.ch-masters { display: grid; grid-template-columns: 1fr; justify-items: center; align-items: end; }
+.ch-stage.n2 .ch-masters { grid-template-columns: 1fr 1fr; }
+.master { display: flex; flex-direction: column; align-items: center; width: 100%; }
+.master-fig { width: 100%; max-width: 190px; aspect-ratio: 1; }
+.ch-stage.n1 .master-fig { max-width: 200px; }
+.master-fig svg { width: 100%; height: 100%; overflow: visible; }
+.master small { margin-top: -6px; font-size: 12px; font-weight: 750; color: var(--text-2); letter-spacing: .02em; }
+.m-gym .master-fig { filter: drop-shadow(0 0 14px rgba(226, 177, 60, .35)); }
+.m-cardio .master-fig { filter: drop-shadow(0 0 12px rgba(15, 163, 181, .4)); }
+.speedlines line { stroke: #0fa3b5; stroke-width: 2.5; stroke-linecap: round; opacity: .55; animation: speedline .45s linear infinite; }
+.speedlines line:nth-child(2) { animation-delay: -.1s; } .speedlines line:nth-child(3) { animation-delay: -.2s; }
+.speedlines line:nth-child(4) { animation-delay: -.3s; } .speedlines line:nth-child(5) { animation-delay: -.38s; }
+@keyframes speedline { from { transform: translateX(30px); opacity: 0; } 40% { opacity: .6; } to { transform: translateX(-30px); opacity: 0; } }
+.ch-bubble { position: relative; margin: 8px auto 2px; max-width: 290px; text-align: center; font-size: 13.5px; font-weight: 600; line-height: 1.35; padding: 9px 13px; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--line); }
+.ch-bubble::after { content: ''; position: absolute; left: 50%; bottom: -7px; width: 12px; height: 12px; background: var(--surface-2); border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); transform: translateX(-50%) rotate(45deg); }
+.ch-next { background: var(--surface-2); border-radius: 12px; padding: 12px; margin: 4px 0 12px; }
+.ch-next small { display: block; color: var(--muted); font-size: 12.5px; }
+.ch-next small:first-child { color: var(--accent); font-weight: 750; text-transform: uppercase; letter-spacing: .04em; font-size: 11.5px; }
+.ch-next b { display: block; font-size: 19px; margin: 2px 0; }
+@media (prefers-reduced-motion: reduce) { .speedlines line { animation: none; } }
