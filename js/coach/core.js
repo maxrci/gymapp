@@ -73,9 +73,19 @@ export const SPORTS = {
   walk: { label: 'Gehen / Wandern', exercise: 'Wandern', kinds: ['walk', 'hike'], pace: 'km', pose: 'oldwalk', exp: 1.03, speed: { beginner: 4.5, inter: 5.3, adv: 6 }, minEasy: 3 },
 };
 
+// Geräte für den Ersatz (zusätzlich Crosstrainer) – damit man geräteunabhängig fit wird
+export const ALT = {
+  ...SPORTS,
+  elliptical: { label: 'Crosstrainer', exercise: 'Crosstrainer', kinds: ['elliptical'], pace: 'kmh', pose: 'elliptical', device: 'elliptical', exp: 1.05, speed: { beginner: 8, inter: 9.5, adv: 11 }, minEasy: 3, noKm: true },
+};
+// Umrechnung bei gleicher Pulszone: Dauer × Faktor (Laufen = 1). Rad braucht länger für denselben Reiz,
+// weil weniger Muskeln arbeiten und das Körpergewicht getragen wird; Schwimmen fordert pro Minute etwas mehr.
+export const EQUIV_F = { run: 1, walk: 1.8, bike: 1.4, skate: 1.3, row: 1.05, swim: 0.9, elliptical: 1.1 };
+export const timeFactor = (from, to) => (EQUIV_F[to] || 1) / (EQUIV_F[from] || 1);
+
 // alle Einheiten einer Sportart mit Distanz (für Ausgangswert, Fortschritt, Wochen-Abgleich)
 export function sportSessions(sport) {
-  const S = SPORTS[sport];
+  const S = ALT[sport];
   const out = [];
   for (const x of idx().ex.values()) {
     const k = cardioKind(x.name, x.type);
@@ -101,7 +111,7 @@ export function cardioBaseline(sport) {
 const mmss = (sec) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, '0')}`;
 export function fmtPace(sport, kmh) {
   if (!kmh) return '–';
-  const p = SPORTS[sport]?.pace;
+  const p = ALT[sport]?.pace;
   if (p === 'kmh') return `${num(kmh, 1)} km/h`;
   if (p === '500') return `${mmss(1800 / kmh)} /500 m`;
   if (p === '100') return `${mmss(360 / kmh)} /100 m`;

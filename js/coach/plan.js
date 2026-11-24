@@ -10,7 +10,7 @@ import { DAY, startOfWeek, startOfDay, addDays, weekday, num } from '../utils.js
 import { SPLITS, activeSplit } from './splits.js';
 import { FAM, familyOf, pickFromFamily } from './similar.js';
 import {
-  coachData, goalW, goalC, SPORTS, currentE1rm, cardioBaseline, sportSessions, weekIndex, totalWeeks,
+  coachData, goalW, goalC, SPORTS, ALT, timeFactor, currentE1rm, cardioBaseline, sportSessions, weekIndex, totalWeeks,
   breakInfo, fmtPace, fmtHms,
 } from './core.js';
 import { predictTime, peakLong } from './assess.js';
@@ -25,7 +25,7 @@ const isGym = (w) => (idx().wStats.get(w.id)?.volume || 0) > 0 || w.exercises.so
   return (t === 'bodyweight' || t === 'weighted_bw') && e.sets.some((s) => s.reps);
 });
 function cardioOf(w, sport) {
-  const S = SPORTS[sport];
+  const S = ALT[sport];
   let km = 0, sec = 0, hit = false;
   for (const e of w.exercises) {
     const x = idx().ex.get(e.name);
@@ -227,7 +227,7 @@ function longKm(g, week, ph, brk) {
     return Math.min(peak, start * 1.1 ** eff);
   };
   let km = curve(Math.min(ph.wi, ph.W - 2));
-  const ses = sportSessions(g.sport).filter((s) => s.km > 0 && s.date < week);
+  const ses = equivSessions(g).filter((s) => s.km > 0 && s.date < week);
   const recent = ses.filter((s) => s.date >= week - 14 * DAY);
   const lastLong = ses.length ? Math.max(...ses.slice(-6).map((s) => s.km)) : 0;
   if (recent.length) km = Math.min(km, Math.max(...recent.map((s) => s.km)) * 1.15);
@@ -236,6 +236,42 @@ function longKm(g, week, ph, brk) {
   if (ph.kind === 'taper') km *= 0.75;
   if (ph.kind === 'after') km = peak * 0.8;
   return Math.max(SPORTS[g.sport].minEasy, Math.min(peak, km));
+}
+
+// Einheiten aller Geräte, umgerechnet in Strecke der Ziel-Sportart (über die Zeit bei lockerem Tempo)
+function equivSessions(g) {
+  const easyV = SPORTS[g.sport].speed[g.level || 'inter'] * 0.85;
+  const out = sportSessions(g.sport).map((s) => ({ date: s.date, km: s.km }));
+  for (const sp of Object.keys(ALT)) {
+    if (sp === g.sport) continue;
+    for (const s of sportSessions(sp)) if (s.sec >= 1200) out.push({ date: s.date, km: (s.sec / timeFactor(g.sport, sp) / 3600) * easyV });
+  }
+  return out.sort((a, b) => a.date - b.date);
+}
+
+// Geplante Cardio-Einheit auf ein anderes Gerät umrechnen: gleiche Zone, gleicher Reiz, Dauer passend zum Gerät
+const ZONE_SPEED = { 2: 0.85, 3: 1, 4: 1.05 };
+export function substitute(s, alt, g) {
+  const A = ALT[alt];
+  const f = timeFactor(s.sport, alt);
+  const sec = Math.max(600, Math.round((s.sec * f) / 60) * 60);
+  const kmh = A.noKm ? 0 : A.speed[g.level || 'inter'] * (ZONE_SPEED[s.zone] || 0.85);
+  const km = kmh ? Math.round(((kmh * sec) / 3600) * 2) / 2 : 0;
+  const from = `${ALT[s.sport].label} ${num(s.km, 1)} km`;
+  let desc, program = null, programOpt = null;
+  if (s.iv) { desc = `${s.iv.reps} × ${Math.max(1, Math.round(s.iv.repMin))} min hart (Zone 4), dazwischen ${s.iv.rest} min locker. Davor und danach je 10 min locker.`; program = 'hiit44'; }
+  else if (s.tempoMin) { desc = `${Math.round(s.tempoMin * f)} min zügig (Zone 3–4), davor und danach je 10 min locker.`; program = 'tempo'; }
+  else if (s.program) { desc = s.desc; program = s.program; }
+  else {
+    desc = `${s.type === 'long' ? 'Lang und gleichmäßig' : 'Ganz locker'} in Zone ${s.zone || 2}${kmh ? ` (ca. ${fmtPace(alt, kmh)})` : ''} – du kannst dich noch unterhalten.`;
+    program = 'zone2';
+    programOpt = [20, 30, 45, 60].reduce((a, b) => (Math.abs(b - sec / 60) < Math.abs(a - sec / 60) ? b : a));
+  }
+  desc += ` Gleicher Trainingsreiz wie ${from}.`;
+  return {
+    sport: alt, km, sec, desc, program: A.device ? program : null, programOpt, swappedFrom: s.sport,
+    sub: `${A.label} · ${km ? `~${num(km, 1)} km · ` : ''}ca. ${fmtHms(sec)} · statt ${from}`,
+  };
 }
 
 const QUALITY_PROG = { interval: 'hiit44', tempo: 'tempo' };
@@ -266,11 +302,11 @@ function cardioSessions(g, week, ctx) {
         const rep = big ? 1 : 0.4;
         const pv = v * 1.05;
         const km = reps * rep + reps * 0.25 + wu;
-        return mk('interval', 'Intervalle', km, vNow, `${reps} × ${big ? '1 km' : '400 m'} in ${fmtPace('run', pv)}, dazwischen 2 min locker traben. Davor und danach locker ein- und auslaufen.`, { zone: 4 });
+        return mk('interval', 'Intervalle', km, vNow, `${reps} × ${big ? '1 km' : '400 m'} in ${fmtPace('run', pv)}, dazwischen 2 min locker traben. Davor und danach locker ein- und auslaufen.`, { zone: 4, iv: { reps, repMin: (rep / pv) * 60, rest: 2 } });
       }
       const min = Math.min(40, 15 + ph.wi * 2.5, Math.max(12, ((long * 0.6) / v) * 60));
       const pv = v * (g.distance >= 21 ? 1.03 : 1);
-      return mk('tempo', 'Tempo', (min / 60) * pv + wu, vNow, `${Math.round(min)} min zügig in ${fmtPace('run', pv)} (Zone 3–4), davor und danach locker ein- und auslaufen.`, { zone: 3 });
+      return mk('tempo', 'Tempo', (min / 60) * pv + wu, vNow, `${Math.round(min)} min zügig in ${fmtPace('run', pv)} (Zone 3–4), davor und danach locker ein- und auslaufen.`, { zone: 3, tempoMin: min });
     }
     if (g.sport === 'walk') return mk('easy', 'Zügig', Math.max(S.minEasy, long * 0.5), easyV * 1.1, 'Flott gehen, gern mit Steigung – leicht außer Atem.', { zone: 3 });
     const prog = CARDIO.find((p) => p.id === QUALITY_PROG[t]);
@@ -289,7 +325,15 @@ function cardioSessions(g, week, ctx) {
   else if (n === 3) list = [easy(), q(), longS()];
   else if (n === 4) list = [easy(), q(), easy(0.4), longS()];
   else list = [easy(), q(), easy(0.4), ...Array.from({ length: n - 4 }, (_, i) => (i === 0 && n >= 6 && g.level === 'adv' && !noQuality ? quality() : easy(0.35))), longS()];
-  list.forEach((s, i) => { s.id = `c:${weekKey(week)}:${i}`; s.sub = `${S.label} · ${num(s.km, 1)} km · ca. ${fmtHms(s.sec)}`; });
+  list.forEach((s, i) => { s.id = `c:${weekKey(week)}:${i}`; s.slot = i; s.sub = `${S.label} · ${num(s.km, 1)} km · ca. ${fmtHms(s.sec)}`; });
+  // Gerät gewechselt? (nur diese Woche oder jede Woche an dieser Stelle) – Zieleinheit bleibt immer in der Ziel-Sportart
+  const C = coachData();
+  for (const s of list) {
+    const alt = C.cswap?.[s.id] ?? C.cswapSlot?.[s.slot];
+    if (!alt || alt === '__orig' || alt === s.sport || s.type === 'goal' || !ALT[alt]) continue;
+    s.orig = { ...s };
+    Object.assign(s, substitute(s.orig, alt, g));
+  }
   return { list, phase: ph, long };
 }
 
@@ -438,11 +482,18 @@ export function weekPlan(week = startOfWeek(Date.now())) {
   for (const w of ws) {
     if (w.planId && res.sessions.some((x) => x.done === w)) continue;
     if (gc) {
-      const c = cardioOf(w, gc.sport);
+      const cands = [...open].filter((s) => s.kind === 'cardio');
+      const sports = [...new Set([gc.sport, ...cands.map((s) => s.sport), ...Object.keys(ALT)])];
+      let c = null, hit = null;
+      for (const sp of sports) { c = cardioOf(w, sp); if (c) { hit = sp; break; } }
+      if (c && isGym(w) && c.sec < 1200) c = null; // kurzes Aufwärmen im Gym ist keine Cardio-Einheit
       if (c) {
-        const cands = [...open].filter((s) => s.kind === 'cardio');
-        const pick = cands.find((s) => (s.type === 'long' || s.type === 'goal') && c.km >= s.km * 0.75) || cands.find((s) => s.type !== 'long' && s.type !== 'goal') || cands[0];
-        if (pick) { take(pick, w); continue; }
+        const same = cands.filter((s) => s.sport === hit);
+        const pool = same.length ? same : cands.filter((s) => s.type !== 'goal'); // anderes Gerät = Ersatz
+        const eqSec = (s) => c.sec / timeFactor(s.sport, hit);
+        const longEnough = (s) => (s.sport === hit && c.km ? c.km >= s.km * 0.75 : eqSec(s) >= s.sec * 0.75);
+        const pick = pool.find((s) => (s.type === 'long' || s.type === 'goal') && longEnough(s)) || pool.find((s) => s.type !== 'long' && s.type !== 'goal') || pool[0];
+        if (pick) { take(pick, w); if (pick.sport !== hit) pick.doneWith = hit; continue; }
       }
     }
     if (gw && isGym(w)) {

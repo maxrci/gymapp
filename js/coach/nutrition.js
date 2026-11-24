@@ -24,7 +24,7 @@ function workoutKcal(w, kg) {
 // geplante Einheit (noch nicht gemacht)
 function sessionKcal(s, kg) {
   if (s.kind === 'cardio') {
-    const kind = { run: 'run', bike: 'bike', skate: 'skate', row: 'row', swim: 'swim', walk: 'walk' }[s.sport];
+    const kind = { run: 'run', bike: 'bike', skate: 'skate', row: 'row', swim: 'swim', walk: 'walk', elliptical: 'elliptical' }[s.sport];
     return cardioWork(kind, s.km, s.sec, kg);
   }
   return 5 * kg * 1.0 * 0.85; // ca. 60 min Krafttraining

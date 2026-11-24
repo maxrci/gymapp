@@ -1696,3 +1696,4 @@ a.tr:active { background: var(--surface-2); }
 .err-card { border-left: 4px solid var(--danger); }
 .err-card b { display: flex; align-items: center; gap: 6px; }
 .err-card pre { white-space: pre-wrap; word-break: break-word; font-size: 12px; color: var(--text-2); background: var(--surface-2); padding: 8px 10px; border-radius: 10px; margin: 10px 0; }
+.ps-tag.alt { background: rgba(255, 140, 60, .14); color: #ff8c3c; }

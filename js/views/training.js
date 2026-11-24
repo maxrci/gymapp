@@ -29,7 +29,7 @@ function weekNumbers() {
   return { cardio: Math.round(cardio), mob: Math.round(mob), gym };
 }
 import { openCardioSetup, openMobilitySetup, hasGuided, resumeGuided } from '../guided.js';
-import { coachOn, workoutCoachOn, cardioCoachOn, SPORTS, goalW, goalC } from '../coach/core.js';
+import { coachOn, workoutCoachOn, cardioCoachOn, ALT, goalW, goalC } from '../coach/core.js';
 import { masterSlot, mountMasters } from '../master.js';
 import { openCoachSetup } from '../coach/setup.js';
 import { weekPlan, nextSession } from '../coach/plan.js';
@@ -79,7 +79,7 @@ function coachHero() {
     const nx = nextSession(plan);
     if (nx) {
       small += ` · ${dayLabel(nx.day)}`;
-      title = nx.kind === 'gym' ? nx.title : `${SPORTS[nx.sport].label} · ${nx.title}`;
+      title = nx.kind === 'gym' ? nx.title : `${ALT[nx.sport].label} · ${nx.title}`;
       sub = nx.kind === 'gym' ? `${nx.exercises.length} Übungen · ${musclesOf(nx)}` : nx.sub;
       start = `<button class="btn primary" data-act="plan-go" data-sid="${esc(nx.id)}">${icon('play', 'xs')} Starten</button>`;
     } else { title = 'Woche geschafft!'; sub = `${plan.doneCount}/${plan.total} Einheiten erledigt – alles Weitere ist Bonus`; }

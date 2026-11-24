@@ -8,9 +8,9 @@ import { esc, num, fmtDate, addDays, startOfWeek, weekday, WEEKDAYS, DAY, fmtKg 
 import { startWorkout } from '../workout.js';
 import { startGuidedCardio } from '../guided.js';
 import {
-  coachData, saveCoach, workoutCoachOn, cardioCoachOn, goalW, goalC, SPORTS, LEVELS, fmtDeadline, fmtHms, bodyComplete,
+  coachData, saveCoach, workoutCoachOn, cardioCoachOn, goalW, goalC, SPORTS, ALT, LEVELS, fmtDeadline, fmtHms, bodyComplete,
 } from '../coach/core.js';
-import { weekPlan, dayKey } from '../coach/plan.js';
+import { weekPlan, dayKey, substitute } from '../coach/plan.js';
 import { SPLITS, activeSplit } from '../coach/splits.js';
 import { alternatives } from '../coach/similar.js';
 import { VERDICTS } from '../coach/assess.js';
@@ -76,6 +76,7 @@ function statusTag(s) {
   if (s.status === 'skipped') return '<span class="ps-tag skip">ausgelassen</span>';
   if (s.status === 'missed') return '<span class="ps-tag miss">verpasst</span>';
   if (s.moved) return '<span class="ps-tag">verschoben</span>';
+  if (s.swappedFrom) return '<span class="ps-tag alt">Ersatz</span>';
   return '';
 }
 
@@ -86,7 +87,7 @@ function sessionCard(s, { canAct, isNext }) {
   let body = '';
   if (open) {
     if (s.status === 'done') {
-      body = `<a class="ps-done" href="#/w/${encodeURIComponent(s.done.id)}">${icon('check', 'xs')} Erledigt mit „${esc(s.done.title)}“ ${icon('right', 'xs')}</a>`;
+      body = `<a class="ps-done" href="#/w/${encodeURIComponent(s.done.id)}">${icon('check', 'xs')} Erledigt mit „${esc(s.done.title)}“${s.doneWith ? ` (${esc(ALT[s.doneWith].label)} als Ersatz)` : ''} ${icon('right', 'xs')}</a>`;
     } else if (s.kind === 'gym') {
       body = `<div class="ps-ex">${s.exercises.map((e, i) => `<div class="pse">
           <div class="pse-t"><b>${esc(e.name)}</b>${e.goal ? '<em class="pse-goal">Ziel</em>' : ''}<small>${esc(e.label)}</small>${e.reason && e.reason !== 'Nach Plan' ? `<small class="muted">${esc(e.reason)}</small>` : ''}</div>
@@ -97,10 +98,11 @@ function sessionCard(s, { canAct, isNext }) {
       body = `<p class="ps-desc">${esc(s.desc)}</p>`;
     }
     if (act) {
-      const S = SPORTS[s.sport];
+      const S = ALT[s.sport];
       body += `<div class="ps-acts">
         <button class="btn primary sm" data-act="go" data-sid="${esc(s.id)}">${icon('play', 'xs')} Starten</button>
         ${s.kind === 'cardio' && s.program && S?.device ? `<button class="btn ghost sm" data-act="go-guided" data-sid="${esc(s.id)}">Geführt</button>` : ''}
+        ${s.kind === 'cardio' && s.type !== 'goal' ? `<button class="btn ghost sm" data-act="cswap" data-sid="${esc(s.id)}">${icon('swap', 'xs')} Gerät wechseln</button>` : ''}
         <button class="btn ghost sm" data-act="move" data-sid="${esc(s.id)}">Verschieben</button>
         <button class="btn ghost sm" data-act="skip" data-sid="${esc(s.id)}">Auslassen</button>
       </div>`;
@@ -111,7 +113,7 @@ function sessionCard(s, { canAct, isNext }) {
   return `<div class="ps ${s.kind} ${s.status} ${open ? 'open' : ''}">
     <button class="ps-head" data-act="toggle" data-sid="${esc(s.id)}" data-next="${isNext ? 1 : 0}">
       <span class="ps-ic">${icon(s.kind === 'gym' ? 'dumbbell' : 'bolt', 'xs')}</span>
-      <div><b>${esc(s.kind === 'cardio' ? `${SPORTS[s.sport].label} · ${s.title}` : s.title)}</b><small>${esc(s.kind === 'gym' ? `${s.exercises.length} Übungen · ${musclesOf(s)}` : s.sub)}</small></div>
+      <div><b>${esc(s.kind === 'cardio' ? `${ALT[s.sport].label} · ${s.title}` : s.title)}</b><small>${esc(s.kind === 'gym' ? `${s.exercises.length} Übungen · ${musclesOf(s)}` : s.sub)}</small></div>
       ${statusTag(s)}${icon(open ? 'up' : 'down', 'muted')}
     </button>${body}
   </div>`;
@@ -201,7 +203,7 @@ export function planView() {
       go: (el) => startPlanned(find(el)),
       'go-guided': (el) => {
         const s = find(el);
-        startGuidedCardio({ programId: s.program, device: SPORTS[s.sport].device, planId: s.id });
+        startGuidedCardio({ programId: s.program, device: ALT[s.sport].device, planId: s.id, opt: s.programOpt ?? undefined });
       },
       move: async (el) => {
         const s = find(el);
@@ -209,6 +211,33 @@ export function planView() {
         const v = await sheet({ title: `${s.title} verschieben`, options: WEEKDAYS.map((d, i) => ({ label: `${d} · ${fmtDate(addDays(week, i), { day: 'numeric', month: 'short' })}${i === today && weekOff === 0 ? ' (heute)' : ''}`, value: String(i), active: s.day === i })).slice(from) });
         if (v == null) return;
         await saveCoach({ moves: { ...(coachData().moves || {}), [s.id]: +v } });
+      },
+      // Cardio geräteunabhängig: Einheit auf ein anderes Gerät umrechnen
+      cswap: async (el) => {
+        const s = find(el);
+        const g = goalC();
+        const base = s.orig || s;
+        const opts = Object.keys(ALT).filter((sp) => sp !== s.sport && !(sp === 'walk' && base.type !== 'easy')).map((sp) => {
+          const x = substitute(base, sp, g);
+          return { label: `${ALT[sp].label} · ca. ${fmtHms(x.sec)}${x.km ? ` · ~${num(x.km, 1)} km` : ''}`, value: sp };
+        });
+        if (s.swappedFrom) opts.unshift({ label: `Zurück zu ${ALT[s.swappedFrom].label} (${num(base.km, 1)} km)`, value: '__orig', icon: 'repeat' });
+        const msg = base.type === 'long' && g.sport === base.sport
+          ? `Tipp: Die lange Einheit trainiert gezielt für dein ${ALT[g.sport].label}-Ziel – wenn möglich lieber eine lockere Einheit tauschen. Geht aber natürlich trotzdem.`
+          : 'Gleicher Trainingsreiz auf einem anderen Gerät: gleiche Pulszone, die Dauer wird passend umgerechnet.';
+        const v = await sheet({ title: `${base.title} auf anderem Gerät`, message: msg, options: opts });
+        if (!v) return;
+        const how = await sheet({ title: v === '__orig' ? 'Zurückstellen' : `${ALT[v].label} statt ${ALT[base.sport].label}`, options: [
+          { label: 'Nur diese Woche', value: 'week', icon: 'calendar' },
+          { label: 'Jede Woche an dieser Stelle', value: 'always', icon: 'repeat' },
+        ] });
+        if (!how) return;
+        const C = coachData();
+        const cswap = { ...(C.cswap || {}) }, cswapSlot = { ...(C.cswapSlot || {}) };
+        if (how === 'week') cswap[s.id] = v;
+        else { delete cswap[s.id]; if (v === '__orig') delete cswapSlot[s.slot]; else cswapSlot[s.slot] = v; }
+        await saveCoach({ cswap, cswapSlot });
+        toast(v === '__orig' ? 'Zurückgestellt' : `${ALT[v].label}: ca. ${fmtHms(substitute(base, v, g).sec)}`);
       },
       skip: async (el) => { const s = find(el); await saveCoach({ skips: { ...(coachData().skips || {}), [s.id]: true } }); toast('Ausgelassen – kein Problem'); },
       unskip: async (el) => { const s = find(el); const k = { ...(coachData().skips || {}) }; delete k[s.id]; await saveCoach({ skips: k }); },
@@ -284,9 +313,9 @@ export function startPlanned(s) {
       exercises: s.exercises.map((e) => ({ name: e.name, sets: e.sets, plan: { label: e.label, reason: e.reason, slot: e.slot } })),
     });
   }
-  const S = SPORTS[s.sport];
+  const S = ALT[s.sport];
   return startWorkout({
     title: `Cardio: ${s.title}`, planId: s.id,
-    exercises: [{ name: S.exercise, sets: [{ type: 'normal', distance: s.km, duration: s.sec }], plan: { label: s.sub, reason: s.desc } }],
+    exercises: [{ name: S.exercise, sets: [{ type: 'normal', distance: s.km || null, duration: s.sec }], plan: { label: s.sub, reason: s.desc } }],
   });
 }

@@ -11,7 +11,7 @@ import { profileStats, achievements, STAGES } from '../gamification.js';
 import { weeklyGoals, openGoalEditor } from '../goals.js';
 import { aiOn, nextWorkout } from '../ai.js';
 import { openAvatarEditor } from '../avatar.js';
-import { coachOn, goalW, goalC, bodyComplete, SPORTS } from '../coach/core.js';
+import { coachOn, goalW, goalC, bodyComplete, ALT } from '../coach/core.js';
 import { weekPlan } from '../coach/plan.js';
 import { nutrition } from '../coach/nutrition.js';
 import { openCoachSetup } from '../coach/setup.js';
@@ -29,7 +29,7 @@ function planList(plan, today) {
       if (!items.length) return `<div class="pw-row rest ${cls}"><span class="pw-d">${WEEKDAYS[d]}</span><span class="pw-t">Ruhetag</span></div>`;
       return items.map((s, i) => {
         if (s.extra) return `<a class="pw-row done ${cls}" href="#/w/${encodeURIComponent(s.w.id)}"><span class="pw-d">${i ? '' : WEEKDAYS[d]}</span><span class="pw-t">${esc(s.w.title)}<small>eigenes Workout</small></span><span class="pw-s">${icon('check', 'xs')}</span></a>`;
-        const t = s.kind === 'gym' ? s.title : `${SPORTS[s.sport].label} · ${s.title}`;
+        const t = s.kind === 'gym' ? s.title : `${ALT[s.sport].label} · ${s.title}`;
         const sub = s.kind === 'gym' ? `${s.exercises.length} Übungen` : `${num(s.km, 1)} km`;
         const st = s.status === 'done' ? icon('check', 'xs') : s.status === 'skipped' ? '<em>aus</em>' : s === next ? `<button class="pw-go" data-act="plan-go" data-sid="${esc(s.id)}">${icon('play', 'xs')}</button>` : '';
         return `<a class="pw-row ${s.status} ${cls} ${s === next ? 'next' : ''}" href="#/plan"><span class="pw-d">${i ? '' : WEEKDAYS[d]}</span><span class="pw-ic ${s.kind}">${icon(s.kind === 'gym' ? 'dumbbell' : 'bolt', 'xs')}</span><span class="pw-t">${esc(t)}<small>${esc(sub)}</small></span><span class="pw-s">${st}</span></a>`;
