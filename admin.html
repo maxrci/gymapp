@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; manifest-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="robots" content="noindex">
+  <title>Gym – Admin</title>
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+  <div id="app">
+    <aside class="side">
+      <div class="brand"><img src="icons/icon-192.png" alt="" width="32" height="32"><div><b>Gym Admin</b><small id="grp"></small></div></div>
+      <nav id="nav" aria-label="Bereiche"></nav>
+      <div class="side-foot"><span id="who"></span><a href="/">Zur App</a></div>
+    </aside>
+    <main id="main" tabindex="-1"><p class="muted">Lade …</p></main>
+  </div>
+  <div id="toasts" aria-live="polite"></div>
+  <script type="module" src="js/admin/main.js"></script>
+</body>
+</html>

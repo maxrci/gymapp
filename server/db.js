@@ -112,6 +112,32 @@ export function openDb(dir) {
       activity_id TEXT NOT NULL,
       PRIMARY KEY (user_id, activity_id)
     );
+    CREATE TABLE IF NOT EXISTS groups (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      owner TEXT REFERENCES users(id) ON DELETE SET NULL,
+      created INTEGER NOT NULL,
+      code_hash TEXT
+    );
+    CREATE TABLE IF NOT EXISTS group_members (
+      group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      role TEXT NOT NULL DEFAULT 'member',
+      status TEXT NOT NULL DEFAULT 'member',
+      share TEXT,
+      joined INTEGER NOT NULL,
+      invited_by TEXT,
+      PRIMARY KEY (group_id, user_id)
+    );
+    CREATE INDEX IF NOT EXISTS gm_user ON group_members (user_id);
+    CREATE TABLE IF NOT EXISTS friends (
+      a TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      b TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'pending',
+      requested_by TEXT NOT NULL,
+      created INTEGER NOT NULL,
+      PRIMARY KEY (a, b)
+    );
     CREATE TABLE IF NOT EXISTS app_config (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,
@@ -165,6 +191,9 @@ export function openDb(dir) {
   const cols = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
   if (!cols.includes('username')) db.exec('ALTER TABLE users ADD COLUMN username TEXT');
   if (!cols.includes('pw_hash')) db.exec('ALTER TABLE users ADD COLUMN pw_hash TEXT');
+  // Migration (v3.13): Challenges gehören zu einer Gruppe
+  const ccols = db.prepare('PRAGMA table_info(challenges)').all().map((c) => c.name);
+  if (!ccols.includes('group_id')) db.exec('ALTER TABLE challenges ADD COLUMN group_id TEXT');
   // Migration (v3.10): Einstellungen + eigene Übungen pro Konto (für Gerätewechsel und den Umzug auf den Pi)
   if (!cols.includes('prefs')) db.exec('ALTER TABLE users ADD COLUMN prefs TEXT');
   if (!cols.includes('prefs_updated')) db.exec('ALTER TABLE users ADD COLUMN prefs_updated INTEGER NOT NULL DEFAULT 0');

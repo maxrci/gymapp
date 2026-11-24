@@ -1,5 +1,5 @@
 // Service Worker: App offline verfügbar machen (stale-while-revalidate)
-const CACHE = 'gymlog-v3.12.0';
+const CACHE = 'gymlog-v3.13.0';
 const ASSETS = [
   './',
   'index.html',
@@ -54,6 +54,7 @@ const ASSETS = [
   'js/unlocks.js',
   'js/stravamap.js',
   'js/swipe.js',
+  'js/circles.js',
   'js/views/history.js',
   'js/garmin.js',
   'js/store.js',
@@ -110,7 +111,7 @@ self.addEventListener('fetch', (e) => {
   const u = new URL(req.url);
   if (req.method !== 'GET' || u.origin !== location.origin || u.pathname.includes('/api/')) return;
   // Login-Seite der privaten App immer frisch vom Server
-  if (/\/login(\.html)?$/.test(u.pathname) || /\/(js\/login\.js|css\/login\.css)$/.test(u.pathname)) return;
+  if (/\/(login|admin)(\.html)?$/.test(u.pathname) || /\/(js\/login\.js|css\/login\.css)$/.test(u.pathname)) return;
   const isNav = req.mode === 'navigate';
   e.respondWith((async () => {
     const cache = await caches.open(CACHE);

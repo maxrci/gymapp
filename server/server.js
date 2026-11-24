@@ -36,7 +36,7 @@ const TYPES = {
   '.webmanifest': 'application/manifest+json', '.json': 'application/json', '.png': 'image/png', '.m4a': 'audio/mp4', '.svg': 'image/svg+xml', '.ico': 'image/x-icon',
 };
 // Nur diese Pfade werden ausgeliefert (keine Daten, kein Server-Code)
-const ALLOWED = /^\/(index\.html|login\.html|manifest\.webmanifest|sw\.js|selfhost\.html|(css|js|icons|sounds)\/[\w./-]+)$/;
+const ALLOWED = /^\/(index\.html|login\.html|admin\.html|manifest\.webmanifest|sw\.js|selfhost\.html|(css|js|icons|sounds)\/[\w./-]+)$/;
 // Ohne Anmeldung erreichbar: Login-Seite und was das Hinzufügen zum Home-Bildschirm braucht
 const PUBLIC = /^\/(login\.html|manifest\.webmanifest|js\/login\.js|css\/login\.css|icons\/[\w.-]+)$/;
 export const COOKIE = 'gym_s';
@@ -50,6 +50,7 @@ function serveStatic(cfg, D, req, res, url) {
   try { p = decodeURIComponent(url.pathname); } catch { res.writeHead(400); return res.end('Ungültige Adresse'); }
   if (p === '/' || p === '') p = '/index.html';
   if (p === '/login') p = '/login.html';
+  if (p === '/admin') p = '/admin.html';
   if (!ALLOWED.test(p) || p.includes('..')) { res.writeHead(404); return res.end('Nicht gefunden'); }
   // Private App: alles außer der Login-Seite nur mit gültiger Anmeldung (Cookie)
   if (cfg.privateApp && !PUBLIC.test(p)) {

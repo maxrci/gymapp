@@ -7,6 +7,9 @@ import {
 import { groupData, memberWorkouts, bump, visOf } from './group.js';
 import { cleanSummary } from './summary.js';
 import * as strava from './strava.js';
+import * as G from './groups.js';
+import fs from 'node:fs';
+import path from 'node:path';
 import * as garmin from './garmin.js';
 import { CHALLENGE_TYPES, VISIBILITY } from '../js/compete.js';
 
@@ -96,6 +99,19 @@ export function makeApi(D, cfg) {
     const keys = [];
     const re = new RegExp(`^${pattern.replace(/:(\w+)/g, (_, k) => { keys.push(k); return '([^/]+)'; })}$`);
     routes.push({ method, re, keys, auth, fn });
+  };
+
+  G.ensureDefaultGroup(D, cfg.groupName);
+  const started = Date.now();
+  const gx = (fn) => { try { return fn(); } catch (e) { fail(e.status || 400, e.message); } };
+  // Gruppe aus der Anfrage (?g=…) – muss eine eigene sein; sonst die erste eigene
+  const ensureGroups = () => { if (!D.get('SELECT 1 FROM groups LIMIT 1')) G.ensureDefaultGroup(D, cfg.groupName); };
+  const groupFor = (me, url) => {
+    ensureGroups();
+    const want = url.searchParams.get('g');
+    const mine = G.myGroups(D, me.id).groups;
+    if (want) { if (!mine.some((x) => x.id === want) && me.role !== 'admin') fail(403, 'Du bist nicht in dieser Gruppe.'); return want; }
+    return mine[0]?.id || null;
   };
 
   // ---- Öffentlich ----
@@ -216,6 +232,13 @@ export function makeApi(D, cfg) {
       }
       if (body.profile && Number(body.profile.updated) > me.profile_updated) {
         const merged = { ...parse(me.profile, {}), ...cleanProfile(body.profile.data || {}) };
+        // ältere App-Versionen: eine Sichtbarkeit für alles → in allen Gruppen übernehmen
+        const vis = body.profile.data?.visibility;
+        if (VISIBILITY.some(([k]) => k === vis)) {
+          for (const m of D.all('SELECT group_id, share FROM group_members WHERE user_id = ?', me.id)) {
+            D.run('UPDATE group_members SET share = ? WHERE group_id = ? AND user_id = ?', JSON.stringify(G.cleanShare({ workouts: vis }, G.cleanShare(parse(m.share, null)))), m.group_id, me.id);
+          }
+        }
         D.run('UPDATE users SET profile = ?, profile_updated = ? WHERE id = ?', JSON.stringify(merged), Number(body.profile.updated), me.id);
       }
     });
@@ -260,21 +283,56 @@ export function makeApi(D, cfg) {
   });
 
   // ---- Gruppe ----
-  on('GET', '/api/group', 'user', ({ me }) => {
-    const { users, ...g } = groupData(D);
-    return { me: me.id, group: cfg.groupName, now: Date.now(), ...g };
+  on('GET', '/api/group', 'user', ({ me, url }) => {
+    const gid = groupFor(me, url);
+    if (!gid) return { me: me.id, group: '', groupId: null, none: true, now: Date.now(), members: [], season: { rows: [], month: { rows: [] }, months: [] }, seasons: [], titles: {}, alltime: {}, kings: { month: {}, season: {}, all: {} }, exercises: {}, challenges: [], trends: null };
+    const { users, ...g } = groupData(D, gid);
+    const meta = D.get('SELECT name FROM groups WHERE id = ?', gid);
+    return { me: me.id, group: meta?.name || '', groupId: gid, now: Date.now(), ...g };
   });
 
   on('GET', '/api/members/:id/workouts', 'user', ({ me, params, url }) => {
-    const r = memberWorkouts(D, me, params.id, Number(url.searchParams.get('before')) || Infinity, Number(url.searchParams.get('limit')) || 20);
+    const gid = groupFor(me, url);
+    if (!gid) fail(404, 'Keine Gruppe');
+    const r = memberWorkouts(D, me, params.id, gid, Number(url.searchParams.get('before')) || Infinity, Number(url.searchParams.get('limit')) || 20);
     if (r.error) fail(r.status, r.error);
     return r;
   });
+
+  // ---- Gruppen (mehrere Freundeskreise) ----
+  on('GET', '/api/groups', 'user', ({ me }) => { ensureGroups(); return G.myGroups(D, me.id); });
+  on('POST', '/api/groups', 'user', ({ me, body }) => { const r = gx(() => G.createGroup(D, me, body.name)); bump(); return r; });
+  on('POST', '/api/groups/join', 'user', ({ me, body, req }) => {
+    const ip = clientIp(req);
+    if (rateLimited(`gjoin:${me.id}`, 10) || rateLimited(ip, 30)) fail(429, 'Zu viele Versuche. Bitte später erneut probieren.');
+    try { const r = G.joinByCode(D, me, body.code); bump(); return r; } catch (e) { noteFail(`gjoin:${me.id}`); fail(e.status || 400, e.message); }
+  });
+  on('POST', '/api/groups/:id/code', 'user', ({ me, params }) => gx(() => G.newGroupCode(D, me, params.id)));
+  on('POST', '/api/groups/:id/invite', 'user', ({ me, params, body }) => { const r = gx(() => G.inviteToGroup(D, me, params.id, String(body.user || ''))); bump(); return r; });
+  on('POST', '/api/groups/:id/respond', 'user', ({ me, params, body }) => { const r = gx(() => G.respondInvite(D, me, params.id, !!body.accept)); bump(); return r; });
+  on('POST', '/api/groups/:id/leave', 'user', ({ me, params }) => { const r = gx(() => G.leaveGroup(D, me.id, params.id)); bump(); return r; });
+  on('PATCH', '/api/groups/:id', 'user', ({ me, params, body }) => { const r = gx(() => G.renameGroup(D, me, params.id, body.name)); bump(); return r; });
+  on('PATCH', '/api/groups/:id/share', 'user', ({ me, params, body }) => { const r = gx(() => G.setShare(D, me.id, params.id, body)); bump(); return r; });
+  on('PATCH', '/api/groups/:id/members/:uid', 'user', ({ me, params, body }) => { const r = gx(() => G.setMemberRole(D, me, params.id, params.uid, body.role)); bump(); return r; });
+  on('DELETE', '/api/groups/:id/members/:uid', 'user', ({ me, params }) => { const r = gx(() => G.removeMember(D, me, params.id, params.uid)); bump(); return r; });
+  on('DELETE', '/api/groups/:id', 'user', ({ me, params }) => { const r = gx(() => G.deleteGroup(D, me, params.id)); bump(); return r; });
+
+  // ---- Freunde (nur Konten auf diesem Server) ----
+  on('GET', '/api/friends', 'user', ({ me }) => G.friendsOf(D, me.id));
+  on('GET', '/api/users/search', 'user', ({ me, url }) => {
+    if (rateLimited(`search:${me.id}`, 60)) fail(429, 'Bitte kurz warten.');
+    noteFail(`search:${me.id}`);
+    return G.searchUsers(D, me.id, url.searchParams.get('q'));
+  });
+  on('POST', '/api/friends/:id', 'user', ({ me, params }) => gx(() => G.requestFriend(D, me.id, params.id)));
+  on('DELETE', '/api/friends/:id', 'user', ({ me, params }) => G.removeFriend(D, me.id, params.id));
 
   // ---- Challenges ----
   const challengeOr404 = (id) => D.get('SELECT * FROM challenges WHERE id = ?', id) || fail(404, 'Challenge nicht gefunden');
 
   on('POST', '/api/challenges', 'user', ({ me, body }) => {
+    const gid = String(body.group || '') || G.myGroups(D, me.id).groups[0]?.id;
+    if (!gid || !G.isMember(D, gid, me.id)) fail(403, 'Bitte zuerst einer Gruppe beitreten.');
     const T = CHALLENGE_TYPES[body.type];
     if (!T) fail(400, 'Unbekannter Challenge-Typ');
     const title = str(body.title, 80) || T.label;
@@ -285,11 +343,11 @@ export function makeApi(D, cfg) {
     if (!end || end <= start || end - start > 400 * 86400000) fail(400, 'Ungültiger Zeitraum');
     const id = newId();
     D.tx(() => {
-      D.run('INSERT INTO challenges (id, creator, title, type, exercise, relative, start, "end", created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        id, me.id, title, body.type, exercise, T.rel && body.relative ? 1 : 0, start, end, Date.now());
+      D.run('INSERT INTO challenges (id, creator, title, type, exercise, relative, start, "end", created, group_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        id, me.id, title, body.type, exercise, T.rel && body.relative ? 1 : 0, start, end, Date.now(), gid);
       D.run("INSERT INTO challenge_members (challenge_id, user_id, status) VALUES (?, ?, 'joined')", id, me.id);
       for (const uid of Array.isArray(body.invite) ? body.invite : []) {
-        if (uid !== me.id && D.get('SELECT 1 FROM users WHERE id = ? AND disabled = 0', uid)) {
+        if (uid !== me.id && G.isMember(D, gid, uid)) {
           D.run("INSERT OR IGNORE INTO challenge_members (challenge_id, user_id, status) VALUES (?, ?, 'invited')", id, uid);
         }
       }
@@ -302,7 +360,7 @@ export function makeApi(D, cfg) {
     const c = challengeOr404(params.id);
     if (!D.get("SELECT 1 FROM challenge_members WHERE challenge_id = ? AND user_id = ? AND status = 'joined'", c.id, me.id)) fail(403, 'Nur Teilnehmer können einladen');
     for (const uid of Array.isArray(body.users) ? body.users : []) {
-      if (D.get('SELECT 1 FROM users WHERE id = ? AND disabled = 0', uid)) D.run("INSERT OR IGNORE INTO challenge_members (challenge_id, user_id, status) VALUES (?, ?, 'invited')", c.id, uid);
+      if (G.isMember(D, c.group_id, uid)) D.run("INSERT OR IGNORE INTO challenge_members (challenge_id, user_id, status) VALUES (?, ?, 'invited')", c.id, uid);
     }
     bump();
     return { ok: true };
@@ -499,6 +557,9 @@ export function makeApi(D, cfg) {
     const id = newId();
     D.run('INSERT INTO users (id, name, role, created, username, pw_hash) VALUES (?, ?, ?, ?, ?, ?)',
       id, name, body.role === 'admin' ? 'admin' : 'member', Date.now(), username, hashPassword(password));
+    // in Gruppen aufnehmen (Standard: erste Gruppe des Servers)
+    const gids = Array.isArray(body.groups) ? body.groups : [G.defaultGroupId(D)].filter(Boolean);
+    for (const gid of gids.slice(0, 20)) { try { G.adminAddMember(D, String(gid), id); } catch { /* unbekannte Gruppe */ } }
     bump();
     return access(req, { id, name, role: body.role === 'admin' ? 'admin' : 'member', username }, password);
   });
@@ -542,6 +603,38 @@ export function makeApi(D, cfg) {
     return { ok: true };
   });
 
+  on('GET', '/api/admin/overview', 'admin', () => {
+    let dbBytes = 0;
+    try { for (const f of ['gymlog.db', 'gymlog.db-wal']) { const p = path.join(cfg.dataDir, f); if (fs.existsSync(p)) dbBytes += fs.statSync(p).size; } } catch { /* egal */ }
+    const day = Date.now() - 864e5;
+    return {
+      version: cfg.version, group: cfg.groupName, uptime: Date.now() - started, dbBytes, node: process.version,
+      users: D.get('SELECT COUNT(*) AS n FROM users').n, activeUsers: D.get('SELECT COUNT(DISTINCT user_id) AS n FROM devices WHERE last_seen > ?', day).n,
+      groups: D.get('SELECT COUNT(*) AS n FROM groups').n, workouts: D.get("SELECT COUNT(*) AS n FROM items WHERE kind = 'workout' AND deleted = 0").n,
+      workoutsToday: D.get("SELECT COUNT(*) AS n FROM items WHERE kind = 'workout' AND deleted = 0 AND start > ?", day).n,
+      tickets: D.get("SELECT COUNT(*) AS n FROM tickets WHERE status IN ('open', 'progress')").n,
+      devices: D.get('SELECT COUNT(*) AS n FROM devices').n, privateApp: !!cfg.privateApp,
+    };
+  });
+  on('GET', '/api/admin/groups', 'admin', () => ({ groups: G.allGroups(D) }));
+  on('POST', '/api/admin/groups', 'admin', ({ me, body }) => { const r = gx(() => G.createGroup(D, me, body.name)); bump(); return r; });
+  on('PATCH', '/api/admin/groups/:id', 'admin', ({ me, params, body }) => { const r = gx(() => G.renameGroup(D, me, params.id, body.name)); bump(); return r; });
+  on('DELETE', '/api/admin/groups/:id', 'admin', ({ me, params }) => { const r = gx(() => G.deleteGroup(D, me, params.id)); bump(); return r; });
+  on('POST', '/api/admin/groups/:id/members', 'admin', ({ params, body }) => { const r = gx(() => G.adminAddMember(D, params.id, String(body.user || ''))); bump(); return r; });
+  on('DELETE', '/api/admin/groups/:id/members/:uid', 'admin', ({ me, params }) => { const r = gx(() => G.removeMember(D, me, params.id, params.uid)); bump(); return r; });
+  on('POST', '/api/admin/groups/:id/code', 'admin', ({ me, params }) => gx(() => G.newGroupCode(D, me, params.id)));
+  // Punkte-Balance: wie sähen Saison und Monat mit neuen Werten aus?
+  on('POST', '/api/admin/points/preview', 'admin', ({ body }) => {
+    const pts = cleanPrefs(body.points);
+    return { groups: G.allGroups(D).map((g) => {
+      const now = groupData(D, g.id);
+      const neu = groupData(D, g.id, pts);
+      const name = (id) => now.members.find((m) => m.id === id)?.name || id;
+      const rows = (a, b) => a.map((r) => ({ id: r.id, name: name(r.id), before: r.points, after: b.find((x) => x.id === r.id)?.points ?? 0 })).sort((x, y) => y.after - x.after);
+      return { id: g.id, name: g.name, season: rows(now.season.rows, neu.season.rows), month: rows(now.season.month.rows, neu.season.month.rows) };
+    }) };
+  });
+
   on('DELETE', '/api/admin/devices/:id', 'admin', ({ params }) => {
     D.run('DELETE FROM devices WHERE id = ?', params.id);
     return { ok: true };
@@ -575,6 +668,7 @@ export function makeApi(D, cfg) {
         const a = authenticate(D, req.headers.authorization);
         if (!a) { noteFail(`auth:${ip}`); return send(401, { error: 'Nicht angemeldet' }); }
         if (tooMany(`dev:${a.device.id}`, 300, 60000)) return send(429, { error: 'Zu viele Anfragen. Bitte kurz warten.' });
+        ensureGroups();
         if (r.auth === 'admin' && a.user.role !== 'admin') return send(403, { error: 'Nur für Admins' });
         ctx = { ...ctx, me: a.user, device: a.device };
       }

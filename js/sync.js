@@ -24,7 +24,30 @@ export const onSync = (f) => srv.listeners.add(f);
 export const loggedIn = () => !!S.token;
 // DEMO: Arena mit 2 NPCs, solange man nicht bei einem Gruppen-Server angemeldet ist
 export const demoOn = () => !S.token && state.settings.arenaDemo !== false;
-export const account = () => ({ user: S.user, group: S.group, lastSync: S.lastSync, pending: pendingCount() });
+export const account = () => ({ user: S.user, group: activeGroup()?.name || S.group, lastSync: S.lastSync, pending: pendingCount() });
+
+// ---------- Mehrere Gruppen ----------
+const LS_GROUPS = 'gymlog-groups';
+let groupsInfo = (() => { try { return JSON.parse(localStorage.getItem(LS_GROUPS) || 'null') || { groups: [], invites: [] }; } catch { return { groups: [], invites: [] }; } })();
+export const myGroups = () => groupsInfo;
+export const activeGroup = () => {
+  const gs = groupsInfo.groups || [];
+  return gs.find((g) => g.id === state.settings.activeGroup) || gs[0] || null;
+};
+export const activeGroupId = () => activeGroup()?.id || '';
+export async function fetchGroups() {
+  if (!S.token) return groupsInfo;
+  const r = await api('GET', '/api/groups');
+  groupsInfo = { groups: Array.isArray(r.groups) ? r.groups : [], invites: Array.isArray(r.invites) ? r.invites : [] };
+  try { localStorage.setItem(LS_GROUPS, JSON.stringify(groupsInfo)); } catch { /* egal */ }
+  emit();
+  return groupsInfo;
+}
+export async function setActiveGroup(id) {
+  await saveSettings({ activeGroup: id });
+  memGroup = null;
+  return fetchGroup().catch(() => null);
+}
 export const isAdmin = () => S.user?.role === 'admin';
 export const myId = () => S.user?.id || (demoOn() ? 'me' : undefined);
 const pendingCount = () => Object.keys(S.dirty.workout).length + Object.keys(S.dirty.routine).length + S.tomb.length;
@@ -84,7 +107,6 @@ const profileData = () => ({
   avatar: state.settings.avatar || null,
   bwLog: Array.isArray(state.settings.bwLog) ? state.settings.bwLog : (state.settings.bodyweight ? [{ t: 0, kg: state.settings.bodyweight }] : []),
   weekGoal: state.settings.weekGoal,
-  visibility: state.settings.visibility || 'full',
 });
 const hash = (o) => JSON.stringify(o);
 
@@ -93,7 +115,6 @@ async function applyProfile(p, updated) {
   if (p.avatar) patch.avatar = p.avatar;
   if (Array.isArray(p.bwLog)) { patch.bwLog = p.bwLog; patch.bodyweight = p.bwLog.length ? p.bwLog[p.bwLog.length - 1].kg : state.settings.bodyweight; }
   if (p.weekGoal) patch.weekGoal = p.weekGoal;
-  if (p.visibility) patch.visibility = p.visibility;
   if (Object.keys(patch).length) await saveSettings(patch);
   S.profUpdated = updated;
   S.profHash = hash(profileData());
@@ -132,7 +153,8 @@ async function finishLogin(r, server) {
 function localLogout() {
   S = { ...empty(), server: S.server };
   save();
-  try { localStorage.removeItem(LS_GROUP); } catch { /* egal */ }
+  try { for (const x of Object.keys(localStorage)) if (x.startsWith(LS_GROUP)) localStorage.removeItem(x); } catch { /* egal */ }
+  groupsInfo = { groups: [], invites: [] };
   emit();
 }
 export async function logout() {
@@ -299,11 +321,12 @@ export function resetCursor() { S.cursor = 0; S.dirty = { workout: {}, routine: 
 // ---------- Gruppendaten ----------
 // vollständige Gruppendaten? (alte oder kaputte Zwischenspeicher nicht verwenden)
 export const validGroup = (g) => !!(g && Array.isArray(g.members) && g.season && Array.isArray(g.season.rows) && g.alltime && g.kings);
+const groupKey = () => `${LS_GROUP}:${activeGroupId() || 'none'}`;
 export function cachedGroup() {
   if (demoOn()) return demoGroup();
   try {
-    const g = JSON.parse(localStorage.getItem(LS_GROUP) || 'null') || memGroup;
-    if (g && !validGroup(g)) { localStorage.removeItem(LS_GROUP); return null; }
+    const g = JSON.parse(localStorage.getItem(groupKey()) || 'null') || memGroup;
+    if (g && !validGroup(g)) { localStorage.removeItem(groupKey()); return null; }
     return g;
   } catch { return null; }
 }
@@ -312,12 +335,13 @@ let memGroup = null;
 export function fetchGroup() {
   if (demoOn()) return Promise.resolve(demoGroup());
   if (!S.token) return Promise.resolve(null);
-  groupReq ??= api('GET', '/api/group').then((g) => {
+  groupReq ??= (groupsInfo.groups.length ? Promise.resolve() : fetchGroups().catch(() => {})).then(() => api('GET', `/api/group${activeGroupId() ? `?g=${encodeURIComponent(activeGroupId())}` : ''}`)).then((g) => {
     if (!validGroup(g)) throw new Error(`Unvollständige Gruppendaten vom Server (enthalten: ${Object.keys(g || {}).slice(0, 12).join(', ') || 'nichts'})`);
     const json = JSON.stringify(g);
-    try { localStorage.setItem(LS_GROUP, json); } catch {
+    const k = groupKey();
+    try { localStorage.setItem(k, json); } catch {
       // Speicher voll: alten Stand entfernen und erneut versuchen, sonst nur im Speicher halten
-      try { localStorage.removeItem(LS_GROUP); localStorage.setItem(LS_GROUP, json); } catch { memGroup = g; }
+      try { for (const x of Object.keys(localStorage)) if (x.startsWith(LS_GROUP)) localStorage.removeItem(x); localStorage.setItem(k, json); } catch { memGroup = g; }
     }
     return g;
   }).finally(() => { groupReq = null; });
@@ -330,6 +354,7 @@ export function initSync() {
   if (!S.token || inited) return;
   inited = true;
   syncNow().catch(() => {});
+  fetchGroups().catch(() => {});
   onChange(() => { if (S.token && (hash(profileData()) !== S.profHash || (S.prefHash && hash(prefsData()) !== S.prefHash))) scheduleSync(3000); });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') scheduleSync(500); });
   window.addEventListener('online', () => scheduleSync(500));

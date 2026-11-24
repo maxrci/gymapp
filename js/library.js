@@ -77,8 +77,19 @@ const RULES = [
   [/squat|kniebeuge|hackenschmidt|beinpresse|leg press|ausfallschritt|lunge|split|step[ -]?up|cossack|curtsy/i, 'Quadrizeps', ['Gesäß', 'Beinbeuger'], 'weight'],
 ];
 
+// Eigene Übungen des Admins (Dashboard → Übungen), vom Server geladen
+export const CUSTOM = new Map();
+export function setCustomExercises(list) {
+  CUSTOM.clear();
+  for (const e of Array.isArray(list) ? list : []) {
+    if (!e || typeof e.name !== 'string' || e.name.length < 2 || e.name.length > 80) continue;
+    CUSTOM.set(e.name, { primary: MUSCLES.includes(e.primary) ? e.primary : 'Sonstiges', type: e.type in TYPES ? e.type : 'weight' });
+  }
+}
 export function inferExercise(name) {
   const n = String(name || '');
+  const c = CUSTOM.get(n);
+  if (c) return { primary: c.primary, secondary: [], type: c.type };
   for (const [re, primary, secondary, type] of RULES) {
     if (re.test(n)) {
       let t = type;

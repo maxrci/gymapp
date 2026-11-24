@@ -6,7 +6,8 @@ import { esc, num, fmtVolume, fmtDate, fmtRelDay, fmtDurShort, fmtClock } from '
 import { fighterSVG, fighterFx, fighterHead } from '../fighter.js';
 import { EP_RULES_TEXT } from '../gamification.js';
 import { nav } from '../nav.js';
-import { cachedGroup, fetchGroup, loggedIn, myId, api, demoOn, srv } from '../sync.js';
+import { cachedGroup, fetchGroup, loggedIn, myId, api, demoOn, srv, myGroups, activeGroupId, setActiveGroup } from '../sync.js';
+import { circleHandlers } from '../circles.js';
 import {
   ALLTIME, alltimeValue, CHALLENGE_TYPES, VISIBILITY, STAGE_NAMES, KINGS,
 } from '../compete.js';
@@ -59,13 +60,24 @@ export function leagueView({ tab = 'season' }) {
       }),
     };
   }
+  // mehrere Gruppen: oben umschalten
+  const gs = g.demo ? [] : myGroups().groups || [];
+  const switcher = gs.length > 1 ? `<div class="chips g-switch">${gs.map((x) => `<button class="chip ${x.id === (g.groupId || activeGroupId()) ? 'on' : ''}" data-gsw="${esc(x.id)}">${esc(x.name)}</button>`).join('')}</div>` : '';
+  if (g.none) {
+    return {
+      html: pageHead('Arena') + emptyState('users', 'Noch in keiner Gruppe', 'Gründe eine Gruppe für deinen Freundeskreis oder tritt mit einem Einladungscode bei.',
+        '<button class="btn primary" data-act="g-new">Gruppe gründen</button> <button class="btn ghost" data-act="g-join">Mit Code beitreten</button>'),
+      handlers: { ...circleHandlers },
+      onShow: refresh,
+    };
+  }
   const views = { season, leaders, kings, alltime, challenges, members };
   const v = (views[tab] || season)(g);
   return {
-    html: `${pageHead(g.group || 'Arena', { sub: `${g.members.length} Mitglieder` })}${g.demo ? demoBanner() : ''}${tabs}${v.html}`,
+    html: `${pageHead(g.group || 'Arena', { sub: `${g.members.length} Mitglieder` })}${g.demo ? demoBanner() : ''}${switcher}${tabs}${v.html}`,
     mount: (root) => { v.mount?.(root); },
     handlers: { login: () => loginFlow(), ...(v.handlers || {}) },
-    clicks: { ...(v.clicks || {}) },
+    clicks: { ...(v.clicks || {}), gsw: async (el, rr) => { await setActiveGroup(el.dataset.gsw); rr(); } },
     onShow: refresh,
   };
 }
@@ -463,7 +475,7 @@ export function memberView({ id }) {
     ${feedHtml}`;
   const load = async (before, rr) => {
     try {
-      const r = await api('GET', `/api/members/${encodeURIComponent(id)}/workouts?limit=15${before ? `&before=${before}` : ''}`);
+      const r = await api('GET', `/api/members/${encodeURIComponent(id)}/workouts?limit=15${before ? `&before=${before}` : ''}${activeGroupId() ? `&g=${encodeURIComponent(activeGroupId())}` : ''}`);
       const prev = before ? feeds.get(id)?.workouts || [] : [];
       feeds.set(id, { visibility: r.visibility, workouts: [...prev, ...r.workouts], more: r.workouts.length === 15 });
       rr();

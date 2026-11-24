@@ -5,8 +5,9 @@ import { overlay, icon, sheet, formDialog, confirmDialog, toast } from './ui.js'
 import { esc, fmtRelDay, fmtDate } from './utils.js';
 import {
   api, logout, syncNow, account, isAdmin, srv, loggedIn, markAllDirty, fetchGroup,
-  loginPassword, parseServerInput, sameOriginServer, serverUrl,
+  loginPassword, parseServerInput, sameOriginServer, serverUrl, fetchGroups,
 } from './sync.js';
+import { circlesSection, circleHandlers } from './circles.js';
 import { VISIBILITY } from './compete.js';
 import { share } from './platform.js';
 
@@ -52,17 +53,15 @@ export function groupSection(row) {
       <div class="set-group">${row('login', 'key', 'Bei Gruppe anmelden')}</div>
       <p class="footnote">Mit Benutzername und Passwort von deinem Gruppen-Admin. Ohne Gruppe bleibt alles nur auf diesem Gerät.</p>`;
   }
-  const vis = VISIBILITY.find(([k]) => k === (state.settings.visibility || 'full'));
   const syncText = srv.syncing ? 'läuft…' : srv.error ? 'Fehler' : a.lastSync ? fmtRelDay(a.lastSync) === 'Heute' ? fmtDate(a.lastSync, { hour: '2-digit', minute: '2-digit' }) : fmtRelDay(a.lastSync) : 'noch nie';
-  return `<div class="list-label">Gruppe · ${esc(a.group || '')}</div>
+  return `<div class="list-label">Konto</div>
     <div class="set-group">
       ${row('rename', 'user', 'Angemeldet als', esc(a.user?.name || ''))}
-      ${row('visibility', 'eye', 'Sichtbarkeit', esc(vis?.[1] || ''))}
       ${row('sync', 'sync', 'Jetzt synchronisieren', `${esc(syncText)}${a.pending ? ` · ${a.pending} offen` : ''}`)}
-      ${isAdmin() ? row('admin', 'users', 'Gruppe verwalten') : ''}
+      ${isAdmin() ? `<a class="set-item" href="/admin" target="_blank" rel="noopener"><span class="si-ic">${icon('users')}</span><span class="si-l">Admin-Dashboard<small class="si-sub">Nutzer, Gruppen, EP-Balance, Übungen, Tickets – im Browser</small></span>${icon('right', 'muted')}</a>${row('admin', 'key', 'Schnell: Konto anlegen')}` : ''}
       ${row('logout', 'logout', 'Abmelden', '', true)}
     </div>
-    <p class="footnote">Deine Workouts werden mit dem Server deiner Gruppe${serverUrl() ? ` (${esc(serverUrl().replace(/^https?:\/\//, ''))})` : ''} abgeglichen und bleiben zusätzlich auf diesem Gerät.</p>`;
+    ${circlesSection()}`;
 }
 
 export const groupHandlers = {
@@ -72,17 +71,9 @@ export const groupHandlers = {
     if (!r?.n.trim()) return;
     try { await api('PATCH', '/api/me', { name: r.n.trim() }); await syncNow(); toast('Gespeichert'); } catch (e) { toast(e.message); }
   },
-  visibility: async () => {
-    const cur = state.settings.visibility || 'full';
-    const v = await sheet({
-      title: 'Wer sieht was?',
-      message: VISIBILITY.map(([, l, d]) => `${l}: ${d}`).join('\n\n'),
-      options: VISIBILITY.map(([k, l], i) => ({ label: `Stufe ${i + 1} – ${l}`, value: k, active: k === cur })),
-    });
-    if (v) { await saveSettings({ visibility: v }); syncNow().catch(() => {}); }
-  },
+  ...circleHandlers,
   sync: async () => {
-    try { markAllDirty(); await syncNow(); await fetchGroup(); toast('Synchronisiert'); } catch (e) { toast(e.message); }
+    try { markAllDirty(); await syncNow(); await fetchGroups(); await fetchGroup(); toast('Synchronisiert'); } catch (e) { toast(e.message); }
   },
   admin: () => openAdmin(),
   logout: async () => {

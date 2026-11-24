@@ -4,7 +4,7 @@ import { overlay, icon, toast } from './ui.js';
 import { esc } from './utils.js';
 import { allExerciseNames } from './store.js';
 import { idx } from './stats.js';
-import { api, myId } from './sync.js';
+import { api, myId, activeGroupId } from './sync.js';
 import { CHALLENGE_TYPES, CHALLENGE_TEMPLATES } from './compete.js';
 
 const isoDay = (ts) => { const d = new Date(ts); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
@@ -77,6 +77,7 @@ export function openChallengeEditor(g, done) {
     const days = Math.max(1, Math.min(365, f.days));
     try {
       await api('POST', '/api/challenges', {
+        group: activeGroupId() || undefined,
         title: f.title.trim() || T.label, type: f.type, exercise: T.ex ? f.exercise : null, relative: T.rel && f.relative,
         start: begin, end: start + days * 86400000, invite: [...f.invite],
       });

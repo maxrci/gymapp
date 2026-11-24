@@ -1,7 +1,7 @@
 // Übungsauswahl + Dialog "Neue Übung"
 
 import { state, allExerciseNames, exerciseMeta, saveExerciseMeta } from './store.js';
-import { LIBRARY, MUSCLES, TYPES, inferExercise } from './library.js';
+import { LIBRARY, MUSCLES, TYPES, inferExercise, CUSTOM } from './library.js';
 import { idx } from './stats.js';
 import { esc, fmtRelDay } from './utils.js';
 import { icon, overlay, formDialog, toast } from './ui.js';
@@ -12,7 +12,7 @@ import { weekStreaks } from './stats.js';
 export function pickExercises({ multi = true, title = 'Übung hinzufügen' } = {}) {
   return new Promise((resolve) => {
     const usage = idx().ex;
-    const names = [...new Set([...allExerciseNames(), ...LIBRARY])];
+    const names = [...new Set([...allExerciseNames(), ...LIBRARY, ...CUSTOM.keys()])];
     const items = names.map((n) => {
       const x = usage.get(n);
       return { name: n, meta: exerciseMeta(n), count: x?.count || 0, last: x?.last || 0 };

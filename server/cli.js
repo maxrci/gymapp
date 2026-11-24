@@ -7,6 +7,7 @@
 // Ohne Passwort wird ein gut lesbares Zufallspasswort erzeugt (z. B. „kraft-tiger-4827“).
 
 import { config } from './server.js';
+import { defaultGroupId, adminAddMember } from './groups.js';
 import { openDb } from './db.js';
 import { newId, normUser, hashPassword, newPassword, createInvite, INVITE_DAYS } from './auth.js';
 
@@ -50,6 +51,9 @@ switch (cmd) {
     if (password.length < 6) die('Passwort zu kurz (mind. 6 Zeichen).');
     const user = { id: newId(), name, role: cmd === 'admin' ? 'admin' : 'member' };
     D.run('INSERT INTO users (id, name, role, created, username, pw_hash) VALUES (?, ?, ?, ?, ?, ?)', user.id, user.name, user.role, Date.now(), username, hashPassword(password));
+    // in die erste Gruppe des Servers aufnehmen (gibt es noch keine, entsteht sie beim nächsten Serverstart)
+    const gid = defaultGroupId(D);
+    if (gid) adminAddMember(D, gid, user.id);
     printAccess(user, username, password);
     break;
   }

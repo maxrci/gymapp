@@ -80,7 +80,12 @@ gibt es nur die Login-Seite, der App-Code kommt erst nach dem Login (Cookie). Da
   Jedes Gerät meldet sich einmal an und bleibt angemeldet.
 - **Offline-first-Sync** zwischen Handy und Server, auch über mehrere Geräte.
 - **Arena**, **Challenges**, **Tickets** (Wünsche & Fehler) für die ganze Gruppe.
-- **Sichtbarkeit in 3 Stufen**: nur Zahlen, Workout-Übersicht oder komplette Workouts.
+- **Mehrere Gruppen** (Freundeskreise): gründen, mit Code beitreten, Freunde einladen, austreten. Jede Gruppe hat ihre
+  eigene Arena und eigene Challenges. **Pro Gruppe** stellt jede Person ein, was sie teilt (komplette Workouts,
+  Übersicht oder nur Zahlen; Körpergewicht; Live-Status).
+- **Freunde** finden und annehmen – nur unter den Konten auf dem eigenen Server.
+- **Admin-Dashboard** unter `/admin` (nur für Admins, getrennt von der App): Nutzer, Gruppen, EP-Balance mit Vorschau,
+  Übungen (inkl. eigener Übungen für alle), Tickets, Funktionen.
 - Technik: Node.js ≥ 22.13 mit eingebautem SQLite, keine weiteren Pakete. HTTPS z. B. kostenlos über Tailscale Funnel.
 
 Schritt-für-Schritt-Anleitung: [selfhost.html](selfhost.html). Kurzfassung für einen Pi mit Ubuntu 24.04:
