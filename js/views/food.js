@@ -11,6 +11,7 @@ import {
   lib, favorites, isFav, toggleFav, saveCustom, saveDish, deleteDish, deleteCustom, productKey, cleanPer100,
 } from '../food.js';
 import { swipeToDelete } from '../swipe.js';
+import { searchBasics } from '../foodbasics.js';
 import { coachOn, bodyComplete } from '../coach/core.js';
 import { weekPlan } from '../coach/plan.js';
 import { nutrition } from '../coach/nutrition.js';
@@ -172,7 +173,7 @@ export function openAddFood(id, meal, { onPick } = {}) {
     if (tab === 'fav') shown = favorites().map((f) => (f.dish ? lib().dishes.find((d) => d.id === f.id) || null : f)).filter(Boolean);
     else if (tab === 'dish') shown = lib().dishes;
     else if (tab === 'own') shown = lib().custom;
-    else shown = [...local(), ...remote.filter((r) => !local().some((x) => productKey(x) === productKey(r)))];
+    else { const loc = local(); const bas = q.trim().length >= 2 ? searchBasics(q).filter((b) => !loc.some((x) => productKey(x) === productKey(b))) : []; shown = [...bas, ...loc, ...remote.filter((r) => !loc.some((x) => productKey(x) === productKey(r)))]; }
     const head = tab === 'search' && !q ? '<div class="list-label">Zuletzt</div>' : '';
     const empty = tab === 'fav' ? 'Noch keine Favoriten – tippe beim Hinzufügen auf ☆.' : tab === 'dish' ? 'Noch keine Gerichte.' : tab === 'own' ? 'Noch keine eigenen Produkte.' : q.length >= 2 ? (loading ? 'Suche…' : err || 'Nichts gefunden – lege ein eigenes Produkt an.') : 'Tippe einen Namen ein oder scanne den Barcode.';
     return `${head}${shown.length ? `<div class="fd-picks">${shown.map(row).join('')}</div>` : `<p class="footnote">${esc(empty)}</p>`}${tab === 'search' && loading ? '<p class="footnote">Suche in der Datenbank…</p>' : ''}`;

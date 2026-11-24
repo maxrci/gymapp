@@ -2,6 +2,8 @@
 // Der Server fragt stellvertretend an (Geräte bleiben unbekannt), speichert Ergebnisse 30 Tage zwischen und bremst Massenanfragen.
 
 const BASE = () => (process.env.OFF_BASE || 'https://world.openfoodfacts.org').replace(/\/$/, '');
+// neue Suche von Open Food Facts (die alte cgi/search.pl ist abgeschaltet)
+const SEARCH = () => (process.env.OFF_SEARCH || 'https://search.openfoodfacts.org').replace(/\/$/, '');
 const UA = 'GymSelfHosted/1.0 (private fitness app; open source)';
 const TTL = 30 * 864e5;
 const FIELDS = 'code,product_name,product_name_de,generic_name_de,brands,nutriments,serving_quantity,quantity,image_small_url';
@@ -21,7 +23,7 @@ export function cleanProduct(p) {
   if (!name || kcal == null) return null;
   const code = str(p.code, 20).replace(/\D/g, '');
   return {
-    code, name, brand: str(p.brands, 80).split(',')[0].trim(), qty: str(p.quantity, 30),
+    code, name, brand: str(Array.isArray(p.brands) ? p.brands[0] : p.brands, 80).split(',')[0].replace(/^[a-z]{2}:/, '').trim(), qty: str(p.quantity, 30),
     serving: num(p.serving_quantity),
     per100: {
       kcal, protein: num(n.proteins_100g), carbs: num(n.carbohydrates_100g), sugar: num(n.sugars_100g), fat: num(n.fat_100g),
@@ -36,6 +38,8 @@ async function cached(D, key, fetcher) {
   const r = D.get('SELECT data, fetched FROM food_cache WHERE key = ?', key);
   if (r && r.fetched > Date.now() - TTL) return JSON.parse(r.data);
   const data = await fetcher();
+  // leere Suchergebnisse nicht merken (können an einer kurzen Bremse der Datenbank liegen)
+  if (Array.isArray(data?.products) && !data.products.length) return data;
   D.run('INSERT INTO food_cache (key, data, fetched) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET data = excluded.data, fetched = excluded.fetched', key, JSON.stringify(data), Date.now());
   if (Math.random() < 0.02) D.run('DELETE FROM food_cache WHERE fetched < ?', Date.now() - TTL);
   return data;
@@ -52,13 +56,49 @@ async function get(url) {
   return res.json().catch(() => null);
 }
 
+// begrenzt parallel abarbeiten (schont die Datenbank)
+async function pool(items, n, fn) {
+  const out = new Array(items.length);
+  let i = 0;
+  await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => { while (i < items.length) { const k = i++; out[k] = await fn(items[k]); } }));
+  return out;
+}
+
 export async function searchFood(D, q) {
   const s = str(q, 60).toLowerCase();
   if (s.length < 2) return { products: [] };
   return cached(D, `s:${s}`, async () => {
-    const qs = new URLSearchParams({ search_terms: s, search_simple: '1', action: 'process', json: '1', page_size: '24', fields: FIELDS, lc: 'de', sort_by: 'unique_scans_n' });
-    const j = await get(`${BASE()}/cgi/search.pl?${qs}`);
-    return { products: (Array.isArray(j?.products) ? j.products : []).map(cleanProduct).filter(Boolean).slice(0, 24) };
+    let list = null;
+    try {
+      const qs = new URLSearchParams({ q: s, page_size: '30', langs: 'de,en', fields: FIELDS });
+      const j = await get(`${SEARCH()}/search?${qs}`);
+      if (Array.isArray(j?.hits)) {
+        // Der Suchindex hat oft keine Nährwerte → für die besten Treffer das vollständige Produkt nachladen (je 30 Tage zwischengespeichert)
+        const hits = j.hits.slice(0, 12);
+        const full = await pool(hits, 4, async (h) => {
+          if (cleanProduct(h)) return h;
+          const c = String(h.code || '').replace(/\D/g, '');
+          if (c.length < 8) return null;
+          try { const r = await productByCode(D, c); return r.product ? { ...r.product, _clean: true } : null; } catch { return null; }
+        });
+        list = full.filter(Boolean);
+      }
+    } catch { /* unten: alter Weg */ }
+    if (!list) {
+      const qs = new URLSearchParams({ search_terms: s, search_simple: '1', action: 'process', json: '1', page_size: '24', fields: FIELDS, lc: 'de', sort_by: 'unique_scans_n' });
+      const j = await get(`${BASE()}/cgi/search.pl?${qs}`);
+      list = Array.isArray(j?.products) ? j.products : [];
+    }
+    const products = list.map((p) => (p._clean ? (({ _clean, ...x }) => x)(p) : cleanProduct(p))).filter(Boolean);
+    // nach Relevanz: Name genau / beginnt mit Suchwort / enthält es als Wort – kurze, passende Namen zuerst
+    const words = s.split(/\s+/).filter(Boolean);
+    const rank = (p) => {
+      const n = p.name.toLowerCase();
+      let r = n === s ? 100 : n.startsWith(s) ? 70 : n.startsWith(words[0]) ? 15 : 0;
+      for (const w of words) r += new RegExp(`(^|[^a-zäöüß])${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(n) ? 20 : n.includes(w) ? 8 : `${p.brand}`.toLowerCase().includes(w) ? 5 : -15;
+      return r - Math.min(30, Math.max(0, n.length - s.length) / 2);
+    };
+    return { products: products.map((p) => [rank(p), p]).sort((a, b) => b[0] - a[0]).map(([, p]) => p).slice(0, 24) };
   });
 }
 
