@@ -79,14 +79,22 @@ export function mountMasters(root) {
     const g = host.querySelector('.mf');
     g.innerHTML = frame(kind, 0.25);
     if (reduce) return;
-    let phase = 0, prev = performance.now(), last = 0;
-    const loop = (now) => {
-      if (!host.isConnected) return;
+    // nur animieren, wenn sichtbar – und mit ~20 Bildern/s, damit Taps flüssig bleiben
+    let phase = 0, prev = performance.now(), last = 0, visible = true, raf = 0;
+    const io = 'IntersectionObserver' in window ? new IntersectionObserver(([en]) => {
+      visible = en.isIntersecting;
+      if (visible && !raf) { prev = performance.now(); raf = requestAnimationFrame(loop); }
+    }) : null;
+    io?.observe(host);
+    function loop(now) {
+      raf = 0;
+      if (!host.isConnected) { io?.disconnect(); return; }
+      if (!visible || document.hidden) { prev = now; if (!io || document.hidden) raf = requestAnimationFrame(loop); return; }
       phase = (phase + ((now - prev) * M.speed) / PERIOD[M.pose]) % 1;
       prev = now;
-      if (now - last > 33) { last = now; g.innerHTML = frame(kind, phase); }
-      requestAnimationFrame(loop);
-    };
-    requestAnimationFrame(loop);
+      if (now - last > 50) { last = now; g.innerHTML = frame(kind, phase); }
+      raf = requestAnimationFrame(loop);
+    }
+    raf = requestAnimationFrame(loop);
   });
 }

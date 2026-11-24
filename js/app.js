@@ -62,16 +62,40 @@ function render({ keepScroll = true } = {}) {
   const main = $('#view');
   const y = window.scrollY;
   nav.entering = !keepScroll;
-  current = r.view(r.params || {});
+  try { current = r.view(r.params || {}); } catch (e) { console.error(e); current = errorView(e, r.tab); }
   main.innerHTML = current.html;
   nav.entering = false;
-  try { current.mount?.(main); } catch (e) { console.error(e); }
-  try { current.onShow?.(rerender); } catch (e) { console.error(e); }
+  try { current.mount?.(main); } catch (e) { console.error(e); showViewError(main, e); }
+  try { current.onShow?.(rerender); } catch (e) { console.error(e); showViewError(main, e); }
   if (keepScroll) window.scrollTo(0, y); else window.scrollTo(0, 0);
   document.querySelectorAll('#tabbar a').forEach((a) => a.classList.toggle('on', a.dataset.tab === r.tab));
   renderMinibar();
 }
 const rerender = () => render({ keepScroll: true });
+
+// Fehler in einer Seite: nicht still hängen bleiben, sondern anzeigen und melden lassen
+const errText = (e) => `${e?.message || e}\n${String(e?.stack || '').split('\n').slice(0, 6).join('\n')}`;
+function errorCard(e) {
+  return `<section class="card err-card"><b>${icon('info', 'xs')} Diese Seite konnte nicht geladen werden</b>
+    <pre>${esc(String(e?.message || e))}</pre>
+    <div class="row-btns"><button class="btn primary sm" data-err-retry>Erneut versuchen</button><button class="btn ghost sm" data-err-report>Fehler melden</button></div></section>`;
+}
+let lastErr = null;
+function errorView(e, tab) {
+  lastErr = e;
+  return { html: `<header class="page-head"><div class="ph-text"><h1>${esc(TABS.find(([k]) => k === tab)?.[1] || 'Gym')}</h1></div></header>${errorCard(e)}` };
+}
+function showViewError(main, e) {
+  lastErr = e;
+  main.insertAdjacentHTML('afterbegin', errorCard(e));
+}
+document.addEventListener('click', async (ev) => {
+  if (ev.target.closest('[data-err-retry]')) { rerender(); return; }
+  if (ev.target.closest('[data-err-report]')) {
+    const { newTicket } = await import('./tickets.js');
+    newTicket('bug', { title: `Fehler auf ${location.hash || '#/'}`, body: `Seite: ${location.hash}\n${errText(lastErr)}` });
+  }
+});
 
 function renderTabbar() {
   $('#tabbar').innerHTML = TABS.map(([k, l, ic]) => `<a href="#/${k}" data-tab="${k}">${icon(ic)}<span>${l}</span></a>`).join('');

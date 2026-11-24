@@ -55,13 +55,13 @@ function githubUrl(t) {
 }
 
 // ---------- Neues Ticket ----------
-export async function newTicket(type = 'wish') {
+export async function newTicket(type = 'wish', pre = {}) {
   const r = await formDialog({
     title: 'Neues Ticket', okLabel: 'Absenden',
     fields: [
       { name: 'type', label: 'Art', type: 'select', value: type, options: TICKET_TYPES.map(([v, l]) => ({ value: v, label: v === 'bug' ? 'Fehler melden' : 'Verbesserungswunsch' })) },
-      { name: 'title', label: 'Kurz und knapp', placeholder: 'z. B. Satz lässt sich nicht löschen', autofocus: false },
-      { name: 'body', label: 'Beschreibung (was, wo, wie oft?)', type: 'textarea', placeholder: 'Was hast du gemacht, was ist passiert, was hättest du erwartet?' },
+      { name: 'title', label: 'Kurz und knapp', placeholder: 'z. B. Satz lässt sich nicht löschen', autofocus: false, value: pre.title || '' },
+      { name: 'body', label: 'Beschreibung (was, wo, wie oft?)', type: 'textarea', placeholder: 'Was hast du gemacht, was ist passiert, was hättest du erwartet?', value: pre.body || '' },
     ],
   });
   if (!r) return null;
