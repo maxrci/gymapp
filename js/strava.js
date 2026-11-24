@@ -3,6 +3,7 @@
 import { icon, overlay, toast, sheet } from './ui.js';
 import { esc, fmtRelDay, fmtDate, num } from './utils.js';
 import { api, loggedIn, syncNow } from './sync.js';
+import { FROM, fromTs, olderChoices, garminSync } from './garmin.js';
 
 const LS = 'gymlog-strava';
 const cached = () => { try { return JSON.parse(localStorage.getItem(LS) || 'null'); } catch { return null; } };
@@ -10,8 +11,6 @@ const cache = (s) => { try { localStorage.setItem(LS, JSON.stringify({ connected
 
 export const stravaText = () => { const c = cached(); return c?.connected ? (c.athlete || 'verbunden') : 'nicht verbunden'; };
 
-const FROM = [['30', 'Letzte 30 Tage'], ['90', 'Letzte 90 Tage'], ['year', 'Dieses Jahr'], ['all', 'Alles']];
-const fromTs = (k) => (k === 'all' ? Date.UTC(2009, 0, 1) : k === 'year' ? new Date(new Date().getFullYear(), 0, 1).getTime() : Date.now() - Number(k) * 86400000);
 
 // Abgleich anstoßen (Server holt neue Aktivitäten) und danach normal synchronisieren
 let lastRun = 0;
@@ -28,12 +27,14 @@ export async function stravaSync(force = false) {
     return null;
   }
 }
+// Strava und Garmin beim Öffnen der App und bei jeder Rückkehr abgleichen (höchstens alle 10 Minuten)
 let inited = false;
 export function initStrava() {
   if (!loggedIn() || inited) return;
   inited = true;
-  setTimeout(() => stravaSync(), 4000);
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') stravaSync(); });
+  const both = () => { stravaSync(); garminSync(); };
+  setTimeout(both, 4000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') both(); });
 }
 
 export async function openStrava() {
@@ -74,8 +75,10 @@ export async function openStrava() {
     body().innerHTML = `
       <section class="card st-card ok"><div class="st-ic">${icon('check')}</div><b>Verbunden${st.athlete?.name ? ` als ${esc(st.athlete.name)}` : ''}</b>
         <p>${num(st.imported, 0)} Aktivitäten übernommen · zuletzt abgeglichen ${st.lastSync ? esc(fmtRelDay(st.lastSync) === 'Heute' ? fmtDate(st.lastSync, { hour: '2-digit', minute: '2-digit' }) : fmtRelDay(st.lastSync)) : 'noch nie'}</p>
+        ${st.importFrom ? `<p class="st-from">Übernommen ab ${esc(fmtDate(st.importFrom, { day: 'numeric', month: 'short', year: 'numeric' }))}</p>` : ''}
         ${st.lastError ? `<p class="st-err">${esc(st.lastError)}</p>` : ''}
         <button class="btn primary block" data-sync>${icon('sync', 'xs')} Jetzt abgleichen</button></section>
+      ${olderChoices(st.importFrom).length ? `<section class="card"><div class="cs-l">Ältere Aktivitäten nachholen</div><div class="chips">${olderChoices(st.importFrom).map(([k, l]) => `<button class="chip" data-older="${k}">${l}</button>`).join('')}</div></section>` : ''}
       <div class="set-group">
         <button class="set-item" data-edit><span class="si-ic">${icon('key')}</span><span class="si-l">Zugangsdaten ändern</span>${icon('right', 'muted')}</button>
         <button class="set-item danger" data-disconnect><span class="si-ic">${icon('logout')}</span><span class="si-l">Strava trennen</span>${icon('right', 'muted')}</button>
@@ -105,6 +108,16 @@ export async function openStrava() {
     if (t('[data-sync]')) {
       const b = t('[data-sync]'); b.disabled = true; b.textContent = 'Gleiche ab…';
       try { const r = await stravaSync(true); toast(r?.added ? `${r.added} neue Aktivität${r.added === 1 ? '' : 'en'}` : 'Alles aktuell'); } catch (err) { toast(err.message, 4000); }
+      return load();
+    }
+    const old = t('[data-older]');
+    if (old) {
+      old.disabled = true; old.textContent = 'Hole…';
+      try {
+        const r = await api('POST', '/api/strava/backfill', { from: fromTs(old.dataset.older) });
+        if (r.added) await syncNow();
+        toast(`${r.added || 0} ältere Aktivität${r.added === 1 ? '' : 'en'} übernommen`, 4000);
+      } catch (err) { toast(err.message, 4000); }
       return load();
     }
     if (t('[data-disconnect]')) {

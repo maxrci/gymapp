@@ -1741,6 +1741,12 @@ a.tr:active { background: var(--surface-2); }
 .st-card b { display: block; font-size: 17px; }
 .st-card p { color: var(--text-2); font-size: 14px; margin: 6px 0 12px; }
 .st-card .st-err { color: var(--danger); }
+.st-card p.st-from { font-size: 13px; color: var(--muted); margin-top: -6px; }
+.st-card.garmin:not(.ok) .st-ic { background: rgba(0, 124, 195, .14); color: #007cc3; }
+textarea[data-key] { width: 100%; box-sizing: border-box; font: 13px/1.4 ui-monospace, Menlo, monospace; resize: vertical; word-break: break-all; }
+.garmin-link { color: #007cc3 !important; }
+.onb-strava .o-gm { background: linear-gradient(150deg, #1aa0e6, #007cc3); width: 70px; height: 70px; border-radius: 22px; }
+.onb-strava .o-gm .ic { width: 36px; height: 36px; }
 .strava-link { display: inline-flex; align-items: center; gap: 6px; margin: 4px 0 10px; color: #fc4c02; font-weight: 700; font-size: 14px; }
 .onb-hint { text-align: center; color: var(--muted); font-size: 13px; margin: 10px auto 0; max-width: 440px; }
 .s-strava { --onb-glow: rgba(252, 76, 2, .25); }

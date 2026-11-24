@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { openDb } from './db.js';
 import { makeApi } from './api.js';
 import { syncAll as stravaSyncAll } from './strava.js';
+import { syncAll as garminSyncAll } from './garmin.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -117,6 +118,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   // Strava: verbundene Konten alle 2 Stunden abgleichen (Arena bleibt aktuell, auch ohne App zu öffnen)
   setTimeout(() => stravaSyncAll(D), 60000).unref();
   setInterval(() => stravaSyncAll(D), 2 * 3600e3).unref();
+  // Garmin genauso (persönliche API liefert nichts von selbst, daher regelmäßig nachfragen)
+  setTimeout(() => garminSyncAll(D), 90000).unref();
+  setInterval(() => garminSyncAll(D), 2 * 3600e3).unref();
   // letzter Schutz: unerwartete Fehler protokollieren statt den Dienst zu beenden
   process.on('uncaughtException', (e) => console.error('Unerwarteter Fehler:', e));
   process.on('unhandledRejection', (e) => console.error('Unbehandelter Fehler:', e));

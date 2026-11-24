@@ -3,9 +3,8 @@
 // Daraus werden normale Cardio-Workouts – sie landen per Sync in der App und zählen in der Arena.
 
 import crypto from 'node:crypto';
-import { MOBILITY_RE } from '../js/compete.js';
-import { cleanSummary } from './summary.js';
 import { bump } from './group.js';
+import { cardioWorkout, storeImported, removeImported } from './activity.js';
 
 const BASE = () => (process.env.STRAVA_BASE || 'https://www.strava.com').replace(/\/$/, '');
 const SCOPE = 'read,activity:read_all';
@@ -117,24 +116,14 @@ export function toWorkout(a) {
   const start = Date.parse(a.start_date);
   if (!Number.isFinite(start)) return null;
   const [name, withDist] = map;
-  const sec = Math.max(0, Math.min(86400, Math.round(Number(a.moving_time) || Number(a.elapsed_time) || 0)));
-  const elapsed = Math.max(sec, Math.min(86400, Math.round(Number(a.elapsed_time) || sec)));
-  if (!sec) return null;
-  const km = withDist && Number(a.distance) > 0 ? Math.round(Number(a.distance)) / 1000 : null;
+  const aid = String(a.id).replace(/\D/g, '');
   const notes = [a.average_heartrate ? `Ø ${Math.round(a.average_heartrate)} bpm` : '', a.total_elevation_gain > 5 ? `${Math.round(a.total_elevation_gain)} hm` : '', a.average_watts ? `Ø ${Math.round(a.average_watts)} W` : ''].filter(Boolean).join(' · ');
-  const id = `strava-${String(a.id).replace(/\D/g, '')}`;
-  const title = String(a.name || name).trim().slice(0, 120) || name;
-  const data = {
-    id, title, start, end: start + elapsed * 1000, source: 'strava',
-    description: `Von Strava importiert · https://www.strava.com/activities/${String(a.id).replace(/\D/g, '')}`,
-    exercises: [{ name, notes, supersetId: null, sets: [{ type: 'normal', weight: null, reps: null, distance: km, duration: sec, rpe: null }] }],
-  };
-  const mob = MOBILITY_RE.test(name);
-  const summary = cleanSummary({
-    start, end: data.end, title, vol: 0, sets: 1, reps: 0, dur: elapsed, km: km || 0, cmin: mob ? 0 : Math.round(sec / 60), mob: mob ? 1 : 0,
-    ex: [{ n: name, t: km ? 'cardio' : 'duration', v: 0, s: 1, r: 0, mr: 0, e: 0, w: 0, d: km || 0, sec }],
+  return cardioWorkout({
+    id: `strava-${aid}`, title: a.name, start, name, notes, source: 'strava',
+    sec: Number(a.moving_time) || Number(a.elapsed_time), elapsed: a.elapsed_time,
+    km: withDist && Number(a.distance) > 0 ? Number(a.distance) / 1000 : null,
+    description: `Von Strava importiert · https://www.strava.com/activities/${aid}`,
   });
-  return { id, data, summary, start };
 }
 
 // Neue Aktivitäten holen und als Workouts speichern
@@ -166,10 +155,7 @@ export async function syncUser(D, userId) {
         const w = toWorkout(a);
         if (!w) { skipped++; continue; }
         maxStart = Math.max(maxStart, w.start);
-        // schon von Hand eingetragen (Start ±10 Minuten)? Dann nicht doppelt anlegen
-        if (D.get("SELECT 1 FROM items WHERE user_id = ? AND kind = 'workout' AND deleted = 0 AND start BETWEEN ? AND ? AND id <> ?", userId, w.start - 600000, w.start + 600000, w.id)) { skipped++; continue; }
-        D.run(`INSERT INTO items (user_id, kind, id, data, summary, start, deleted, seq) VALUES (?, 'workout', ?, ?, ?, ?, 0, ?)
-          ON CONFLICT(user_id, kind, id) DO NOTHING`, userId, w.id, JSON.stringify(w.data), JSON.stringify(w.summary), w.start, D.nextSeq());
+        if (!storeImported(D, userId, w)) { skipped++; continue; }
         added++;
       }
     });
@@ -180,18 +166,25 @@ export async function syncUser(D, userId) {
   return { added, skipped };
 }
 
+// Ältere Aktivitäten nachholen: Startpunkt nach vorne verlegen und beim nächsten Abgleich von dort aus holen
+// (schon gesehene Aktivitäten werden übersprungen, gelöschte kommen nicht zurück)
+export function setImportFrom(D, userId, importFrom) {
+  const from = Math.max(Date.UTC(2009, 0, 1), Math.min(Date.now(), Number(importFrom) || 0));
+  const r = D.get('SELECT import_from FROM strava WHERE user_id = ?', userId);
+  if (!r) throw Object.assign(new Error('Strava ist nicht eingerichtet.'), { status: 400 });
+  if (from < r.import_from) D.run('UPDATE strava SET import_from = ?, last_activity = 0 WHERE user_id = ?', from, userId);
+}
+
 // Verbindung trennen (bei Strava abmelden), optional übernommene Workouts löschen
-export async function disconnect(D, userId, removeImported) {
+export async function disconnect(D, userId, removeItems) {
   const cfg = D.get('SELECT * FROM strava WHERE user_id = ?', userId);
   if (cfg?.access_token) {
     await fetch(`${BASE()}/oauth/deauthorize`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ access_token: cfg.access_token }), signal: AbortSignal.timeout(10000) }).catch(() => {});
   }
   D.tx(() => {
     D.run('DELETE FROM strava WHERE user_id = ?', userId);
-    if (removeImported) {
-      for (const r of D.all("SELECT id FROM items WHERE user_id = ? AND kind = 'workout' AND deleted = 0 AND id LIKE 'strava-%'", userId)) {
-        D.run("UPDATE items SET deleted = 1, data = NULL, summary = NULL, seq = ? WHERE user_id = ? AND kind = 'workout' AND id = ?", D.nextSeq(), userId, r.id);
-      }
+    if (removeItems) {
+      removeImported(D, userId, 'strava');
       D.run('DELETE FROM strava_seen WHERE user_id = ?', userId);
     }
   });

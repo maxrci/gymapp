@@ -112,6 +112,24 @@ export function openDb(dir) {
       activity_id TEXT NOT NULL,
       PRIMARY KEY (user_id, activity_id)
     );
+    CREATE TABLE IF NOT EXISTS garmin (
+      user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      api_key TEXT NOT NULL,
+      key_ok INTEGER NOT NULL DEFAULT 1,
+      token TEXT,
+      token_exp INTEGER NOT NULL DEFAULT 0,
+      import_from INTEGER NOT NULL DEFAULT 0,
+      backfill_to INTEGER NOT NULL DEFAULT 0,
+      last_activity INTEGER NOT NULL DEFAULT 0,
+      last_sync INTEGER NOT NULL DEFAULT 0,
+      last_error TEXT,
+      imported INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE IF NOT EXISTS garmin_seen (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      activity_id TEXT NOT NULL,
+      PRIMARY KEY (user_id, activity_id)
+    );
     CREATE TABLE IF NOT EXISTS strava_states (
       state TEXT PRIMARY KEY,
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

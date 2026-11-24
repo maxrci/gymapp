@@ -7,6 +7,7 @@ import {
 import { groupData, memberWorkouts, bump, visOf } from './group.js';
 import { cleanSummary } from './summary.js';
 import * as strava from './strava.js';
+import * as garmin from './garmin.js';
 import { CHALLENGE_TYPES, VISIBILITY } from '../js/compete.js';
 
 const parse = (s, d) => { try { return JSON.parse(s); } catch { return d; } };
@@ -313,6 +314,35 @@ export function makeApi(D, cfg) {
   });
   on('DELETE', '/api/strava', 'user', async ({ me, url }) => {
     await strava.disconnect(D, me.id, url.searchParams.get('remove') === '1');
+    return { ok: true };
+  });
+  on('POST', '/api/strava/backfill', 'user', async ({ me, body }) => {
+    if (rateLimited(`strava:${me.id}`, 20)) fail(429, 'Bitte kurz warten.');
+    noteFail(`strava:${me.id}`);
+    try { strava.setImportFrom(D, me.id, body?.from); return await strava.syncUser(D, me.id); } catch (e) { fail(e.status || 502, e.message); }
+  });
+
+  // ---- Garmin (persönlicher API-Schlüssel aus Garmin Connect) ----
+  on('GET', '/api/garmin', 'user', ({ me }) => garmin.status(D, me.id));
+  on('POST', '/api/garmin/config', 'user', async ({ me, body }) => {
+    if (rateLimited(`garmin:${me.id}`, 20)) fail(429, 'Bitte kurz warten.');
+    noteFail(`garmin:${me.id}`);
+    try { await garmin.saveConfig(D, me.id, body || {}); } catch (e) { fail(e.status || 400, e.message); }
+    const r = await garmin.syncUser(D, me.id).catch((e) => ({ added: 0, error: e.message }));
+    return { ...garmin.status(D, me.id), added: r.added, syncError: r.error || '' };
+  });
+  on('POST', '/api/garmin/sync', 'user', async ({ me }) => {
+    if (rateLimited(`garmin:${me.id}`, 20)) fail(429, 'Bitte kurz warten.');
+    noteFail(`garmin:${me.id}`);
+    try { return await garmin.syncUser(D, me.id); } catch (e) { fail(e.status || 502, e.message); }
+  });
+  on('POST', '/api/garmin/backfill', 'user', async ({ me, body }) => {
+    if (rateLimited(`garmin:${me.id}`, 20)) fail(429, 'Bitte kurz warten.');
+    noteFail(`garmin:${me.id}`);
+    try { garmin.setImportFrom(D, me.id, body?.from); return await garmin.syncUser(D, me.id); } catch (e) { fail(e.status || 502, e.message); }
+  });
+  on('DELETE', '/api/garmin', 'user', ({ me, url }) => {
+    garmin.disconnect(D, me.id, url.searchParams.get('remove') === '1');
     return { ok: true };
   });
 
