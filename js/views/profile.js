@@ -16,6 +16,7 @@ import { loggedIn, resetCursor } from '../sync.js';
 import { openTickets, ticketBadge } from '../tickets.js';
 import { showOnboarding } from '../onboarding.js';
 import { testPrSound } from '../fx.js';
+import { openCoachSetup } from '../coach/setup.js';
 
 let persisted = null;
 
@@ -59,7 +60,9 @@ export function profileView() {
     <div class="set-group">
       <a class="set-item" href="#/badges"><span class="si-ic">${icon('medal')}</span><span class="si-l">Level & Abzeichen</span><span class="si-v">Lvl ${profileStats().level}</span>${icon('right', 'muted')}</a>
       ${row('onboarding', 'info', 'Einführung ansehen')}
-      ${toggle('aiMode', 'bolt', 'AI-Mode', ' <em class="tag demo">DEMO</em><small class="si-sub">Vorschläge für Gewichte & Wdh., Erholung, Stagnation, Balance-Analyse</small>')}
+      ${toggle('aiWorkout', 'bolt', 'AI-Coach Workouts', ' <em class="tag demo">DEMO</em><small class="si-sub">Trainingsplan zu deinem Ziel, Gewichtsvorschläge, Erholung, Balance, Ernährung</small>')}
+      ${toggle('aiCardio', 'bolt', 'AI-Coach Cardio', ' <em class="tag demo">DEMO</em><small class="si-sub">Ausdauerplan für Distanz & Zielzeit</small>')}
+      ${s.aiWorkout || s.aiCardio ? `<a class="set-item" href="#/plan"><span class="si-ic">${icon('calendar')}</span><span class="si-l">Trainingsplan & Ziele</span>${icon('right', 'muted')}</a>` : ''}
       ${toggle('introAnim', 'flame', 'Start-Animation beim Öffnen')}
       ${loggedIn() ? '' : toggle('arenaDemo', 'trophy', 'Arena-Demo mit 2 NPCs')}
       ${toggle('prEffects', 'trophy', 'PR-Animation & Feuer-Satz')}
@@ -105,7 +108,13 @@ export function profileView() {
   return {
     html,
     mount: async (root) => {
-      root.querySelectorAll('[data-toggle]').forEach((el) => el.addEventListener('change', () => saveSettings({ [el.dataset.toggle]: el.checked })));
+      root.querySelectorAll('[data-toggle]').forEach((el) => el.addEventListener('change', async () => {
+        const k = el.dataset.toggle;
+        await saveSettings({ [k]: el.checked });
+        // AI-Coach eingeschaltet → nach Zielen fragen (überspringbar)
+        const kind = k === 'aiWorkout' ? 'workout' : k === 'aiCardio' ? 'cardio' : null;
+        if (kind && el.checked && !state.settings.coach?.[kind]) openCoachSetup(kind);
+      }));
       root.querySelectorAll('[data-theme-set]').forEach((el) => el.addEventListener('click', () => { applyTheme(el.dataset.themeSet); saveSettings({ theme: el.dataset.themeSet }); }));
       const p = root.querySelector('[data-persist]');
       try {

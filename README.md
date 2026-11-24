@@ -35,6 +35,11 @@ Alle Daten bleiben lokal auf dem Gerät (IndexedDB).
 - **AI-Mode** (lokaler Algorithmus, abschaltbar): Gewichts- und Wiederholungsvorschläge pro Übung
   (doppelte Progression, gelernte Gewichtsschritte, Deload- und Wiedereinstiegs-Erkennung),
   Stagnationsanalyse mit Tipps, Erholungsmodell pro Muskel und Empfehlung, wann und was du als Nächstes trainierst.
+- **AI-Coach** (DEMO, getrennt für Workouts und Cardio in den Einstellungen): fragt nach Ziel (1RM, Körpergewicht,
+  Muskelaufbau, stärker werden bzw. Sportart + Distanz + Zielzeit), Einheiten pro Woche, Stand und Zeitraum, ordnet
+  das Ziel ein (realistisch / ambitioniert) mit Gegenvorschlag zum Übernehmen und erstellt einen flexiblen Wochenplan
+  (Split nach Wunsch, Übungen tauschbar, verschieben/auslassen). Der Plan passt sich automatisch an Pausen, Krankheit
+  und Fortschritt an. Auf der Startseite: Plan pro Wochentag und Ernährungs-Richtwerte (kcal & Makros).
 - **Cardio geführt**: Grundlage, 4×4, 30/30, Pyramide, Steigerung, Schwelle, 12-3-30, Regeneration für
   Laufband/Rad/Crosstrainer/Rudergerät. Vollbild mit Geräte-Einstellungen, Zonen, Countdown-Tönen
   und Sprachansage.

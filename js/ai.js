@@ -7,7 +7,7 @@ import { state, exerciseMeta } from './store.js';
 import { idx, weekStreaks } from './stats.js';
 import { e1rm, linreg, DAY, num, fmtDate, startOfDay, sum } from './utils.js';
 
-export const aiOn = () => !!state.settings.aiMode;
+export const aiOn = () => !!state.settings.aiWorkout;
 
 const workSets = (ses) => ses.sets.filter((s) => s.type !== 'warmup' && (s.reps || s.duration || s.distance));
 const roundTo = (w, inc) => Math.round(w / inc) * inc;

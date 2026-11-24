@@ -11,6 +11,7 @@ import { statsView } from './views/stats.js';
 import { exerciseDetailView } from './views/exercises.js';
 import { profileView } from './views/profile.js';
 import { badgesView } from './views/badges.js';
+import { planView } from './views/plan.js';
 import { applyTheme } from './theme.js';
 import { resumeGuided } from './guided.js';
 import { nav } from './nav.js';
@@ -46,6 +47,7 @@ function parseRoute() {
     case 'w': return { tab: 'home', view: workoutDetailView, params: { id: decodeURIComponent(b) } };
     case 'profile': return { tab: 'profile', view: profileView };
     case 'badges': return { tab: 'profile', view: badgesView };
+    case 'plan': return { tab: 'home', view: planView };
     case 'arena':
     case 'league': return { tab: 'arena', view: leagueView, params: { tab: b || (loggedIn() || demoOn() ? 'season' : 'exercises') } };
     case 'member': return { tab: 'arena', view: memberView, params: { id: decodeURIComponent(b) } };

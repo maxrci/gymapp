@@ -29,6 +29,10 @@ function weekNumbers() {
   return { cardio: Math.round(cardio), mob: Math.round(mob), gym };
 }
 import { openCardioSetup, openMobilitySetup, hasGuided, resumeGuided } from '../guided.js';
+import { coachOn, SPORTS } from '../coach/core.js';
+import { weekPlan, nextSession } from '../coach/plan.js';
+import { startPlanned } from './plan.js';
+import { WEEKDAYS } from '../utils.js';
 
 const pctCls = (r) => (r >= 0.8 ? 'good' : r >= 0.5 ? 'warn' : 'crit');
 
@@ -73,6 +77,19 @@ function coachHtml() {
     </section>`;
 }
 
+function planCard() {
+  if (!coachOn()) return '';
+  const plan = weekPlan();
+  const nx = nextSession(plan);
+  if (!plan.sessions.length) return `<a class="card coach-mini" href="#/plan"><span class="ai-badge">AI</span><div><b>Trainingsplan erstellen</b><small>Ziel festlegen – der Coach plant deine Woche</small></div>${icon('right', 'muted')}</a>`;
+  const t = nx ? (nx.kind === 'gym' ? nx.title : `${SPORTS[nx.sport].label} · ${nx.title}`) : 'Woche geschafft!';
+  return `<section class="card coach plan-mini">
+    <div class="coach-head"><span class="ai-badge">AI</span><b>Dein Plan</b><span class="demo-tag sm">DEMO</span></div>
+    <div class="coach-best"><div><small>${nx ? `Als Nächstes · ${esc(WEEKDAYS[nx.day] || '')}` : `${plan.doneCount}/${plan.total} erledigt`}</small><b>${esc(t)}</b><small>${nx ? esc(nx.kind === 'gym' ? nx.exercises.map((e) => e.name).slice(0, 4).join(' · ') : nx.sub) : 'Alles Weitere ist Bonus'}</small></div></div>
+    <div class="row-btns">${nx ? `<button class="btn primary" data-act="plan-go" data-sid="${esc(nx.id)}">${icon('play', 'xs')} Starten</button>` : ''}<a class="btn ghost" href="#/plan">Ganze Woche</a></div>
+  </section>`;
+}
+
 export function trainingView() {
   const rs = state.routines;
   const ai = aiOn();
@@ -103,6 +120,7 @@ export function trainingView() {
       <button class="t-tile cardio" data-act="cardio"><i class="tt-fx"></i><div class="tt-fig" data-tfig="sprint"></div><b>Cardio</b><small>Lauf allen davon</small><em>${wk.cardio ? `Woche: ${wk.cardio} Min.` : 'Intervalle'}</em></button>
       <button class="t-tile mobility" data-act="mobility"><i class="tt-fx"></i><div class="tt-fig" data-tfig="splits"></div><b>Mobility</b><small>Geschmeidig wie ein Ninja</small><em>${wk.mob ? `Woche: ${wk.mob} Min.` : 'Geführt'}</em></button>
     </div>
+    ${planCard()}
     ${ai && state.workouts.length ? coachHtml() : ''}
     <div class="section-row" id="gym-list"><h2 class="section-title">${icon('dumbbell')} Gym-Workouts</h2><button class="link-btn" data-act="new">${icon('plus', 'xs')} Neu</button></div>
     ${rs.length ? cards : emptyState('layers', 'Noch keine Routinen', 'Routinen sind Vorlagen für deine Workouts (z. B. Push, Pull, Beine).',
@@ -134,6 +152,7 @@ export function trainingView() {
       cardio: () => openCardioSetup(),
       mobility: () => openMobilitySetup(),
       resume: () => resumeGuided(),
+      'plan-go': (el) => startPlanned(nextSession()),
       'coach-start': (el) => {
         const name = el.dataset.name;
         const r = state.routines.find((x) => x.name === name);

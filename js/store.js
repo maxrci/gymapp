@@ -12,7 +12,10 @@ export const DEFAULT_SETTINGS = {
   lastBackup: null,
   weekGoal: 4,
   theme: 'dark',           // 'dark' | 'light' | 'system'
-  aiMode: false,           // AI-Vorschläge (lokaler Algorithmus)
+  aiMode: false,           // (alt) AI-Mode – ersetzt durch aiWorkout / aiCardio
+  aiWorkout: false,        // AI-Coach Workouts (Plan, Gewichtsvorschläge, Erholung, Balance)
+  aiCardio: false,         // AI-Coach Cardio (Ausdauerplan)
+  coach: {},               // Ziele, Körperdaten, Tausch/Verschieben im Plan
   prEffects: true,         // PR-Einblendung + Feuer-Zeile
   prSound: true,           // Power-up-Sound bei PR
   prScream: true,          // (alt) Kampfschrei – ersetzt durch den Rekord-Einspieler
@@ -57,6 +60,8 @@ export async function loadAll() {
   state.routines = routines.sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.name.localeCompare(b.name));
   state.exMeta = Object.fromEntries(exercises.map((e) => [e.name, e]));
   state.settings = { ...DEFAULT_SETTINGS, ...(settings || {}) };
+  // Migration: alter AI-Mode → AI-Coach Workouts
+  if (settings && settings.aiMode && settings.aiWorkout === undefined) state.settings.aiWorkout = true;
   state.active = active || null;
   state.version++;
 }

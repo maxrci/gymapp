@@ -129,6 +129,15 @@ export function openMobilitySetup() {
   });
 }
 
+// Geplante Einheit aus dem AI-Coach direkt geführt starten
+export async function startGuidedCardio({ programId, device = 'treadmill', planId = null, opt }) {
+  const p = CARDIO.find((x) => x.id === programId);
+  if (!p) return;
+  const v = opt ?? p.def;
+  await saveSettings({ lastDevice: device });
+  start({ kind: 'cardio', programId: p.id, opt: v, device, planId, title: `${p.title}${p.options ? ` · ${v} ${p.optLabel || 'min'}` : ''}`, phases: p.build(v) });
+}
+
 // ---------------- Player ----------------
 function start(cfg) {
   unlockAudio();
@@ -368,7 +377,7 @@ async function finish(early = false) {
       const now = Date.now();
       const w = {
         id: uid(), title: done.kind === 'cardio' ? `Cardio: ${done.title}` : `Mobility: ${done.title}`,
-        start: now - t * 1000, end: now, description: '', source: 'app',
+        start: now - t * 1000, end: now, description: '', source: 'app', ...(done.planId ? { planId: done.planId } : {}),
         exercises: [{
           name: done.kind === 'cardio' ? DEVICES[done.device].exercise : 'Mobility',
           notes: done.title, supersetId: null,

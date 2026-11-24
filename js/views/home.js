@@ -11,6 +11,46 @@ import { profileStats, achievements, STAGES } from '../gamification.js';
 import { weeklyGoals, openGoalEditor } from '../goals.js';
 import { aiOn, nextWorkout } from '../ai.js';
 import { openAvatarEditor } from '../avatar.js';
+import { coachOn, goalW, goalC, bodyComplete, SPORTS } from '../coach/core.js';
+import { weekPlan } from '../coach/plan.js';
+import { nutrition } from '../coach/nutrition.js';
+import { openCoachSetup } from '../coach/setup.js';
+import { startPlanned } from './plan.js';
+
+// Geplante Einheiten pro Wochentag (AI-Coach)
+function planList(plan, today) {
+  if (!plan?.sessions.length) return '';
+  const next = plan.sessions.filter((s) => s.status === 'open').sort((a, b) => a.day - b.day).find((s) => s.day >= today);
+  return `<div class="pw">
+    <div class="pw-head"><span class="ai-badge xs">AI</span> Dein Plan <small>${plan.doneCount}/${plan.total} erledigt</small><a href="#/plan" class="link-btn sm">Plan ${icon('right', 'xs')}</a></div>
+    ${plan.days.map((list, d) => {
+      const items = list.filter((s) => !s.extra || true);
+      const cls = d === today ? 'today' : d < today ? 'past' : '';
+      if (!items.length) return `<div class="pw-row rest ${cls}"><span class="pw-d">${WEEKDAYS[d]}</span><span class="pw-t">Ruhetag</span></div>`;
+      return items.map((s, i) => {
+        if (s.extra) return `<a class="pw-row done ${cls}" href="#/w/${encodeURIComponent(s.w.id)}"><span class="pw-d">${i ? '' : WEEKDAYS[d]}</span><span class="pw-t">${esc(s.w.title)}<small>eigenes Workout</small></span><span class="pw-s">${icon('check', 'xs')}</span></a>`;
+        const t = s.kind === 'gym' ? s.title : `${SPORTS[s.sport].label} · ${s.title}`;
+        const sub = s.kind === 'gym' ? `${s.exercises.length} Übungen` : `${num(s.km, 1)} km`;
+        const st = s.status === 'done' ? icon('check', 'xs') : s.status === 'skipped' ? '<em>aus</em>' : s === next ? `<button class="pw-go" data-act="plan-go" data-sid="${esc(s.id)}">${icon('play', 'xs')}</button>` : '';
+        return `<a class="pw-row ${s.status} ${cls} ${s === next ? 'next' : ''}" href="#/plan"><span class="pw-d">${i ? '' : WEEKDAYS[d]}</span><span class="pw-ic ${s.kind}">${icon(s.kind === 'gym' ? 'dumbbell' : 'bolt', 'xs')}</span><span class="pw-t">${esc(t)}<small>${esc(sub)}</small></span><span class="pw-s">${st}</span></a>`;
+      }).join('');
+    }).join('')}
+  </div>`;
+}
+
+function nutritionCard(plan) {
+  if (!bodyComplete()) return `<button class="card coach-empty" data-act="coach-body">${icon('heart')}<div><b>Ernährung: Körperdaten ergänzen</b><small>Für kcal, Eiweiß, Kohlenhydrate & Fett passend zu Training und Ziel</small></div>${icon('right', 'muted')}</button>`;
+  const n = nutrition(plan);
+  if (!n) return '';
+  const tot = n.protein * 4 + n.carbs * 4 + n.fat * 9;
+  const m = (cls, l, g) => `<div class="nu-m ${cls}"><small>${l}</small><b>${num(g, 0)} g</b><div class="bar"><i style="width:${Math.round(((cls === 'f' ? g * 9 : g * 4) / tot) * 100)}%"></i></div></div>`;
+  return `<section class="card nutri">
+    <div class="card-title"><span class="ai-badge xs">AI</span> Ernährung heute <small>${n.trainingDay ? 'Trainingstag' : 'Ruhetag'}</small><button class="link-btn sm" data-act="nutri-info">${icon('info', 'xs')}</button></div>
+    <div class="nu-top"><div class="nu-kcal"><b>${num(n.kcal, 0)}</b><span>kcal</span></div><div class="nu-water">${icon('volume', 'xs')} ${num(n.water, 1)} l Wasser</div></div>
+    <div class="nu-macros">${m('p', 'Eiweiß', n.protein)}${m('c', 'Kohlenhydrate', n.carbs)}${m('f', 'Fett', n.fat)}</div>
+    <small class="nu-sub">${esc(n.goalText)}${n.train ? ` · Training +${num(n.train, 0)} kcal` : ''}</small>
+  </section>`;
+}
 
 let limit = 15;
 
@@ -78,8 +118,12 @@ export function homeView() {
       }).join('')}
     </section>` : '';
 
+  const coachActive = coachOn();
+  const plan = coachActive ? weekPlan() : null;
+  const hasGoal = !!(goalW() || goalC());
   let coach = '';
-  if (aiOn() && ws.length) {
+  if (coachActive && !hasGoal) coach = `<a class="card coach-mini" href="#/plan"><span class="ai-badge">AI</span><div><b>Ziel festlegen</b><small>Der AI-Coach erstellt dir einen Trainingsplan</small></div>${icon('right', 'muted')}</a>`;
+  else if (aiOn() && ws.length && !plan?.sessions.length) {
     const nw = nextWorkout();
     if (nw) coach = `<a class="card coach-mini" href="#/training">
       <span class="ai-badge">AI</span>
@@ -111,8 +155,10 @@ export function homeView() {
       <div class="week-dots">${WEEKDAYS.map((d, i) => `<div class="wd ${days.has(i) ? 'on' : ''} ${i === today ? 'today' : ''}"><i>${days.has(i) ? icon('check') : ''}</i><span>${d}</span></div>`).join('')}</div>
       <div class="week-bar"><i style="width:${Math.min(100, (thisWeek.length / goal) * 100)}%"></i></div>
       ${alert}
-    </section>` : ''}
+      ${planList(plan, today)}
+    </section>` : plan?.sessions.length ? `<section class="card week-card">${planList(plan, today)}</section>` : ''}
     ${coach}
+    ${coachActive && hasGoal ? nutritionCard(plan) : ''}
     <section class="quick">
       <button class="btn primary block lg" data-act="start">${icon('plus')} Leeres Workout starten</button>
       ${routines ? `<div class="quick-row">${routines}</div>` : ''}
@@ -130,6 +176,14 @@ export function homeView() {
       start: () => startWorkout({ title: defaultTitle() }),
       import: importCSVFlow,
       goals: () => openGoalEditor(),
+      'plan-go': (el) => startPlanned(plan?.sessions.find((s) => s.id === el.dataset.sid)),
+      'coach-body': () => openCoachSetup('body'),
+      'nutri-info': async () => {
+        const n = nutrition(plan);
+        if (!n) return;
+        const { sheet } = await import('../ui.js');
+        sheet({ title: 'So rechnet der Coach', message: `Grundumsatz ${n.bmr} kcal (Mifflin-St-Jeor) × Alltag = ${n.base} kcal. Training heute: +${n.train} kcal${n.items.length ? ` (${n.items.map((i) => i.label).join(', ')})` : ''}. Ziel: ${n.adj > 0 ? '+' : ''}${n.adj} kcal. Eiweiß ${n.proteinPerKg} g pro kg, Fett ca. 0,8–1 g pro kg, der Rest Kohlenhydrate. Richtwerte – keine Ernährungsberatung.`, options: [{ label: 'Körperdaten ändern', value: 'body', icon: 'user' }] }).then((v) => { if (v === 'body') openCoachSetup('body'); });
+      },
       avatar: () => openAvatarEditor(),
       more: (_, rerender) => { limit += 20; rerender(); },
       routine: (el) => {

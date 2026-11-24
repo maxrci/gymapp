@@ -18,6 +18,7 @@ import { fighterFx } from './fighter.js';
 import { poseSVG, poseFor } from './poses.js';
 import { weekStreaks } from './stats.js';
 import { e1rm } from './utils.js';
+import { alternatives } from './coach/similar.js';
 
 let ed = null; // { mode: 'active'|'edit'|'routine', data, isNew }
 let ticker = null;
@@ -42,8 +43,15 @@ function blankSet(type = 'normal', target) {
 }
 
 // Neue Übung im Editor – mit AI-Vorschlag, falls der AI-Mode aktiv ist
-function makeExercise(name, templateSets, rest = null) {
+function makeExercise(name, templateSets, rest = null, plan = null) {
   const ex = { name, notes: '', rest, sets: null, ai: null };
+  // Aus dem Trainingsplan des AI-Coaches: Vorgaben übernehmen
+  if (plan) {
+    ex.sets = setsFromTemplate(name, templateSets);
+    ex.ai = { label: plan.label, reason: plan.reason, kind: 'plan' };
+    if (plan.slot) ex.slot = plan.slot;
+    return ex;
+  }
   if (aiOn() && ed?.mode !== 'routine') {
     const sg = suggest(name);
     if (sg) {
@@ -68,14 +76,14 @@ function setsFromTemplate(name, templateSets) {
 const pickTarget = (s) => (s.weight != null || s.reps != null || s.distance != null || s.duration != null
   ? { weight: s.weight, reps: s.reps, distance: s.distance, duration: s.duration } : null);
 
-export async function startWorkout({ title = 'Workout', exercises = [], routineId = null } = {}) {
+export async function startWorkout({ title = 'Workout', exercises = [], routineId = null, planId = null } = {}) {
   if (state.active) {
     const ok = await confirmDialog('Es läuft bereits ein Workout. Möchtest du es verwerfen und ein neues starten?', 'Verwerfen & neu starten', true);
     if (!ok) { openActive(); return; }
   }
   const a = {
-    id: uid(), title, start: Date.now(), routineId, rest: null, description: '',
-    exercises: exercises.map((e) => makeExercise(e.name, e.sets, e.rest ?? null)),
+    id: uid(), title, start: Date.now(), routineId, planId, rest: null, description: '',
+    exercises: exercises.map((e) => makeExercise(e.name, e.sets, e.rest ?? null, e.plan || null)),
   };
   await setActive(a);
   ed = { mode: 'active', data: a };
@@ -540,6 +548,7 @@ async function onClick(e) {
           { label: ex.notes || ex.showNotes ? 'Notiz bearbeiten' : 'Notiz hinzufügen', value: 'note', icon: 'note' },
           ...(i > 0 ? [{ label: 'Nach oben', value: 'up', icon: 'up' }] : []),
           ...(i < d.exercises.length - 1 ? [{ label: 'Nach unten', value: 'down', icon: 'down' }] : []),
+          ...(ed.mode === 'active' ? [{ label: 'Ähnliche Übung (Gerät belegt?)', value: 'similar', icon: 'repeat' }] : []),
           { label: 'Übung ersetzen', value: 'replace', icon: 'swap' },
           { label: 'Übung entfernen', value: 'remove', icon: 'trash', danger: true },
         ],
@@ -547,6 +556,19 @@ async function onClick(e) {
       if (v === 'note') { ex.showNotes = true; commit(); setTimeout(() => root().querySelector(`.ex-card[data-ex="${i}"] .ex-notes`)?.focus(), 30); }
       if (v === 'up') { [d.exercises[i - 1], d.exercises[i]] = [d.exercises[i], d.exercises[i - 1]]; commit(); }
       if (v === 'down') { [d.exercises[i + 1], d.exercises[i]] = [d.exercises[i], d.exercises[i + 1]]; commit(); }
+      if (v === 'similar') {
+        const alt = alternatives(ex.name);
+        const list = [...alt.same.slice(0, 7), ...alt.muscle.slice(0, 4)];
+        if (!list.length) { toast('Keine ähnliche Übung gefunden'); break; }
+        const n = await sheet({ title: `Statt ${ex.name}`, message: ex.slot ? 'Wird auch im Trainingsplan für diese Einheit übernommen.' : '', options: list.map((x) => ({ label: x, value: x })) });
+        if (n) {
+          const done = ex.sets.filter((s) => s.done);
+          const fresh = makeExercise(n, null, ex.rest);
+          Object.assign(ex, { name: n, sets: done.length ? [...done, ...fresh.sets.slice(done.length)] : fresh.sets, ai: fresh.ai || ex.ai });
+          if (ex.slot) { const { coachData, saveCoach } = await import('./coach/core.js'); await saveCoach({ swaps: { ...(coachData().swaps || {}), [ex.slot]: n } }); }
+          commit();
+        }
+      }
       if (v === 'replace') {
         const n = await pickExercises({ multi: false, title: 'Übung ersetzen' });
         if (n?.[0]) { ex.name = n[0]; commit(); }
@@ -597,7 +619,7 @@ async function finish() {
   if (!(await confirmDialog(msg, 'Workout beenden', false, 'Workout beenden'))) return;
   const w = {
     id: d.id, title: d.title || 'Workout', start: d.start, end: Date.now(), description: d.description || '',
-    source: 'app', routineId: d.routineId || null,
+    source: 'app', routineId: d.routineId || null, ...(d.planId ? { planId: d.planId } : {}),
     exercises: d.exercises
       .map((e) => ({ name: e.name, notes: e.notes || '', supersetId: null, sets: e.sets.filter((s) => s.done).map(cleanSet) }))
       .filter((e) => e.sets.length),
