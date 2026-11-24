@@ -384,7 +384,8 @@ export function makeApi(D, cfg) {
       const r = routes.find((x) => x.method === req.method && x.re.test(url.pathname));
       if (!r) return send(404, { error: 'Nicht gefunden' });
       const m = r.re.exec(url.pathname);
-      const params = Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(m[i + 1])]));
+      let params;
+      try { params = Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(m[i + 1])])); } catch { return send(400, { error: 'Ungültige Adresse' }); }
       let ctx = { req, url, params, body: {} };
       if (r.auth) {
         const a = authenticate(D, req.headers.authorization);

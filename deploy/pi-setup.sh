@@ -61,6 +61,7 @@ sudo tee /etc/systemd/system/gym.service >/dev/null <<EOF
 Description=Gym-Server (Workouts, Arena, Challenges)
 After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=0
 
 [Service]
 User=$RUN_USER

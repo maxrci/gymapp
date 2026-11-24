@@ -34,7 +34,8 @@ const TYPES = {
 const ALLOWED = /^\/(index\.html|manifest\.webmanifest|sw\.js|selfhost\.html|(css|js|icons|sounds)\/[\w./-]+)$/;
 
 function serveStatic(cfg, req, res, url) {
-  let p = decodeURIComponent(url.pathname);
+  let p;
+  try { p = decodeURIComponent(url.pathname); } catch { res.writeHead(400); return res.end('Ungültige Adresse'); }
   if (p === '/' || p === '') p = '/index.html';
   if (!ALLOWED.test(p) || p.includes('..')) { res.writeHead(404); return res.end('Nicht gefunden'); }
   const file = path.join(cfg.appDir, p);
@@ -76,6 +77,13 @@ export function createServer(cfg = config()) {
   const D = openDb(cfg.dataDir);
   const api = makeApi(D, cfg);
   const server = http.createServer((req, res) => {
+    try { handle(req, res); } catch (e) {
+      // Sicherheitsnetz: eine kaputte Anfrage darf nie den ganzen Server abstürzen lassen
+      console.error('Anfrage-Fehler:', e?.message || e);
+      if (!res.headersSent) { res.writeHead(400); res.end(); } else res.destroy();
+    }
+  });
+  function handle(req, res) {
     const url = new URL(req.url, 'http://x');
     if (url.pathname.startsWith('/api/')) {
       // CORS: die App darf auch von einer anderen Adresse kommen (z. B. GitHub Pages)
@@ -92,7 +100,7 @@ export function createServer(cfg = config()) {
     }
     if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); return res.end(); }
     serveStatic(cfg, req, res, url);
-  });
+  }
   server.on('close', () => D.close());
   return { server, D, cfg };
 }
@@ -105,6 +113,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     if (/login\.tailscale\.com/i.test(cfg.publicUrl)) console.log('ACHTUNG: PUBLIC_URL ist der Tailscale-Freischalt-Link – bitte die https://…ts.net-Adresse eintragen (tailscale funnel status).');
     if (!users) console.log('Noch keine Nutzer. Ersten Admin anlegen:  node server/cli.js admin "Dein Name"');
   });
+  // letzter Schutz: unerwartete Fehler protokollieren statt den Dienst zu beenden
+  process.on('uncaughtException', (e) => console.error('Unerwarteter Fehler:', e));
+  process.on('unhandledRejection', (e) => console.error('Unbehandelter Fehler:', e));
   const stop = () => server.close(() => process.exit(0));
   process.on('SIGTERM', stop);
   process.on('SIGINT', stop);
