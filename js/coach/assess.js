@@ -16,6 +16,7 @@ export const VERDICTS = {
 const round = (v, step) => Math.round(v / step) * step;
 const months = (g) => Math.max(0.25, (g.deadline - g.start) / (30.4 * DAY));
 const weeksFromNow = (w) => deadlineIn(Math.max(1, Math.ceil(w)));
+const MAX_WEEKS = 104; // Vorschläge höchstens 2 Jahre in die Zukunft
 const verdictOf = (ratio) => (ratio <= 0.35 ? 'easy' : ratio <= 1 ? 'ok' : ratio <= 1.6 ? 'ambitious' : 'unrealistic');
 
 // typische Kraftzuwächse pro Monat (geschätztes 1RM)
@@ -47,7 +48,7 @@ export function assessWorkout(g) {
     out.lines.push(`${LEVELS[lvl]} schaffen typischerweise ca. ${num(r * 100, 1)} % pro Monat – bis ${fmtDeadline(g.deadline)} wären das etwa ${fmtKg(reach)}.`);
     if (out.verdict === 'ambitious' || out.verdict === 'unrealistic') {
       const wNeed = (need / Math.log(1 + r)) * 4.35 * 1.05;
-      out.proposals.push({ label: `${fmtKg(t)} bis ${fmtDeadline(weeksFromNow(wNeed))}`, sub: 'gleiches Ziel, mehr Zeit', patch: { deadline: weeksFromNow(wNeed) } });
+      if (wNeed <= MAX_WEEKS) out.proposals.push({ label: `${fmtKg(t)} bis ${fmtDeadline(weeksFromNow(wNeed))}`, sub: 'gleiches Ziel, mehr Zeit', patch: { deadline: weeksFromNow(wNeed) } });
       if (reach > c) out.proposals.push({ label: `${fmtKg(reach)} bis ${fmtDeadline(g.deadline)}`, sub: 'gleiche Zeit, erreichbares Ziel', patch: { target: reach } });
     } else if (out.verdict === 'easy' && reach > t) {
       out.lines.push('Da ist wahrscheinlich noch mehr drin.');
@@ -85,7 +86,7 @@ export function assessWorkout(g) {
     if (out.verdict === 'ambitious' || out.verdict === 'unrealistic') {
       const rate = (okPct * 0.85 * c) / 100;
       const wNeed = Math.abs(diff) / rate;
-      out.proposals.push({ label: `${fmtKg(t)} bis ${fmtDeadline(weeksFromNow(wNeed))}`, sub: `ca. ${num(rate, 2)} kg pro Woche`, patch: { deadline: weeksFromNow(wNeed) } });
+      if (wNeed <= MAX_WEEKS) out.proposals.push({ label: `${fmtKg(t)} bis ${fmtDeadline(weeksFromNow(wNeed))}`, sub: `ca. ${num(rate, 2)} kg pro Woche`, patch: { deadline: weeksFromNow(wNeed) } });
       const reach = round(c + Math.sign(diff) * rate * W, 0.5);
       out.proposals.push({ label: `${fmtKg(reach)} bis ${fmtDeadline(g.deadline)}`, sub: 'gleiche Zeit, gesundes Tempo', patch: { target: reach } });
     }
@@ -176,8 +177,13 @@ export function assessCardio(g) {
     const reachT = Math.max(g.time, round(pred / (1 + TIME_RATE[lvl]) ** W, 60));
     if (out.verdict !== 'done') out.verdict = verdictOf(ratio);
     if (out.verdict === 'ambitious' || out.verdict === 'unrealistic') {
-      out.proposals.push({ label: `${num(g.distance, 1)} km in ${fmtHms(g.time)} bis ${fmtDeadline(weeksFromNow(needWeeks * 1.05 + 1))}`, sub: 'gleiches Ziel, mehr Zeit', patch: { deadline: weeksFromNow(needWeeks * 1.05 + 1) } });
-      if (distWeeks <= W) out.proposals.push({ label: `${num(g.distance, 1)} km in ${fmtHms(reachT)} bis ${fmtDeadline(g.deadline)}`, sub: 'gleiche Zeit, etwas langsamer', patch: { time: reachT } });
+      if (needWeeks * 1.05 + 1 <= MAX_WEEKS) out.proposals.push({ label: `${num(g.distance, 1)} km in ${fmtHms(g.time)} bis ${fmtDeadline(weeksFromNow(needWeeks * 1.05 + 1))}`, sub: 'gleiches Ziel, mehr Zeit', patch: { deadline: weeksFromNow(needWeeks * 1.05 + 1) } });
+      if (reachT > g.time + 30) out.proposals.push({ label: `${num(g.distance, 1)} km in ${fmtHms(reachT)} bis ${fmtDeadline(g.deadline)}`, sub: 'gleiche Zeit, etwas langsamer', patch: { time: reachT } });
+      else {
+        const rk = round(Math.min(peak, startKm * 1.1 ** ((W - 1) / 1.33)), 0.5);
+        const rt = round(g.time * (rk / g.distance) ** S.exp, 60);
+        if (rk > startKm && rk < g.distance) out.proposals.push({ label: `${num(rk, 1)} km in ${fmtHms(rt)} bis ${fmtDeadline(g.deadline)}`, sub: 'gleiche Zeit, kürzere Strecke im gleichen Tempo', patch: { distance: rk, time: rt } });
+      }
     } else if (out.verdict === 'easy' && need > 0 && reachT < g.time - 120) {
       out.proposals.push({ label: `${num(g.distance, 1)} km in ${fmtHms(reachT)}`, sub: 'da geht wohl noch mehr', patch: { time: reachT } });
     } else if (out.verdict === 'done') {
@@ -187,7 +193,7 @@ export function assessCardio(g) {
   } else {
     out.verdict = startKm >= peak ? 'done' : verdictOf(ratio);
     if (out.verdict === 'ambitious' || out.verdict === 'unrealistic') {
-      out.proposals.push({ label: `${num(g.distance, 1)} km bis ${fmtDeadline(weeksFromNow(distWeeks * 1.05 + 1))}`, sub: 'gleiches Ziel, mehr Zeit', patch: { deadline: weeksFromNow(distWeeks * 1.05 + 1) } });
+      if (distWeeks * 1.05 + 1 <= MAX_WEEKS) out.proposals.push({ label: `${num(g.distance, 1)} km bis ${fmtDeadline(weeksFromNow(distWeeks * 1.05 + 1))}`, sub: 'gleiches Ziel, mehr Zeit', patch: { deadline: weeksFromNow(distWeeks * 1.05 + 1) } });
       const reach = round(Math.min(peak, startKm * 1.1 ** ((W - 1) / 1.33)), 0.5);
       if (reach > startKm) out.proposals.push({ label: `${num(reach, 1)} km bis ${fmtDeadline(g.deadline)}`, sub: 'gleiche Zeit, kürzere Strecke', patch: { distance: reach } });
     }

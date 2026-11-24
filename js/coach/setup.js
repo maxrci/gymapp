@@ -7,7 +7,7 @@ import { pickExercises } from '../picker.js';
 import { addBodyweight, bwNow } from '../body.js';
 import {
   coachData, saveCoach, ACTIVITY, LEVELS, SPORTS, body, estimateLevel, currentE1rm, ormCandidates, cardioBaseline,
-  parseDuration, fmtDurInput, fmtHms, deadlineIn, fmtDeadline, weeksBetween,
+  fmtHms, deadlineIn, fmtDeadline, weeksBetween,
 } from './core.js';
 import { SPLITS, SPLIT_INFO, splitFor } from './splits.js';
 import { assessWorkout, assessCardio, freqWorkout, freqCardio, VERDICTS } from './assess.js';
@@ -41,6 +41,14 @@ function whenHtml(key, d) {
     <div class="chips">${WEEKS.map((w) => `<button class="chip ${!d.date && d.weeks === w ? 'on' : ''}" data-set="${key}.weeks" data-v="${w}">${w < 52 ? `${w} Wo.` : '1 Jahr'}</button>`).join('')}</div>
     <label class="field"><span>oder Datum</span><input type="date" data-in="${key}.date" value="${esc(d.date || '')}" min="${dateVal(Date.now() + 7 * DAY)}"></label>`;
 }
+// Zeit als Stunden + Minuten (iPhone-Zahlenfeld hat keinen Doppelpunkt)
+const hm = (sec) => (sec ? { h: String(Math.floor(sec / 3600)), m: String(Math.round((sec % 3600) / 60)) } : { h: '', m: '' });
+const secOf = (h, m) => { const x = (parseNum(h) || 0) * 3600 + (parseNum(m) || 0) * 60; return x > 0 ? Math.round(x) : null; };
+const timeFields = (key, h, m, ph = ['2', '00']) => `<div class="time-in">
+  <input data-in="${key}H" inputmode="numeric" value="${esc(h)}" placeholder="${ph[0]}" aria-label="Stunden"><span>h</span>
+  <input data-in="${key}M" inputmode="numeric" value="${esc(m)}" placeholder="${ph[1]}" aria-label="Minuten"><span>min</span></div>`;
+// grobe Obergrenzen (km/h), um Tippfehler zu erkennen
+const MAX_KMH = { run: 22, walk: 9, bike: 50, skate: 35, row: 22, swim: 7 };
 const deadlineOf = (d) => (d.date ? startOfDay(new Date(d.date).getTime()) + 20 * 3600e3 : deadlineIn(d.weeks || 12));
 
 // ---------- Overlay ----------
@@ -59,15 +67,16 @@ export function openCoachSetup(kind = 'workout', { onDone } = {}) {
       weeks: ex.deadline ? Math.min(52, Math.max(4, weeksBetween(Date.now(), ex.deadline))) : 12, date: '',
     },
     cardio: {
-      sport: cx.sport || 'run', distance: cx.distance ?? '', time: cx.time ? fmtDurInput(cx.time) : '', perWeek: cx.perWeek || 3,
-      level: cx.level || lvl, weeks: cx.deadline ? Math.min(52, Math.max(4, weeksBetween(Date.now(), cx.deadline))) : 12, date: '', baseKm: '', baseTime: '',
+      sport: cx.sport || 'run', distance: cx.distance ?? '', timeH: hm(cx.time).h, timeM: hm(cx.time).m, perWeek: cx.perWeek || 3,
+      level: cx.level || lvl, weeks: cx.deadline ? Math.min(52, Math.max(4, weeksBetween(Date.now(), cx.deadline))) : 12, date: '', baseKm: '', baseTimeH: '', baseTimeM: '',
     },
     applied: new Set(),
   };
   const fillBase = () => {
     const bl = cardioBaseline(D.cardio.sport);
     D.cardio.baseKm = bl ? String(Math.round(bl.km * 10) / 10).replace('.', ',') : '';
-    D.cardio.baseTime = bl ? fmtDurInput(bl.sec) : '';
+    D.cardio.baseTimeH = bl ? hm(bl.sec).h : '';
+    D.cardio.baseTimeM = bl ? hm(bl.sec).m : '';
     D.cardio.baseAuto = !!bl;
   };
   fillBase();
@@ -84,9 +93,9 @@ export function openCoachSetup(kind = 'workout', { onDone } = {}) {
       return g;
     }
     const d = D.cardio;
-    const km = parseNum(d.baseKm), sec = parseDuration(d.baseTime);
+    const km = parseNum(d.baseKm), sec = secOf(d.baseTimeH, d.baseTimeM);
     return {
-      sport: d.sport, distance: parseNum(d.distance), time: parseDuration(d.time), perWeek: d.perWeek, level: d.level,
+      sport: d.sport, distance: parseNum(d.distance), time: secOf(d.timeH, d.timeM), perWeek: d.perWeek, level: d.level,
       start: Date.now(), deadline: deadlineOf(d), baseline: km > 0 && sec > 0 ? { km, sec } : null,
     };
   };
@@ -106,7 +115,11 @@ export function openCoachSetup(kind = 'workout', { onDone } = {}) {
     }
     if (kind === 'cardio') {
       if (!(parseNum(D.cardio.distance) > 0)) return 'Bitte Zieldistanz in km eingeben';
-      if (D.cardio.time && !parseDuration(D.cardio.time)) return 'Zielzeit bitte als h:mm eingeben, z. B. 2:00';
+      const c = D.cardio, km = parseNum(c.distance), max = MAX_KMH[c.sport];
+      const t = secOf(c.timeH, c.timeM);
+      if (t && km / (t / 3600) > max) return `${num(km, 1)} km in ${fmtHms(t)} wäre schneller als ${max} km/h – bitte Stunden und Minuten prüfen`;
+      const bk = parseNum(c.baseKm), bt = secOf(c.baseTimeH, c.baseTimeM);
+      if (bk && bt && bk / (bt / 3600) > max) return 'Aktueller Stand: Zeit bitte in Stunden und Minuten prüfen';
     }
     if ((D[kind]?.date) && deadlineOf(D[kind]) < Date.now() + 6 * DAY) return 'Das Datum sollte mindestens eine Woche in der Zukunft liegen';
     return null;
@@ -150,7 +163,7 @@ export function openCoachSetup(kind = 'workout', { onDone } = {}) {
       <div class="cs-sec"><div class="cs-h">${icon('target', 'xs')} Dein Ziel</div>
         <div class="field-row">
           <label class="field"><span>Distanz (km)</span><input data-in="cardio.distance" inputmode="decimal" value="${esc(d.distance)}" placeholder="${d.sport === 'bike' ? '100' : '20'}"></label>
-          <label class="field"><span>Zielzeit (h:mm, optional)</span><input data-in="cardio.time" inputmode="numeric" value="${esc(d.time)}" placeholder="2:00"></label>
+          <label class="field"><span>Zielzeit (optional)</span>${timeFields('cardio.time', d.timeH, d.timeM)}</label>
         </div>
       </div>
       <div class="cs-sec"><div class="cs-h">${icon('calendar', 'xs')} Einheiten pro Woche</div>${perWeekChips('cardio.perWeek', d.perWeek)}</div>
@@ -158,7 +171,7 @@ export function openCoachSetup(kind = 'workout', { onDone } = {}) {
         <p class="footnote">${d.baseAuto ? `Deine längste ${esc(S.label)}-Einheit der letzten Wochen – bei Bedarf anpassen.` : `Was schaffst du aktuell am Stück? (leer lassen, wenn du es nicht weißt)`}</p>
         <div class="field-row">
           <label class="field"><span>Distanz (km)</span><input data-in="cardio.baseKm" inputmode="decimal" value="${esc(d.baseKm)}" placeholder="z. B. 8"></label>
-          <label class="field"><span>Zeit (h:mm)</span><input data-in="cardio.baseTime" inputmode="numeric" value="${esc(d.baseTime)}" placeholder="0:50"></label>
+          <label class="field"><span>Zeit</span>${timeFields('cardio.baseTime', d.baseTimeH, d.baseTimeM, ['0', '50'])}</label>
         </div>
         ${levelChips('cardio.level', d.level, null)}
       </div>
@@ -270,7 +283,7 @@ export function openCoachSetup(kind = 'workout', { onDone } = {}) {
     const d = D[kind];
     for (const [k, v] of Object.entries(patch)) {
       if (k === 'deadline') { d.date = dateVal(v); continue; }
-      if (k === 'time') { d.time = fmtDurInput(v); continue; }
+      if (k === 'time') { d.timeH = hm(v).h; d.timeM = hm(v).m; continue; }
       d[k] = typeof v === 'number' && ['target', 'distance'].includes(k) ? String(v).replace('.', ',') : v;
     }
   }
