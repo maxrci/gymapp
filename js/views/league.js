@@ -50,8 +50,11 @@ export function leagueView({ tab = 'season' }) {
   const g = cachedGroup();
   if (!g) {
     return {
-      html: pageHead('Arena') + tabs + '<div class="chart-empty">Lade Gruppendaten…</div>',
-      mount: () => fetchGroup().then(() => window.dispatchEvent(new HashChangeEvent('hashchange'))).catch((e) => toast(e.message)),
+      html: pageHead('Arena') + tabs + '<div class="chart-empty" data-gload>Lade Gruppendaten…</div>',
+      mount: (root) => fetchGroup().then(() => window.dispatchEvent(new HashChangeEvent('hashchange'))).catch((e) => {
+        const el = root.querySelector('[data-gload]');
+        if (el) el.outerHTML = `<section class="card err-card"><b>${icon('info', 'xs')} Gruppendaten konnten nicht geladen werden</b><pre>${esc(e.message)}</pre><div class="row-btns"><button class="btn primary sm" data-err-retry>Erneut versuchen</button></div></section>`;
+      }),
     };
   }
   const views = { season, kings, alltime, challenges, members };

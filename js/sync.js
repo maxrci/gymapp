@@ -256,16 +256,28 @@ export function syncNow() {
 export function resetCursor() { S.cursor = 0; S.dirty = { workout: {}, routine: {} }; S.tomb = []; save(); }
 
 // ---------- Gruppendaten ----------
+// vollständige Gruppendaten? (alte oder kaputte Zwischenspeicher nicht verwenden)
+export const validGroup = (g) => !!(g && Array.isArray(g.members) && g.season && Array.isArray(g.season.rows) && g.alltime && g.kings);
 export function cachedGroup() {
   if (demoOn()) return demoGroup();
-  try { return JSON.parse(localStorage.getItem(LS_GROUP) || 'null'); } catch { return null; }
+  try {
+    const g = JSON.parse(localStorage.getItem(LS_GROUP) || 'null') || memGroup;
+    if (g && !validGroup(g)) { localStorage.removeItem(LS_GROUP); return null; }
+    return g;
+  } catch { return null; }
 }
 let groupReq = null;
+let memGroup = null;
 export function fetchGroup() {
   if (demoOn()) return Promise.resolve(demoGroup());
   if (!S.token) return Promise.resolve(null);
   groupReq ??= api('GET', '/api/group').then((g) => {
-    try { localStorage.setItem(LS_GROUP, JSON.stringify(g)); } catch { /* voll */ }
+    if (!validGroup(g)) throw new Error(`Unvollständige Gruppendaten vom Server (enthalten: ${Object.keys(g || {}).slice(0, 12).join(', ') || 'nichts'})`);
+    const json = JSON.stringify(g);
+    try { localStorage.setItem(LS_GROUP, json); } catch {
+      // Speicher voll: alten Stand entfernen und erneut versuchen, sonst nur im Speicher halten
+      try { localStorage.removeItem(LS_GROUP); localStorage.setItem(LS_GROUP, json); } catch { memGroup = g; }
+    }
     return g;
   }).finally(() => { groupReq = null; });
   return groupReq;
