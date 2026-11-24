@@ -20,8 +20,26 @@
   };
   const showErr = (x) => { err.textContent = x.message === 'Failed to fetch' ? 'Server nicht erreichbar.' : x.message; err.hidden = false; };
   const device = /iPhone/.test(navigator.userAgent) ? 'iPhone' : /iPad/.test(navigator.userAgent) ? 'iPad' : /Android/.test(navigator.userAgent) ? 'Android' : 'Browser';
+  // Gerät war schon angemeldet (Token noch gespeichert), z. B. alte App-Version hat diese Seite zwischengespeichert:
+  // Cookie mit dem vorhandenen Token nachholen, alten Zwischenspeicher aufräumen, App öffnen – ohne Passwort
+  async function resume() {
+    let st = {};
+    try { st = JSON.parse(localStorage.getItem('gymlog-srv') || '{}'); } catch { /* egal */ }
+    if (!st.token || st.server) return false;
+    try { if (sessionStorage.getItem('gymlog-resume') === '1') return false; sessionStorage.setItem('gymlog-resume', '1'); } catch { /* egal */ }
+    const r = await fetch('/api/session', { method: 'POST', headers: { Authorization: `Bearer ${st.token}` }, credentials: 'same-origin', cache: 'no-store' }).catch(() => null);
+    if (!r || !r.ok) return false;
+    try { for (const k of await caches.keys()) await caches.delete(k); } catch { /* egal */ }
+    try { for (const x of await navigator.serviceWorker.getRegistrations()) await x.unregister(); } catch { /* egal */ }
+    location.replace('/');
+    return true;
+  }
   // Umzug aus der alten App: Einmal-Code im Link (#t=…) → ohne Passwort anmelden
   const t = /[#&]t=([A-Za-z0-9_-]{20,})/.exec(location.hash);
+  if (!t) {
+    go.disabled = true; go.textContent = 'Prüfe Anmeldung…';
+    resume().then((ok) => { if (!ok) { go.disabled = false; go.textContent = 'Anmelden'; } });
+  }
   if (t) {
     history.replaceState(null, '', location.pathname + location.search);
     go.disabled = true; go.textContent = 'Umzug läuft…';
