@@ -18,3 +18,12 @@ export function applyTheme(pref = localStorage.getItem(KEY) || 'dark') {
 mq.addEventListener?.('change', () => {
   if ((localStorage.getItem(KEY) || 'dark') === 'system') applyTheme('system');
 });
+
+// Farbprofile (Akzentfarbe) und Simple Mode – ebenfalls gespiegelt, damit beim Start nichts flackert
+export const ACCENTS = [['blau', 'Blau', '#3987e5'], ['violett', 'Violett', '#8b6cf0'], ['gruen', 'Grün', '#2fb36d'], ['orange', 'Orange', '#f08a3c'], ['pink', 'Pink', '#e8579b'], ['rot', 'Rot', '#e5484d']];
+export function applyLook({ accent = 'blau', simple = false } = {}) {
+  const a = ACCENTS.some(([k]) => k === accent) ? accent : 'blau';
+  if (a === 'blau') delete document.documentElement.dataset.accent; else document.documentElement.dataset.accent = a;
+  document.documentElement.classList.toggle('simple', !!simple);
+  try { localStorage.setItem('gymlog-accent', a); localStorage.setItem('gymlog-simple', simple ? '1' : ''); } catch { /* egal */ }
+}

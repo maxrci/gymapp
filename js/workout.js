@@ -7,7 +7,8 @@ import { idx, previousSession, PR_LABELS } from './stats.js';
 import { TYPES } from './library.js';
 import { pickExercises } from './picker.js';
 import { vibrate, keepAwake, releaseAwake } from './platform.js';
-import { icon, sheet, confirmDialog, formDialog, toast, overlay } from './ui.js';
+import { icon, sheet, confirmDialog, formDialog, toast, toastAction, overlay } from './ui.js';
+import { swipeToDelete } from './swipe.js';
 import {
   $, esc, uid, num, fmtClock, fmtVolume, fmtKg, fmtDate, fmtDur, parseNum, debounce,
 } from './utils.js';
@@ -405,6 +406,24 @@ export function initEditor() {
   r.addEventListener('focusin', (e) => {
     if (e.target.matches('.set-in')) setTimeout(() => e.target.select?.(), 0);
   });
+  // Satz nach links wischen → löschen (mit Rückgängig)
+  swipeToDelete(r, '.set-row[data-set]:not(.head)', (row) => {
+    if (!ed) return;
+    const { i, j, ex, set } = locate(row);
+    if (!ex || !set) return;
+    deleteSet(ex, j);
+  });
+}
+
+// Satz löschen mit „Rückgängig“
+function deleteSet(ex, j) {
+  const [removed] = ex.sets.splice(j, 1);
+  commit();
+  toastAction(`Satz ${j + 1} gelöscht`, 'Rückgängig', () => {
+    if (!ed || !ed.data.exercises.includes(ex)) return;
+    ex.sets.splice(Math.min(j, ex.sets.length), 0, removed);
+    commit();
+  });
 }
 
 function locate(el) {
@@ -501,7 +520,8 @@ async function onClick(e) {
         ],
       });
       if (!v) break;
-      if (v === 'delete') ex.sets.splice(j, 1); else set.type = v;
+      if (v === 'delete') { deleteSet(ex, j); break; }
+      set.type = v;
       commit();
       break;
     }

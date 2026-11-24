@@ -52,7 +52,6 @@ function nutritionCard(plan) {
   </section>`;
 }
 
-let limit = 15;
 
 const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
 
@@ -135,12 +134,12 @@ export function homeView() {
 
   let feed = '';
   let lastM = '';
-  for (const w of ws.slice(0, limit)) {
+  for (const w of ws.slice(0, 3)) {
     const m = fmtDate(w.start, { month: 'long', year: 'numeric' });
     if (m !== lastM) { feed += `<div class="list-label">${esc(m)}</div>`; lastM = m; }
     feed += workoutCard(w);
   }
-  const more = ws.length > limit ? `<button class="btn ghost block" data-act="more">Weitere Workouts laden (${ws.length - limit})</button>` : '';
+  const more = ws.length > 3 ? `<a class="btn ghost block" href="#/history">${icon('search', 'xs')} Ganzen Verlauf ansehen (${ws.length})</a>` : '';
   const routines = state.routines.slice(0, 8).map((r) => `<button class="quick-chip" data-act="routine" data-id="${esc(r.id)}">${icon('play', 'xs')} ${esc(r.name)}</button>`).join('');
 
   const html = `
@@ -168,7 +167,7 @@ export function homeView() {
       <div class="bt-icons">${achDone.slice(-4).map((a) => `<span>${icon(a.icon)}</span>`).join('')}</div>
       <div><b>Abzeichen</b><small>${achDone.length} von ${ach.length} freigeschaltet</small></div>${icon('right', 'muted')}</a>` : ''}
     ${installHint}
-    ${ws.length ? `<h2 class="section-title">Verlauf</h2>${feed}${more}` : ''}
+    ${ws.length ? `<h2 class="section-title">Letzte Workouts</h2>${feed}${more}` : ''}
   `;
   return {
     html,
@@ -185,7 +184,6 @@ export function homeView() {
         sheet({ title: 'So rechnet der Coach', message: `Grundumsatz ${n.bmr} kcal (Mifflin-St-Jeor) × Alltag = ${n.base} kcal. Training heute: +${n.train} kcal${n.items.length ? ` (${n.items.map((i) => i.label).join(', ')})` : ''}. Ziel: ${n.adj > 0 ? '+' : ''}${n.adj} kcal. Eiweiß ${n.proteinPerKg} g pro kg, Fett ca. 0,8–1 g pro kg, der Rest Kohlenhydrate. Richtwerte – keine Ernährungsberatung.`, options: [{ label: 'Körperdaten ändern', value: 'body', icon: 'user' }] }).then((v) => { if (v === 'body') openCoachSetup('body'); });
       },
       avatar: () => openAvatarEditor(),
-      more: (_, rerender) => { limit += 20; rerender(); },
       routine: (el) => {
         const r = state.routines.find((x) => x.id === el.dataset.id);
         if (r) startFromRoutine(r);

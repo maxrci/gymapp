@@ -8,7 +8,7 @@ const DURATION = 3000;
 let hiddenAt = null;
 
 export function showIntro() {
-  if (state.settings.introAnim === false) return;
+  if (state.settings.introAnim === false || state.settings.simple) return;
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   if (document.querySelector('.intro')) return;
   const stage = stageFor(weekStreaks().current);

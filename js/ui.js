@@ -133,6 +133,22 @@ export function formDialog({ title, fields, okLabel = 'Speichern' }) {
   });
 }
 
+// Hinweis mit Knopf, z. B. „Satz gelöscht · Rückgängig“
+export function toastAction(msg, label, fn, ms = 5000) {
+  layer().querySelectorAll('.toast').forEach((x) => x.remove());
+  const t = document.createElement('div');
+  t.className = 'toast with-action';
+  t.innerHTML = `<span></span><button type="button"></button>`;
+  t.firstChild.textContent = msg;
+  t.lastChild.textContent = label;
+  let done = false;
+  const hide = () => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); };
+  t.lastChild.addEventListener('click', () => { if (done) return; done = true; hide(); fn(); });
+  layer().appendChild(t);
+  requestAnimationFrame(() => t.classList.add('show'));
+  setTimeout(hide, ms);
+}
+
 export function toast(msg, ms = 2400) {
   layer().querySelectorAll('.toast').forEach((x) => x.remove());
   const t = document.createElement('div');

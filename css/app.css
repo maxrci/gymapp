@@ -1768,3 +1768,62 @@ textarea[data-key] { width: 100%; box-sizing: border-box; font: 13px/1.4 ui-mono
 .move-body p { color: var(--text-2); font-size: 15px; }
 .move-ic { width: 76px; height: 76px; margin: 0 auto; border-radius: 24px; display: grid; place-items: center; color: #fff; background: linear-gradient(150deg, #3987e5, #6250d6); }
 .move-ic .ic { width: 38px; height: 38px; }
+
+/* ---------- Wischen zum Löschen ---------- */
+.swipe-host { overflow-x: hidden; }
+.swipe-row { position: relative; touch-action: pan-y; }
+.swipe-del { position: absolute; top: 0; bottom: 0; left: 100%; width: 88px; margin-left: 0; border: 0; background: var(--danger, #e5484d); color: #fff; font-weight: 700; font-size: 14px; border-radius: 0 10px 10px 0; }
+.toast.with-action { display: flex; align-items: center; gap: 14px; pointer-events: auto; }
+.toast.with-action button { border: 0; background: none; color: var(--accent, #3987e5); font-weight: 800; font-size: 15px; padding: 4px 2px; }
+
+/* ---------- Verlauf ---------- */
+.h-search { display: flex; align-items: center; gap: 8px; background: var(--surface-2); border-radius: 12px; padding: 0 12px; margin: 4px 0 10px; color: var(--muted); }
+.h-search input { flex: 1; border: 0; background: none; color: var(--text); font-size: 16px; padding: 12px 0; outline: none; }
+.h-cal { padding: 8px 12px 10px; margin-top: 10px; }
+.hc-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.hc-head b { font-size: 15px; text-transform: capitalize; }
+.hc-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; text-align: center; }
+.hc-wd { font-size: 11px; color: var(--muted); padding-bottom: 2px; }
+.hc-d { position: relative; height: 32px; border: 0; border-radius: 9px; background: none; color: var(--muted); font-size: 13px; }
+.hc-d.on { background: var(--accent-soft, rgba(57, 135, 229, .18)); color: var(--text); font-weight: 700; }
+.hc-d.today { box-shadow: inset 0 0 0 1.5px var(--line-2); }
+.hc-d.sel { background: var(--accent, #3987e5); color: #fff; }
+.hc-d i { position: absolute; top: 2px; right: 4px; font-size: 9px; font-style: normal; }
+.h-cal .btn { margin-top: 8px; }
+.h-count { color: var(--muted); font-size: 13px; margin: 6px 2px; }
+.h-list { border-radius: 14px; overflow: hidden; }
+.h-row { display: flex; align-items: center; gap: 10px; padding: 11px 12px; background: var(--surface); border-bottom: 1px solid var(--line); color: inherit; text-decoration: none; }
+.h-ic { width: 34px; height: 34px; flex: none; border-radius: 10px; display: grid; place-items: center; background: var(--surface-2); color: var(--text-2); }
+.h-ic .ic { width: 18px; height: 18px; }
+.h-ic.k-cardio { color: #e5894a; } .h-ic.k-mob { color: #47b07a; } .h-ic.k-gym { color: var(--accent, #3987e5); }
+.h-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.h-main b, .h-main small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.h-main small, .h-side small { color: var(--muted); font-size: 12px; }
+.h-side { text-align: right; display: flex; flex-direction: column; flex: none; }
+.h-side b { font-size: 13px; }
+.h-src { font-size: 10px; font-weight: 700; color: var(--muted); border: 1px solid var(--line-2); border-radius: 6px; padding: 1px 5px; }
+.h-row.swipe-row .swipe-del { border-radius: 0; }
+
+/* ---------- Farbprofile ---------- */
+:root[data-accent="violett"] { --accent: #8b6cf0; --accent-press: #7556e0; --accent-soft: rgba(139, 108, 240, .18); }
+:root[data-accent="gruen"] { --accent: #2fb36d; --accent-press: #229a5b; --accent-soft: rgba(47, 179, 109, .18); }
+:root[data-accent="orange"] { --accent: #f08a3c; --accent-press: #d9752a; --accent-soft: rgba(240, 138, 60, .18); }
+:root[data-accent="pink"] { --accent: #e8579b; --accent-press: #d04284; --accent-soft: rgba(232, 87, 155, .18); }
+:root[data-accent="rot"] { --accent: #e5484d; --accent-press: #cc363b; --accent-soft: rgba(229, 72, 77, .18); }
+:root[data-theme="light"][data-accent="violett"] { --accent: #6a4fd8; --accent-press: #5a40c4; }
+:root[data-theme="light"][data-accent="gruen"] { --accent: #1f9256; --accent-press: #187d49; }
+:root[data-theme="light"][data-accent="orange"] { --accent: #c96a1f; --accent-press: #b15c18; }
+:root[data-theme="light"][data-accent="pink"] { --accent: #c43d7d; --accent-press: #ad326c; }
+:root[data-theme="light"][data-accent="rot"] { --accent: #c9353a; --accent-press: #b22c31; }
+.accent-row { display: flex; gap: 10px; flex-wrap: wrap; padding: 12px 14px; }
+.accent-dot { width: 40px; height: 40px; border-radius: 50%; border: 0; display: grid; place-items: center; color: #fff; box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .15); }
+.accent-dot.on { box-shadow: 0 0 0 3px var(--bg, #0d0d0d), 0 0 0 5px currentColor; }
+.accent-dot .ic { width: 18px; height: 18px; }
+
+/* ---------- Simple Mode: ohne Avatare, Meister und Effekte ---------- */
+.simple .hero-fig, .simple .ch-masters, .simple .g-figure, .simple .pod-fig, .simple .ch-win-fig, .simple .avatar-fig, .simple .hero-power .over9000 { display: none !important; }
+.simple .hero { grid-template-columns: 1fr; }
+.simple *, .simple *::before, .simple *::after { animation: none !important; }
+
+/* ---------- Einstellungen (Menü) ---------- */
+.set-menu .set-item small.si-sub { display: block; }

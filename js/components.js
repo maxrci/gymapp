@@ -7,7 +7,7 @@ import { cardioKind } from './compete.js';
 
 export function pageHead(title, { back, actions = '', sub } = {}) {
   return `<header class="page-head ${back ? 'with-back' : ''}">
-    ${back ? `<button class="icon-btn" data-nav="${esc(back)}" aria-label="Zurück">${icon('left')}</button>` : ''}
+    ${back ? `<button class="icon-btn" data-back="${esc(back)}" aria-label="Zurück">${icon('left')}</button>` : ''}
     <div class="ph-text"><h1>${esc(title)}</h1>${sub ? `<div class="ph-sub">${sub}</div>` : ''}</div>
     <div class="ph-actions">${actions}</div>
   </header>`;

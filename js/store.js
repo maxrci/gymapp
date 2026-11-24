@@ -27,6 +27,8 @@ export const DEFAULT_SETTINGS = {
   lastDevice: 'treadmill',
   introAnim: true,         // Start-Animation beim Öffnen
   arenaDemo: true,         // DEMO: Arena mit 2 NPCs ohne Server
+  accent: 'blau',          // Farbprofil
+  simple: false,           // Simple Mode: ohne Avatare & Animationen
 };
 
 export const state = {

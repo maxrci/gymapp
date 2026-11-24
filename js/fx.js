@@ -366,7 +366,7 @@ export function prPopup({ exercise, detail, stage = 3 }) {
   unlockAudio();
   prSound();
   vibrate([60, 40, 60, 40, 200]);
-  if (state.settings.prEffects === false) return;
+  if (state.settings.prEffects === false || state.settings.simple) { if (state.settings.simple) import('./ui.js').then((u) => u.toast(`Neuer Rekord · ${exercise}`)); return; }
   document.querySelector('.pr-pop')?.remove();
   clearTimeout(popTimer);
   const el = document.createElement('div');
