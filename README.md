@@ -42,6 +42,7 @@ Alle Daten bleiben lokal auf dem Gerät (IndexedDB).
   und Fortschritt an. Auf der Startseite: Plan pro Wochentag und Ernährungs-Richtwerte (kcal & Makros).
 - **Strava**: Jede Person trägt ihre eigene Strava-API-App (Client-ID + Secret) unter Profil → Verbindungen ein; der
   Gruppen-Server übernimmt die Anmeldung und holt neue Aktivitäten automatisch (beim Öffnen und alle 2 Stunden).
+  Gemäß Strava-Richtlinien sieht die Aktivitäten nur die Person selbst; in der Arena zählen sie nur als EP.
 - **Garmin**: Persönlichen API-Schlüssel (Garmin Connect → Einstellungen → Personal API) unter Profil → Verbindungen
   einfügen; der Gruppen-Server holt die Aktivitäten wie bei Strava. Doppelte (z. B. Garmin → Strava) werden erkannt.
 - **Cardio geführt**: Grundlage, 4×4, 30/30, Pyramide, Steigerung, Schwelle, 12-3-30, Regeneration für

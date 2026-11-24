@@ -12,9 +12,11 @@ export const visOf = (p) => (VISIBILITY.some(([k]) => k === p?.visibility) ? p.v
 export function prepUsers(users) {
   return users.map((u) => {
     const profile = u.profile || {};
-    const sums = [...u.sums].filter((s) => s.start).sort((a, b) => a.start - b.start);
+    const all = [...u.sums].filter((s) => s.start).sort((a, b) => a.start - b.start);
+    // ext = Einträge aus Strava: zählen nur für die EP, alles andere (Streak, Könige, Bestwerte, Challenges, Statistik) ohne sie
+    const sums = all.filter((s) => !s.ext);
     return {
-      ...u, profile, sums, prs: prMap(sums),
+      ...u, profile, sums, all, prs: prMap(all),
       goal: Math.max(1, Math.min(14, profile.weekGoal || 3)),
       bwLog: Array.isArray(profile.bwLog) ? profile.bwLog : [],
     };
@@ -46,7 +48,13 @@ export function buildGroup(rawUsers, rawChallenges, now = Date.now()) {
     if (c.status !== 'finished') continue;
     for (const m of c.members) if (m.status === 'joined') results.get(m.id)?.push({ end: c.end, won: c.winners.includes(m.id) });
   }
-  const score = (u, a, b) => seasonScore({ sums: u.sums, prs: u.prs, goal: u.goal, results: results.get(u.id) }, a, b);
+  const score = (u, a, b) => {
+    const own = seasonScore({ sums: u.sums, prs: u.prs, goal: u.goal, results: results.get(u.id) }, a, b);
+    if (u.all.length === u.sums.length) return own;
+    // Gesamt-EP inkl. Strava; die Aufschlüsselung (Workouts, Minuten, Rekorde …) nur aus eigenen Einträgen
+    const total = seasonScore({ sums: u.all, prs: u.prs, goal: u.goal, results: results.get(u.id) }, a, b).points;
+    return { ...own, points: Math.max(own.points, total), ext: Math.max(0, total - own.points) };
+  };
   const from = startOfMonth(now), to = addMonths(now, 1);
 
   const members = users.map((u) => {
@@ -70,7 +78,7 @@ export function buildGroup(rawUsers, rawChallenges, now = Date.now()) {
   }
   const season = { from: yFrom, to: yTo, rows: rank(yFrom, yTo), month: { from, to, rows: rank(from, to) }, months };
 
-  const first = Math.min(now, ...users.flatMap((u) => (u.sums[0] ? [u.sums[0].start] : [])));
+  const first = Math.min(now, ...users.flatMap((u) => (u.all[0] ? [u.all[0].start] : [])));
   const titles = {};
   const T = (id) => (titles[id] ||= { years: 0, months: 0 });
   // Monatstitel (abgeschlossene Monate, max. 5 Jahre zurück)

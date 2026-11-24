@@ -207,7 +207,7 @@ export function streakInfo(sums, goal = 3, now = Date.now()) {
 // ---------- Arena-Saison (Fleiß): 1 Jahr, jeder Monat wird einzeln gewonnen ----------
 // Arena-Wertung in EP – dieselben Regeln wie im Level-System (plus Challenges)
 export const LEAGUE_POINTS = { workout: 100, set: 4, pr: 50, goalWeek: 250, activeMin: 2, win: 500, finish: 100 };
-export const LEAGUE_RULES = 'Eine Saison dauert ein Kalenderjahr. Jeden Monat gibt es einen Monatssieger, das Jahr gewinnt, wer über alle Monate die meisten Punkte sammelt. Gewertet wird in EP wie im Level-System: 100 pro Workout (max. 2 pro Tag) · 4 pro Arbeitssatz · 2 pro Minute Cardio oder Mobility · 50 pro Rekord · 250 pro erreichtem Wochenziel · 500 pro Challenge-Sieg · 100 pro beendeter Challenge.';
+export const LEAGUE_RULES = 'Eine Saison dauert ein Kalenderjahr. Jeden Monat gibt es einen Monatssieger, das Jahr gewinnt, wer über alle Monate die meisten Punkte sammelt. Gewertet wird in EP wie im Level-System: 100 pro Workout (max. 2 pro Tag) · 4 pro Arbeitssatz · 2 pro Minute Cardio oder Mobility · 50 pro Rekord · 250 pro erreichtem Wochenziel · 500 pro Challenge-Sieg · 100 pro beendeter Challenge. Aktivitäten aus Strava zählen nur als EP – die Aktivitäten selbst sieht nur, wer sie gemacht hat.';
 
 // Woche zählt für den Monat, in dem ihr Donnerstag liegt
 const weekMonth = (wk) => startOfMonth(wk + 3 * DAY);

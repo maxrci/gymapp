@@ -83,7 +83,7 @@ function rankRows(g, rows, me, sub) {
     <span class="lg-main"><b>${esc(nameOf(g, r.id))}</b><small>${sub(r)}</small></span>
     <span class="lg-val">${num(r.points, 0)}<small>EP</small></span>${fightBtn(r.id)}</a>`).join('');
 }
-const rowSub = (r) => `${r.workouts} Workouts${r.minutes ? ` · ${r.minutes} Min. Cardio/Mobility` : ''} · ${r.goalWeeks} Wochenziele · ${r.prs} Rekorde${r.wins ? ` · ${r.wins} Siege` : ''}`;
+const rowSub = (r) => `${r.workouts} Workouts${r.minutes ? ` · ${r.minutes} Min. Cardio/Mobility` : ''} · ${r.goalWeeks} Wochenziele · ${r.prs} Rekorde${r.wins ? ` · ${r.wins} Siege` : ''}${r.ext ? ` · +${num(r.ext, 0)} EP über Strava` : ''}`;
 
 function openRanking(g, which = 'year') {
   const me = myId();

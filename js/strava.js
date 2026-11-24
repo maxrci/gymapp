@@ -83,7 +83,7 @@ export async function openStrava() {
         <button class="set-item" data-edit><span class="si-ic">${icon('key')}</span><span class="si-l">Zugangsdaten ändern</span>${icon('right', 'muted')}</button>
         <button class="set-item danger" data-disconnect><span class="si-ic">${icon('logout')}</span><span class="si-l">Strava trennen</span>${icon('right', 'muted')}</button>
       </div>
-      <p class="footnote">Neue Aktivitäten (Laufen, Rad, Inliner, Schwimmen, Wandern, Rudern …) kommen automatisch – beim Öffnen der App und alle 2 Stunden über den Server. Sie zählen wie eigene Einträge, auch in der Arena. Krafttraining aus Strava wird nicht übernommen.</p>`;
+      <p class="footnote">Neue Aktivitäten (Laufen, Rad, Inliner, Schwimmen, Wandern, Rudern …) kommen automatisch – beim Öffnen der App und alle 2 Stunden über den Server. In der Arena zählen sie nur als EP – andere sehen weder die Aktivitäten noch Strecken oder Zeiten (so verlangt es Strava). Krafttraining aus Strava wird nicht übernommen.</p>`;
   };
   o.addEventListener('click', async (e) => {
     const t = (s) => e.target.closest(s);
