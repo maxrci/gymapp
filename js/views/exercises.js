@@ -1,4 +1,5 @@
 import { state, allExerciseNames, exerciseMeta, saveExerciseMeta, renameExercise } from '../store.js';
+import { prValue } from '../components.js';
 import { idx, RANGES, rangeBounds, trend, sessionMetric, primaryMetric, repMaxTable, PR_LABELS, REL_METRICS } from '../stats.js';
 import { rel, relSwitch, relClick, relAvailable, fmtRel } from '../body.js';
 import { MUSCLES, TYPES } from '../library.js';
@@ -137,8 +138,8 @@ export function exerciseDetailView({ name }) {
       ${kpi('Arbeitssätze', num(x.totalSets, 0), null, 'layers')}`;
 
   const rm = isW ? repMaxTable(x, 12) : [];
-  const bestRows = Object.entries(x.best).filter(([k, v]) => v && PR_LABELS[k] && (isW || ['reps', 'distance'].includes(k)))
-    .map(([k, v]) => `<div class="pr-row"><div><b>${esc(PR_LABELS[k])}</b><small>${esc(fmtDate(x.bestAt[k]))}</small></div><span class="pr-val">${k === 'reps' ? `${v} Wdh.` : k === 'distance' ? `${num(v, 2)} km` : k.includes('olume') ? fmtVolume(v) : fmtKg(v)}</span></div>`).join('');
+  const bestRows = Object.entries(x.best).filter(([k, v]) => v && PR_LABELS[k] && (isW || ['reps', 'distance', 'duration', 'speed'].includes(k)))
+    .map(([k, v]) => `<div class="pr-row"><div><b>${esc(PR_LABELS[k])}</b><small>${esc(fmtDate(x.bestAt[k]))}</small></div><span class="pr-val">${esc(prValue({ kind: k, value: v, exercise: x.name }))}</span></div>`).join('');
 
   const hist = [...x.sessions].reverse().slice(0, ui.hist).map((s) => {
     let n = 0;

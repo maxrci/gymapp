@@ -77,6 +77,23 @@ export function cardioKind(name, type) {
   if (type === 'duration' && STATIC_RE.test(name)) return null;
   return 'generic';
 }
+// Tempo-Rekorde: ab welcher Strecke ein Tempo zählt und was unplausibel schnell ist (Tippfehler)
+const SPEED_MIN_KM = { run: 1, sprint: 0.2, walk: 1, hike: 1, bike: 2, skate: 2, ski: 2, row: 0.5, swim: 0.2, elliptical: 1, stairs: 0.5, generic: 1 };
+const SPEED_MAX_KMH = { run: 30, sprint: 40, walk: 12, hike: 12, bike: 75, skate: 50, ski: 120, row: 25, swim: 8, elliptical: 40, stairs: 15, generic: 60 };
+// Durchschnittstempo in km/h – oder 0, wenn die Einheit für einen Tempo-Rekord nicht taugt
+export function cardioSpeed(kind, km, sec) {
+  if (!kind || !(km > 0) || !(sec > 0) || km < (SPEED_MIN_KM[kind] ?? 1)) return 0;
+  const v = km / (sec / 3600);
+  return v <= (SPEED_MAX_KMH[kind] ?? 60) ? v : 0;
+}
+// Tempo-Rekord: schneller als je zuvor auf mindestens 90 % dieser Strecke (sonst wäre ein kurzer Sprint unschlagbar)
+export function speedRecord(history, km, v) {
+  if (!v) return 0;
+  const comparable = history.filter((p) => p.d >= km * 0.9);
+  const prev = comparable.length ? Math.max(...comparable.map((p) => p.v)) : 0;
+  return prev > 0 && v > prev + 1e-9 ? prev : 0;
+}
+
 // Leistungsmodell: mechanische Arbeit in kJ, damit Rad, Laufen, Rudern & Co. vergleichbar sind.
 // Laufen ≈ 1,05 kJ pro kg und km, Rad ≈ 22 kJ/km, Rudern ≈ 50 kJ/km; ohne Distanz zählt eine typische Leistung × Zeit.
 const KM_KJ = { run: (bw) => 1.05 * bw, sprint: (bw) => 1.05 * bw, walk: (bw) => 0.55 * bw, hike: (bw) => 0.8 * bw, skate: () => 28, ski: () => 40, bike: () => 22, row: () => 50, elliptical: () => 35, swim: () => 250 };
@@ -146,13 +163,20 @@ export function prMap(sums) {
     let n = 0;
     for (const x of w.ex || []) {
       let b = best.get(x.n);
-      if (!b) best.set(x.n, (b = { e: 0, w: 0, mr: 0, d: 0 }));
+      if (!b) best.set(x.n, (b = { e: 0, w: 0, mr: 0, d: 0, sec: 0, spd: [] }));
+      const ck = cardioKind(x.n, x.t);
       const checks = x.t === 'weight' || x.t === 'weighted_bw' ? [['e', x.e], ['w', x.w]]
         : x.t === 'bodyweight' ? [['mr', x.mr]] : x.t === 'cardio' ? [['d', x.d]] : [];
+      if (ck) checks.push(['sec', x.sec]); // Cardio: längste Dauer
       let pr = false;
       for (const [k, v] of checks) {
         if (!v) continue;
         if (v > b[k] + 1e-9) { if (b[k] > 0) pr = true; b[k] = v; }
+      }
+      // Cardio: schnellstes Tempo (auf vergleichbarer Strecke)
+      if (ck && x.t === 'cardio') {
+        const v = cardioSpeed(ck, x.d, x.sec);
+        if (v) { if (speedRecord(b.spd, x.d, v)) pr = true; b.spd.push({ d: x.d, v }); }
       }
       if (pr) n++; // max. 1 Rekord pro Übung und Workout
 

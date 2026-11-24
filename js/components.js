@@ -2,7 +2,8 @@
 
 import { idx, PR_LABELS } from './stats.js';
 import { icon } from './ui.js';
-import { esc, num, fmtVolume, fmtDurShort, fmtRelDay, fmtTime, fmtKg, fmtClock, fmtPct } from './utils.js';
+import { esc, num, fmtVolume, fmtDurShort, fmtDur, fmtRelDay, fmtTime, fmtKg, fmtClock, fmtPct } from './utils.js';
+import { cardioKind } from './compete.js';
 
 export function pageHead(title, { back, actions = '', sub } = {}) {
   return `<header class="page-head ${back ? 'with-back' : ''}">
@@ -25,7 +26,7 @@ export function fmtSet(s, type) {
 export function setBadge(s, n) {
   const t = s.type;
   const l = t === 'warmup' ? 'W' : t === 'dropset' ? 'D' : t === 'failure' ? 'F' : n;
-  return `<span class="set-badge sm t-${t}">${l}</span>`;
+  return `<span class="set-badge sm t-${esc(t)}">${l}</span>`;
 }
 
 export function workoutCard(w) {
@@ -66,9 +67,21 @@ export function kpi(label, value, delta, iconName) {
   return `<div class="kpi">${iconName ? `<span class="kpi-ic">${icon(iconName)}</span>` : ''}<small>${esc(label)}</small><b>${value}</b>${d}</div>`;
 }
 
+// Tempo passend zur Sportart: min/km beim Laufen/Gehen, /500 m beim Rudern, /100 m beim Schwimmen, sonst km/h
+const mmss = (sec) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, '0')}`;
+export function fmtSpeed(name, kmh) {
+  if (!kmh) return '–';
+  const k = cardioKind(name, 'cardio');
+  if (['run', 'sprint', 'walk', 'hike', 'elliptical'].includes(k)) return `${mmss(3600 / kmh)} /km`;
+  if (k === 'row') return `${mmss(1800 / kmh)} /500 m`;
+  if (k === 'swim') return `${mmss(360 / kmh)} /100 m`;
+  return `${num(kmh, 1)} km/h`;
+}
 export function prValue(p) {
   if (p.kind === 'reps') return `${num(p.value, 0)} Wdh.`;
   if (p.kind === 'distance') return `${num(p.value, 2)} km`;
+  if (p.kind === 'duration') return fmtDur(p.value);
+  if (p.kind === 'speed') return fmtSpeed(p.exercise, p.value);
   if (p.kind === 'volume' || p.kind === 'sessionVolume') return fmtVolume(p.value);
   return fmtKg(p.value);
 }

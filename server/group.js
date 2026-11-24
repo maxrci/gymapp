@@ -1,6 +1,7 @@
 // Gruppen-Auswertung auf dem Server: lädt die Daten aus SQLite und nutzt die gemeinsame Logik (js/groupcalc.js)
 
 import { buildGroup, feedFor, visOf } from '../js/groupcalc.js';
+import { cleanSummary } from './summary.js';
 
 const parse = (s, d) => { try { return JSON.parse(s); } catch { return d; } };
 export { visOf };
@@ -14,7 +15,7 @@ function loadUsers(D) {
     ...u,
     profile: parse(u.profile, {}),
     sums: D.all("SELECT id, summary FROM items WHERE user_id = ? AND kind = 'workout' AND deleted = 0 AND summary IS NOT NULL", u.id)
-      .map((r) => ({ ...parse(r.summary, {}), id: r.id })),
+      .map((r) => { const s = cleanSummary(parse(r.summary, null)); return s ? { ...s, id: r.id } : null; }).filter(Boolean),
   }));
 }
 

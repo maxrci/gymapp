@@ -5,6 +5,7 @@ import {
   login, normUser, hashPassword, newPassword,
 } from './auth.js';
 import { groupData, memberWorkouts, bump, visOf } from './group.js';
+import { cleanSummary } from './summary.js';
 import { CHALLENGE_TYPES, VISIBILITY } from '../js/compete.js';
 
 const parse = (s, d) => { try { return JSON.parse(s); } catch { return d; } };
@@ -43,6 +44,8 @@ function cleanProfile(p) {
 }
 
 const userOut = (u) => ({ id: u.id, name: u.name, role: u.role, username: u.username || null });
+
+const MAX_ITEM = 300000; // Zeichen pro gespeichertem Workout/Routine
 
 // ---------------- Handler ----------------
 export function makeApi(D, cfg) {
@@ -100,7 +103,8 @@ export function makeApi(D, cfg) {
         if (!KINDS.has(it.kind) || !it.id || String(it.id).length > 64) continue;
         const id = String(it.id);
         const data = it.deleted ? null : it.data;
-        const summary = it.deleted || it.kind !== 'workout' ? null : it.summary;
+        if (!it.deleted && (!data || typeof data !== 'object' || JSON.stringify(data).length > MAX_ITEM)) continue;
+        const summary = it.deleted || it.kind !== 'workout' ? null : cleanSummary(it.summary);
         const start = Number(data?.start) || null;
         if (!it.deleted && it.kind === 'workout' && start) {
           // Duplikat (gleiche Startminute + Titel unter anderer ID)?

@@ -2,6 +2,7 @@
 
 import * as db from './db.js';
 import { inferExercise } from './library.js';
+import { cleanWorkout, cleanRoutine, cleanMeta, cleanList } from './sanitize.js';
 
 export const DEFAULT_SETTINGS = {
   bodyweight: null,        // kg – für Körpergewichtsübungen (1RM & Volumen)
@@ -105,6 +106,9 @@ export async function importWorkouts(list) {
 
 // Änderungen vom Server übernehmen (ohne erneut zu synchronisieren)
 export async function applyRemote({ workouts = [], routines = [], delWorkouts = [], delRoutines = [] }) {
+  // auch Daten vom Server prüfen (z. B. falls ein Konto missbraucht wurde)
+  workouts = cleanList(workouts, cleanWorkout).list;
+  routines = cleanList(routines, cleanRoutine).list;
   if (!workouts.length && !routines.length && !delWorkouts.length && !delRoutines.length) return;
   if (workouts.length) {
     await db.putMany('workouts', workouts);
@@ -145,7 +149,7 @@ export async function deleteRoutine(id) {
 // ---------- Übungen ----------
 export function exerciseMeta(name) {
   const inf = inferExercise(name);
-  const saved = state.exMeta[name] || {};
+  const saved = Object.prototype.hasOwnProperty.call(state.exMeta, name) ? state.exMeta[name] : {};
   return { name, ...inf, ...saved, inferredType: inf.type };
 }
 export async function saveExerciseMeta(name, patch) {
@@ -217,20 +221,23 @@ export function exportJSON() {
     exercises: Object.values(state.exMeta), settings: state.settings,
   });
 }
-export async function importJSON(text, replace = false) {
-  const data = JSON.parse(text);
-  if (data.app !== 'gymlog' || !Array.isArray(data.workouts)) throw new Error('Keine gültige Backup-Datei.');
-  if (replace) await wipe(false);
-  const res = await importWorkouts(data.workouts);
-  for (const r of data.routines || []) {
+// Backup einspielen: alles wird geprüft und sauber neu aufgebaut (Einstellungen werden nie übernommen)
+export async function importJSON(text) {
+  let data;
+  try { data = JSON.parse(text); } catch { throw new Error('Die Datei ist kein gültiges Backup (kein JSON).'); }
+  if (!data || typeof data !== 'object' || data.app !== 'gymlog' || !Array.isArray(data.workouts)) throw new Error('Keine gültige Backup-Datei.');
+  const W = cleanList(data.workouts, cleanWorkout);
+  const R = cleanList(data.routines, cleanRoutine);
+  const M = cleanList(data.exercises, cleanMeta);
+  const res = await importWorkouts(W.list);
+  for (const r of R.list) {
     if (!state.routines.some((x) => x.id === r.id)) { state.routines.push(r); await db.put('routines', r); changed('routine', [r.id]); }
   }
-  for (const e of data.exercises || []) {
-    if (!state.exMeta[e.name]) { state.exMeta[e.name] = e; await db.put('exercises', e); }
+  for (const e of M.list) {
+    if (!Object.prototype.hasOwnProperty.call(state.exMeta, e.name)) { state.exMeta[e.name] = e; await db.put('exercises', e); }
   }
-  if (data.settings && replace) await saveSettings({ ...data.settings });
   bump();
-  return res;
+  return { ...res, dropped: W.dropped + R.dropped + M.dropped };
 }
 
 export async function wipe(notify = true) {

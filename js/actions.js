@@ -1,5 +1,6 @@
 // Gemeinsame Aktionen: Import, Export, Routinen aus Verlauf
 
+import { MAX_FILE_MB } from './sanitize.js';
 import { state, importWorkouts, exportJSON, importJSON, saveSettings, saveRoutine } from './store.js';
 import { csvToWorkouts, workoutsToCSV } from './csv.js';
 import { pickFile, toast, sheet } from './ui.js';
@@ -9,6 +10,7 @@ import { startWorkout } from './workout.js';
 export async function importCSVFlow() {
   const file = await pickFile('.csv,text/csv,text/comma-separated-values');
   if (!file) return;
+  if (file.size > MAX_FILE_MB * 1048576) return toast(`Die Datei ist zu groß (max. ${MAX_FILE_MB} MB).`, 4000);
   try {
     const text = await file.text();
     const { workouts, errors } = csvToWorkouts(text);
@@ -43,9 +45,10 @@ export async function exportBackup() {
 export async function restoreBackup() {
   const file = await pickFile('.json,application/json');
   if (!file) return;
+  if (file.size > MAX_FILE_MB * 1048576) return toast(`Die Datei ist zu groß (max. ${MAX_FILE_MB} MB).`, 4000);
   try {
     const res = await importJSON(await file.text());
-    toast(`${res.added} Workouts wiederhergestellt${res.skipped ? `, ${res.skipped} bereits vorhanden` : ''}`, 4000);
+    toast(`${res.added} Workouts wiederhergestellt${res.skipped ? `, ${res.skipped} bereits vorhanden` : ''}${res.dropped ? `, ${res.dropped} ungültige Einträge übersprungen` : ''}`, 4000);
   } catch (e) {
     toast(`Wiederherstellung fehlgeschlagen: ${e.message}`, 5000);
   }

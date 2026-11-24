@@ -3,6 +3,7 @@
 import { state, exerciseMeta } from './store.js';
 import { bwAt, bwLog, bwKey } from './body.js';
 import { e1rm, startOfWeek, startOfMonth, addDays, addMonths, DAY, linreg, startOfDay } from './utils.js';
+import { cardioKind, cardioSpeed, speedRecord } from './compete.js';
 
 let cache = { key: null, data: null };
 
@@ -13,6 +14,8 @@ export const PR_LABELS = {
   reps: 'Meiste Wiederholungen',
   sessionVolume: 'Höchstes Einheitsvolumen',
   distance: 'Längste Distanz',
+  duration: 'Längste Dauer',
+  speed: 'Schnellstes Tempo',
 };
 
 function resolveType(name, obs) {
@@ -71,7 +74,8 @@ function build() {
       const meta = exerciseMeta(name);
       x = {
         name, meta, type: resolveType(name, obs.get(name)), sessions: [],
-        best: { e1rm: 0, weight: 0, volume: 0, reps: 0, sessionVolume: 0, distance: 0 },
+        best: { e1rm: 0, weight: 0, volume: 0, reps: 0, sessionVolume: 0, distance: 0, duration: 0, speed: 0 },
+        spd: [], ck: null,
         bestAt: {}, totalVolume: 0, totalSets: 0, totalReps: 0,
       };
       ex.set(name, x);
@@ -141,6 +145,9 @@ function build() {
       } else if (t === 'cardio') {
         checks.push(['distance', ses.distance]);
       }
+      const ck = cardioKind(e.name, t);
+      x.ck = ck;
+      if (ck) checks.push(['duration', ses.duration]);
       for (const [kind, val] of checks) {
         if (!val) continue;
         const prev = x.best[kind];
@@ -152,6 +159,20 @@ function build() {
           }
           x.best[kind] = val;
           x.bestAt[kind] = w.start;
+        }
+      }
+      // Tempo-Rekord: schneller als je zuvor auf vergleichbarer Strecke
+      if (ck && t === 'cardio') {
+        const v = cardioSpeed(ck, ses.distance, ses.duration);
+        if (v) {
+          const prev = speedRecord(x.spd, ses.distance, v);
+          if (prev) {
+            const pr = { wid: w.id, date: w.start, exercise: e.name, kind: 'speed', value: v, prev, km: ses.distance };
+            prs.push(pr);
+            ws.prs.push(pr);
+          }
+          x.spd.push({ d: ses.distance, v });
+          if (v > x.best.speed) { x.best.speed = v; x.bestAt.speed = w.start; }
         }
       }
     }

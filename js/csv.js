@@ -3,6 +3,7 @@
 // exercise_notes, set_index, set_type, weight_kg, reps, distance_km, duration_seconds, rpe
 
 import { parseNum } from './utils.js';
+import { cleanWorkout } from './sanitize.js';
 
 export function parseCSV(text) {
   const rows = [];
@@ -77,7 +78,8 @@ export function csvToWorkouts(text) {
   if (C.start < 0 || C.ex < 0) {
     throw new Error('Unbekanntes CSV-Format: Spalten "start_time" und "exercise_title" fehlen.');
   }
-  const get = (r, i) => (i >= 0 ? (r[i] ?? '').trim() : '');
+  // Rückweg des Excel-Schutzes: führendes ' vor = + - @ wieder entfernen
+  const get = (r, i) => (i >= 0 ? (r[i] ?? '').trim().replace(/^'(?=[=+\-@])/, '') : '');
 
   const map = new Map();
   const order = [];
@@ -126,8 +128,10 @@ export function csvToWorkouts(text) {
       rpe: parseNum(get(r, C.rpe)),
     });
   }
-  for (const w of order) delete w._lastIdx;
-  return { workouts: order, errors };
+  // Plausibilität & Längen prüfen (unplausible Werte werden verworfen)
+  const workouts = [];
+  for (const w of order) { delete w._lastIdx; const c = cleanWorkout(w); if (c) workouts.push(c); else errors++; }
+  return { workouts, errors };
 }
 
 function hash(s) {
@@ -142,7 +146,8 @@ function fmtCsvDate(ts) {
   const p = (n) => String(n).padStart(2, '0');
   return `${d.getDate()} ${DE_MONTHS[d.getMonth()]} ${d.getFullYear()}, ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
-const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+// Excel-sicher: Texte, die mit = + - @ beginnen, würden sonst als Formel ausgeführt (CSV-Injection)
+const q = (v) => { let s = String(v ?? ''); if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`; return `"${s.replace(/"/g, '""')}"`; };
 const n = (v) => (v == null ? '' : String(v));
 
 export function workoutsToCSV(workouts) {

@@ -19,6 +19,8 @@ import { poseSVG, poseFor } from './poses.js';
 import { weekStreaks } from './stats.js';
 import { e1rm } from './utils.js';
 import { alternatives } from './coach/similar.js';
+import { cardioKind, cardioSpeed, speedRecord } from './compete.js';
+import { prValue } from './components.js';
 
 let ed = null; // { mode: 'active'|'edit'|'routine', data, isNew }
 let ticker = null;
@@ -247,7 +249,7 @@ function exerciseHtml(e, i) {
     const label = s.type === 'warmup' ? 'W' : s.type === 'dropset' ? 'D' : s.type === 'failure' ? 'F' : String(++n);
     const ps = prevSets[j];
     return `<div class="set-row ${s.done ? 'done' : ''} ${s.pr ? 'pr' : ''} c${cols.length} ${chk ? '' : 'nochk'}" data-ex="${i}" data-set="${j}">
-      <button class="set-badge t-${s.type}" data-act="set-type">${label}</button>
+      <button class="set-badge t-${esc(s.type)}" data-act="set-type">${label}</button>
       <button class="set-prev" data-act="fill-prev">${esc(fmtSetShort(ps, type))}</button>
       ${cols.map((c) => `<input class="set-in" data-f="${c}" inputmode="${COL_MODE[c]}" value="${esc(colVal(s, c))}" placeholder="${esc(placeholderFor(ps, s.target, c))}" autocomplete="off" enterkeyhint="next">`).join('')}
       ${chk ? `<button class="set-chk" data-act="done" aria-label="Satz abhaken">${icon('check')}</button>` : ''}
@@ -359,13 +361,29 @@ function checkPR(ex, set) {
   } else if (t === 'bodyweight') {
     if (x.best.reps > 0 && (set.reps || 0) > best.reps) out.push({ kind: 'reps', value: set.reps });
   }
+  // Cardio: weiter, länger oder schneller als je zuvor (Summe der abgehakten Sätze dieser Übung)
+  const ck = cardioKind(ex.name, t);
+  if (ck) {
+    let km = 0, sec = 0;
+    for (const e of ed.data.exercises) {
+      if (e.name !== ex.name) continue;
+      for (const q of e.sets) if (q === set || (q.done && q.type !== 'warmup')) { km += q.distance || 0; sec += q.duration || 0; }
+    }
+    if (t === 'cardio' && x.best.distance > 0 && km > x.best.distance + 1e-9) out.push({ kind: 'distance', value: km });
+    if (x.best.duration > 0 && sec > x.best.duration + 1e-9) out.push({ kind: 'duration', value: sec });
+    if (t === 'cardio') {
+      const v = cardioSpeed(ck, km, sec);
+      if (speedRecord(x.spd, km, v)) out.push({ kind: 'speed', value: v });
+    }
+  }
   return out.length ? out : null;
 }
 
 function prDetail(ex, set, prs) {
   const type = typeOf(ex.name);
   const setTxt = fmtSetShort(set, type);
-  const parts = prs.map((p) => (p.kind === 'e1rm' ? `1RM ≈ ${num(p.value, 1)} kg` : p.kind === 'weight' ? 'Höchstes Gewicht' : 'Meiste Wiederholungen'));
+  const parts = prs.map((p) => (p.kind === 'e1rm' ? `1RM ≈ ${num(p.value, 1)} kg` : p.kind === 'weight' ? 'Höchstes Gewicht' : p.kind === 'reps' ? 'Meiste Wiederholungen'
+    : `${PR_LABELS[p.kind]}: ${prValue({ ...p, exercise: ex.name })}`));
   return `${setTxt} · ${parts.join(' · ')}`;
 }
 
@@ -673,7 +691,7 @@ export function showSummary(w) {
         <div class="kpi"><small>Sätze</small><b>${s?.sets ?? 0}</b></div>
       </div>
       ${prs.length ? `<div class="card"><div class="card-title">${icon('trophy', 'gold')} ${prs.length} neue Rekorde</div>
-        ${prs.map((p) => `<div class="pr-row"><div><b>${esc(p.exercise)}</b><small>${esc(PR_LABELS[p.kind])}</small></div><span class="pr-val">${p.kind === 'reps' ? `${p.value} Wdh.` : p.kind === 'distance' ? `${num(p.value, 2)} km` : fmtKg(p.value)}</span></div>`).join('')}
+        ${prs.map((p) => `<div class="pr-row"><div><b>${esc(p.exercise)}</b><small>${esc(PR_LABELS[p.kind])}</small></div><span class="pr-val">${esc(prValue(p))}</span></div>`).join('')}
       </div>` : ''}
       <div class="summary-actions">
         <button class="btn ghost block" data-view>Workout ansehen</button>
