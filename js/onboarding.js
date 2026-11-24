@@ -30,7 +30,7 @@ function slides() {
       fig: () => '<div class="onb-poses"><div data-pose="ohp" class="p-gym"></div><div data-pose="sprint" class="p-cardio"></div><div data-pose="splits" class="p-mob"></div></div>',
       title: 'Training',
       text: 'Unter „Training“ startest du eine Routine oder ein leeres Workout. Sätze abhaken, der Pausen-Timer läuft automatisch.',
-      bullets: [['dumbbell', '<b>Gym:</b> Routinen, Vorschläge aus deinem letzten Mal, Rekord-Erkennung'], ['bolt', '<b>Cardio:</b> geführte Intervalle mit Sprachansage'], ['repeat', '<b>Mobility & Pilates:</b> geführte Routinen oder einfach die Dauer eintragen'], ['calendar', 'Vergessen? Workouts lassen sich auch nachtragen']],
+      bullets: [['dumbbell', '<b>Gym:</b> Routinen, Vorschläge aus deinem letzten Mal, Rekord-Erkennung'], ['bolt', '<b>Cardio:</b> frei eintragen, geführte Intervalle oder eigene Einheiten bauen'], ['repeat', '<b>Mobility & Pilates:</b> geführte Routinen oder einfach die Dauer eintragen'], ['calendar', 'Vergessen? Workouts lassen sich auch nachtragen']],
     },
     {
       key: 'streak', cls: 'streak',
@@ -38,9 +38,8 @@ function slides() {
       title: 'Streak & Kämpfer',
       text: 'Erreiche dein Wochenziel, dann wächst deine Streak. Je länger sie hält, desto stärker verwandelt sich dein Kämpfer – 8 Stufen bis „Unaufhaltsam“.',
       bullets: [['star', 'EP & Level für Workouts, Sätze, Rekorde sowie 2 EP pro Cardio- und Pilates-Minute'], ['volume', 'Neuer Rekord? Dann gibt’s Power-up und Rekord-Sound']],
-      extra: () => `<div class="onb-q"><b>Wie oft pro Woche willst du trainieren?</b>
-        <div class="onb-chips">${[1, 2, 3, 4, 5, 6, 7].map((n) => `<button class="chip ${s.weekGoal === n ? 'on' : ''}" data-goal="${n}">${n}×</button>`).join('')}</div>
-        <button class="link-btn" data-avatar>${icon('edit', 'xs')} Kämpfer anpassen (Figur, Haare, Outfit, Gesicht)</button></div>`,
+      extra: () => `<div class="onb-actions"><button class="btn ghost" data-avatar>${icon('edit', 'xs')} Kämpfer anpassen</button></div>
+        <p class="onb-hint">Dein Wochenziel stellst du jederzeit unter Profil → Wochenziel ein.</p>`,
     },
     {
       key: 'stats', cls: 'stats',
@@ -65,6 +64,13 @@ function slides() {
       text: 'Alles bleibt auf deinem Gerät. Unter „Profil“ kannst du Daten importieren, Backups erstellen und dich bei einer Gruppe anmelden.',
       bullets: [['upload', 'CSV-Import aus anderen Tracking-Apps'], ['share', 'Backups als Datei'], ['key', 'Gruppe: Benutzername & Passwort bekommst du von deinem Admin']],
       extra: () => `<div class="onb-actions"><button class="btn ghost" data-import>${icon('upload', 'xs')} CSV importieren</button><button class="btn ghost" data-login>${icon('key', 'xs')} Bei Gruppe anmelden</button></div>`,
+    },
+    {
+      key: 'strava', cls: 'strava',
+      fig: () => `<div class="onb-strava"><span class="o-st">${icon('bolt')}</span><i>${icon('right')}</i><span class="o-gym">${icon('dumbbell')}</span></div>`,
+      title: 'Strava verbinden',
+      text: 'Läufe, Radtouren & Co., die du mit Strava aufzeichnest, landen automatisch in Gym – mit Distanz und Zeit, und sie zählen auch in der Arena.',
+      bullets: [['key', '<b>1.</b> Bei Strava unter Einstellungen → API eine eigene App anlegen (dauert 2 Minuten)'], ['edit', '<b>2.</b> In Gym unter Profil → Verbindungen → Strava die Client-ID und das Secret eintragen'], ['check', '<b>3.</b> Einmal bei Strava anmelden – fertig, neue Aktivitäten kommen von selbst'], ['info', 'Braucht eine Gruppen-Anmeldung – die App führt dich durch jeden Schritt.']],
     },
   ];
 }
@@ -141,7 +147,7 @@ export function showOnboarding({ start = 0 } = {}) {
       o.querySelectorAll('[data-goal]').forEach((b) => b.classList.toggle('on', b === g));
       return;
     }
-    if (t('[data-avatar]')) { const { openAvatarEditor } = await import('./avatar.js'); return openAvatarEditor(); }
+    if (t('[data-avatar]')) { const { openAvatarEditor } = await import('./avatar.js'); return openAvatarEditor({ above: true, onClose: () => draw() }); }
     if (t('[data-import]')) { await finish(); const { importCSVFlow } = await import('./actions.js'); return importCSVFlow(); }
     if (t('[data-login]')) { await finish(); location.hash = '#/profile'; const { loginFlow } = await import('./group.js'); return loginFlow(); }
   });

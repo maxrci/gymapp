@@ -7,10 +7,12 @@ import { fighterSVG, fighterFx, fighterHead } from './fighter.js';
 import { HAIR, COLORS, OUTFITS, FACES, normLook, setLook } from './look.js';
 import { STAGES, profileStats } from './gamification.js';
 
-export function openAvatarEditor() {
+export function openAvatarEditor({ above = false, onClose } = {}) {
   let look = normLook(state.settings.avatar);
   let stage = 0;
   const o = overlay('', 'avatar-editor');
+  if (above) o.style.zIndex = 230; // z. B. aus dem Onboarding heraus
+  if (onClose) { const c = o.close; o.close = () => { c(); onClose(); }; }
   const opt = (group, key, label, inner, on) => `<button class="av-opt ${on ? 'on' : ''}" data-set="${group}" data-v="${esc(key)}" aria-label="${esc(label)}">${inner}<small>${esc(label)}</small></button>`;
   const swatch = (group, key, label, color, on) => `<button class="av-sw ${on ? 'on' : ''}" data-set="${group}" data-v="${esc(key)}" style="--c:${color}" aria-label="${esc(label)}"></button>`;
 

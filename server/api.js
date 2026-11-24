@@ -6,6 +6,7 @@ import {
 } from './auth.js';
 import { groupData, memberWorkouts, bump, visOf } from './group.js';
 import { cleanSummary } from './summary.js';
+import * as strava from './strava.js';
 import { CHALLENGE_TYPES, VISIBILITY } from '../js/compete.js';
 
 const parse = (s, d) => { try { return JSON.parse(s); } catch { return d; } };
@@ -295,6 +296,26 @@ export function makeApi(D, cfg) {
     return { ok: true };
   });
 
+  // ---- Strava (jede Person mit eigener Strava-API-App) ----
+  on('GET', '/api/strava', 'user', ({ me, req }) => strava.status(D, me.id, publicBase(req, cfg)));
+  on('POST', '/api/strava/config', 'user', ({ me, body, req }) => {
+    try { strava.saveConfig(D, me.id, body); } catch (e) { fail(e.status || 400, e.message); }
+    return strava.status(D, me.id, publicBase(req, cfg));
+  });
+  on('POST', '/api/strava/authorize', 'user', ({ me, req }) => {
+    try { return { url: strava.authorizeUrl(D, me.id, publicBase(req, cfg)) }; } catch (e) { fail(e.status || 400, e.message); }
+  });
+  on('GET', '/api/strava/callback', null, ({ url, req }) => strava.callback(D, url, cfg.appUrl || publicBase(req, cfg)));
+  on('POST', '/api/strava/sync', 'user', async ({ me }) => {
+    if (rateLimited(`strava:${me.id}`, 20)) fail(429, 'Bitte kurz warten.');
+    noteFail(`strava:${me.id}`);
+    try { return await strava.syncUser(D, me.id); } catch (e) { fail(e.status || 502, e.message); }
+  });
+  on('DELETE', '/api/strava', 'user', async ({ me, url }) => {
+    await strava.disconnect(D, me.id, url.searchParams.get('remove') === '1');
+    return { ok: true };
+  });
+
   // ---- Admin ----
   on('GET', '/api/admin/users', 'admin', () => {
     const users = D.all('SELECT id, name, role, created, disabled, username, pw_hash IS NOT NULL AS hasPassword FROM users ORDER BY created');
@@ -380,6 +401,10 @@ export function makeApi(D, cfg) {
   // ---------------- Dispatcher ----------------
   return async function handle(req, res, url, readBody) {
     const send = (status, obj) => {
+      if (obj && typeof obj.__html === 'string') {
+        res.writeHead(status, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'", 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer' });
+        return res.end(obj.__html);
+      }
       const s = JSON.stringify(obj);
       res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
       res.end(s);

@@ -247,8 +247,9 @@ const STAND = { t: -90, h: -90, ...ARMS_DOWN, lf: [94, 90], ln: [86, 90] };
 function runFn(amp, lean) {
   return (t) => {
     const p = 2 * Math.PI * t;
-    const leg = (ph) => { const q = Math.sin(ph); const th = 90 + amp * q; return [th, th + 18 + (amp * 1.5) * Math.max(0, Math.cos(ph + 0.6))]; };
-    const arm = (ph) => { const q = Math.sin(ph); const ua = 90 - (amp + 4) * q; return [ua, ua - 85]; };
+    // Schwungphase (Knie gebeugt, Fuß in der Luft): Oberschenkel von hinten nach vorne – sonst läuft die Figur rückwärts
+    const leg = (ph) => { const q = Math.sin(ph); const th = 90 - amp * q; return [th, th + 18 + (amp * 1.5) * Math.max(0, Math.cos(ph + 0.6))]; };
+    const arm = (ph) => { const q = Math.sin(ph); const ua = 90 + (amp + 4) * q; return [ua, ua - 85]; };
     return { hip: [104, 108 - 4 * Math.abs(Math.cos(p))], t: lean, h: lean - 4, ln: leg(p), lf: leg(p + Math.PI), an: arm(p), af: arm(p + Math.PI) };
   };
 }

@@ -44,7 +44,7 @@ export function workoutDetailView({ id }) {
   const html = `
     ${pageHead(w.title, { back: '#/home', actions: `<button class="icon-btn" data-act="menu">${icon('more')}</button>` })}
     <div class="detail-date">${esc(fmtDateLong(w.start))} · ${esc(fmtTime(w.start))}–${esc(fmtTime(w.end))} · Workout Nr. ${s.n ?? ''}</div>
-    ${w.description ? `<p class="dnote">${esc(w.description)}</p>` : ''}
+    ${w.source === 'strava' ? `<a class="strava-link" href="https://www.strava.com/activities/${esc(String(w.id).replace(/\D/g, ''))}" target="_blank" rel="noopener">${icon('share', 'xs')} Auf Strava ansehen</a>` : w.description ? `<p class="dnote">${esc(w.description)}</p>` : ''}
     <div class="kpis">
       ${kpi('Dauer', fmtDur(s.duration), null, 'clock')}
       ${kpi('Volumen', fmtVolume(s.volume), null, 'weight')}

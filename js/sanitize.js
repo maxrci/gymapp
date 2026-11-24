@@ -46,7 +46,7 @@ export function cleanWorkout(w) {
   }).filter(Boolean);
   const out = {
     id: idOf(w.id) || `w${start.toString(36)}`, title: txt(w.title, 120).trim() || 'Workout', start, end,
-    description: txt(w.description, 4000), source: ['app', 'import'].includes(w.source) ? w.source : 'import', exercises,
+    description: txt(w.description, 4000), source: ['app', 'import', 'strava'].includes(w.source) ? w.source : 'import', exercises,
   };
   if (w.routineId) out.routineId = idOf(w.routineId);
   if (w.planId) out.planId = idOf(w.planId);

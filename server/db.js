@@ -93,6 +93,31 @@ export function openDb(dir) {
       created INTEGER NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS strava (
+      user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      client_id TEXT NOT NULL,
+      client_secret TEXT NOT NULL,
+      access_token TEXT,
+      refresh_token TEXT,
+      expires_at INTEGER NOT NULL DEFAULT 0,
+      athlete TEXT,
+      import_from INTEGER NOT NULL DEFAULT 0,
+      last_activity INTEGER NOT NULL DEFAULT 0,
+      last_sync INTEGER NOT NULL DEFAULT 0,
+      last_error TEXT,
+      imported INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE IF NOT EXISTS strava_seen (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      activity_id TEXT NOT NULL,
+      PRIMARY KEY (user_id, activity_id)
+    );
+    CREATE TABLE IF NOT EXISTS strava_states (
+      state TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created INTEGER NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS challenge_members (
       challenge_id TEXT NOT NULL REFERENCES challenges(id) ON DELETE CASCADE,
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

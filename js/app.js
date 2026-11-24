@@ -21,6 +21,7 @@ import { leagueView, memberView } from './views/league.js';
 import { joinView, loginView } from './views/join.js';
 import { showOnboarding, shouldOnboard } from './onboarding.js';
 import { initUpdates } from './update.js';
+import { initStrava } from './strava.js';
 import { detectServer, initSync, loggedIn, onSync, demoOn } from './sync.js';
 
 const TABS = [
@@ -172,10 +173,10 @@ async function main() {
   // Gruppen-Server (nur wenn die App von einem Gym-Server kommt)
   let wasIn = loggedIn();
   onSync(debounce(() => {
-    if (loggedIn() !== wasIn) { wasIn = loggedIn(); renderTabbar(); initSync(); }
+    if (loggedIn() !== wasIn) { wasIn = loggedIn(); renderTabbar(); initSync(); initStrava(); }
     rerender();
   }, 60));
-  detectServer().then((ok) => { if (ok) { initSync(); renderTabbar(); rerender(); } });
+  detectServer().then((ok) => { if (ok) { initSync(); renderTabbar(); rerender(); } initStrava(); });
 
   render({ keepScroll: false });
   document.body.classList.add('ready');
