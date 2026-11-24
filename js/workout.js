@@ -96,9 +96,9 @@ export function editWorkout(w) {
   ed = { mode: 'edit', data: structuredClone(w) };
   show();
 }
-export function logPastWorkout() {
+export function logPastWorkout({ title = 'Workout', exercises = [] } = {}) {
   const now = Date.now();
-  ed = { mode: 'edit', isNew: true, data: { id: uid(), title: 'Workout', start: now - 3600e3, end: now, description: '', exercises: [], source: 'app' } };
+  ed = { mode: 'edit', isNew: true, data: { id: uid(), title, start: now - 3600e3, end: now, description: '', exercises: exercises.map((e) => ({ name: e.name, notes: '', rest: null, sets: [blankSet()] })), source: 'app' } };
   show();
 }
 export function editRoutine(r) {

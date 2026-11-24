@@ -1727,3 +1727,4 @@ a.tr:active { background: var(--surface-2); }
 .cb-zones small { color: var(--muted); font-size: 12px; margin-left: 4px; }
 .cb-note { display: block; color: var(--muted); font-size: 12px; margin-top: 4px; }
 .cb-add { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 16px; }
+.free-card .chips { margin-bottom: 12px; } .free-card .footnote { margin: 8px 0 0; }

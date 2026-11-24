@@ -1,8 +1,9 @@
 import { state } from '../store.js';
 import {
   idx, RANGES, rangeBounds, inRange, bucketize, autoUnit, weekStreaks, trend, sessionMetric,
-  repRanges, setTypeDist, primaryMetric,
+  repRanges, setTypeDist, primaryMetric, buckets,
 } from '../stats.js';
+import { cardioSpeed } from '../compete.js';
 import { MUSCLES } from '../library.js';
 import { lineChart, barChart, heatmap, hbars, stackedBars, radarChart, legend, SERIES, HEAT } from '../charts.js';
 import { bodyMap, mountBodyMaps } from '../bodymap.js';
@@ -11,15 +12,15 @@ import { setLoad } from '../stats.js';
 import { rel, relSwitch, relClick, relAvailable, fmtRel } from '../body.js';
 import { e1rm, addDays } from '../utils.js';
 import { aiOn } from '../ai.js';
-import { pageHead, kpi, prValue, prLabel, emptyState } from '../components.js';
+import { pageHead, kpi, prValue, prLabel, emptyState, fmtSpeed } from '../components.js';
 import { icon, chips } from '../ui.js';
 import {
   esc, num, fmtVolume, fmtDur, fmtDurShort, fmtKg, fmtDate, fmtPct, fmtCompact, sum, isoWeek,
   MONTHS, WEEKDAYS, weekday, startOfDay, DAY,
 } from '../utils.js';
 
-const TABS = [['overview', 'Übersicht'], ['strength', 'Kraft'], ['volume', 'Volumen'], ['balance', 'Balance'], ['calendar', 'Kalender'], ['records', 'Rekorde']];
-const ui = { range: '6m', unit: null, muscle: 'Brust', year: new Date().getFullYear(), wOff: 0 };
+const TABS = [['overview', 'Übersicht'], ['strength', 'Kraft'], ['cardio', 'Cardio'], ['volume', 'Volumen'], ['balance', 'Balance'], ['calendar', 'Kalender'], ['records', 'Rekorde']];
+const ui = { range: '6m', unit: null, muscle: 'Brust', year: new Date().getFullYear(), wOff: 0, csport: null };
 const bounds = () => rangeBounds(ui.range, ui.wOff);
 const unitWord = (u) => (u === 'day' ? 'Tag' : u === 'week' ? 'Woche' : 'Monat');
 
@@ -56,7 +57,7 @@ export function statsView({ tab = 'overview' }) {
   if (!tabList.some(([k]) => k === tab)) tab = 'overview';
   const tabs = `<div class="tabs scroll">${tabList.map(([k, l]) => `<a class="tab ${k === tab ? 'on' : ''}" href="#/stats/${k}">${l}${k === 'balance' ? ' <span class="ai-badge xs">AI</span>' : ''}</a>`).join('')}</div>`;
   const rangeChips = chips(RANGES, ui.range, 'data-range');
-  const views = { overview, strength, volume, balance, calendar, records };
+  const views = { overview, strength, cardio, volume, balance, calendar, records };
   const v = (views[tab] || overview)();
   const b = bounds();
   const weekNav = ui.range === '1w' ? `<div class="week-nav"><button class="icon-btn" data-wk="-1" aria-label="Vorherige Woche">${icon('left')}</button>
@@ -71,6 +72,104 @@ export function statsView({ tab = 'overview' }) {
       wk: (el, rerender) => { ui.wOff = Math.min(0, ui.wOff + Number(el.dataset.wk)); rerender(); },
     },
   };
+}
+
+// ---------------- Cardio ----------------
+// feste Farbe pro Sportart (immer gleiche Reihenfolge, nie neu verteilt)
+const CSPORTS = [['run', 'Laufen'], ['bike', 'Rad'], ['walk', 'Gehen & Wandern'], ['skate', 'Inliner'], ['row', 'Rudern'], ['swim', 'Schwimmen'], ['elliptical', 'Crosstrainer'], ['other', 'Sonstiges']]
+  .map(([key, label], i) => ({ key, label, color: SERIES[i] }));
+const CS = Object.fromEntries(CSPORTS.map((c) => [c.key, c]));
+const cgroup = (ck) => ({ run: 'run', sprint: 'run', walk: 'walk', hike: 'walk', bike: 'bike', skate: 'skate', row: 'row', swim: 'swim', elliptical: 'elliptical' }[ck] || 'other');
+function cardioSessions(from, to) {
+  const out = [];
+  for (const x of idx().ex.values()) {
+    if (!x.ck) continue;
+    for (const s of x.sessions) {
+      if (s.date < from || s.date > to) continue;
+      out.push({ date: s.date, wid: s.wid, name: x.name, ck: x.ck, g: cgroup(x.ck), km: x.type === 'cardio' ? s.distance : 0, sec: s.duration });
+    }
+  }
+  return out.sort((a, b) => a.date - b.date);
+}
+const fmtKm = (v) => `${num(v, v >= 100 ? 0 : 1)} km`;
+const fmtMin = (sec) => (sec >= 3600 ? `${num(sec / 3600, 1)} h` : `${Math.round(sec / 60)} min`);
+
+function cardio() {
+  const { from, to, prevFrom, prevTo, end } = bounds();
+  const cur = cardioSessions(from, to);
+  const prev = cardioSessions(prevFrom, prevTo);
+  if (!cur.length) {
+    const any = [...idx().ex.values()].some((x) => x.ck);
+    return { html: emptyState('bolt', any ? 'Keine Cardio-Einheiten im Zeitraum' : 'Noch kein Cardio', any ? 'Wähle oben einen längeren Zeitraum.' : 'Trag einen Lauf, eine Radtour oder eine geführte Einheit ein – dann siehst du hier Distanz, Zeit und Tempo.', '<a class="btn primary" href="#/training">Zum Training</a>') };
+  }
+  const A = (l) => ({ n: new Set(l.map((s) => s.wid)).size, km: sum(l, (s) => s.km), sec: sum(l, (s) => s.sec) });
+  const a = A(cur), b = A(prev);
+  const cmp = ui.range !== 'all' && prev.length > 0;
+  const d = (x, y) => (cmp ? pct(x, y) : null);
+  const weeks = Math.max(1, (to - from) / (7 * DAY));
+  const longest = cur.reduce((m, s) => (s.km > m.km || (!m.km && s.sec > m.sec) ? s : m), cur[0]);
+  // pro Sportart
+  const per = CSPORTS.map((c) => {
+    const l = cur.filter((s) => s.g === c.key);
+    return { ...c, n: l.length, km: sum(l, (s) => s.km), sec: sum(l, (s) => s.sec) };
+  }).filter((c) => c.n);
+  // Tempo-Entwicklung: Sportarten mit Distanz
+  const withSpeed = per.filter((c) => cur.some((s) => s.g === c.key && cardioSpeed(s.ck, s.km, s.sec)));
+  if (!withSpeed.some((c) => c.key === ui.csport)) ui.csport = withSpeed.sort((p, q) => q.n - p.n)[0]?.key || null;
+  const recs = idx().prs.filter((p) => p.date >= from && p.date <= to && ['distance', 'duration', 'speed'].includes(p.kind) && idx().ex.get(p.exercise)?.ck).slice(-12).reverse();
+  const unit = autoUnit(ui.range);
+
+  const html = `
+    <div class="kpis">
+      ${kpi('Einheiten', num(a.n, 0), d(a.n, b.n), 'bolt')}
+      ${kpi('Distanz', fmtKm(a.km), d(a.km, b.km), 'target')}
+      ${kpi('Zeit', fmtMin(a.sec), d(a.sec, b.sec), 'clock')}
+      ${kpi('Ø pro Woche', `${Math.round(a.sec / 60 / weeks)} min`, cmp ? pct(a.sec / weeks, b.sec / weeks) : null, 'calendar')}
+      ${kpi('Längste Einheit', longest.km ? fmtKm(longest.km) : fmtMin(longest.sec), null, 'trophy')}
+      ${kpi('EP aus Cardio', num(Math.round(a.sec / 60) * 2, 0), d(a.sec, b.sec), 'flame')}
+    </div>
+    ${cmp ? '<p class="footnote">Veränderung ggü. dem vorherigen, gleich langen Zeitraum.</p>' : ''}
+    <section class="card"><div class="card-title">Cardio-Zeit pro ${unitWord(unit)} <small>nach Sportart</small></div><div data-chart="cmin"></div></section>
+    <section class="card"><div class="card-title">Distanz pro ${unitWord(unit)}</div><div data-chart="ckm"></div></section>
+    ${withSpeed.length ? `<section class="card"><div class="card-title">Tempo-Entwicklung <small>höher = schneller</small></div>
+      ${withSpeed.length > 1 ? `<div class="chips">${withSpeed.map((c) => `<button class="chip ${c.key === ui.csport ? 'on' : ''}" data-csport="${c.key}">${esc(c.label)}</button>`).join('')}</div>` : ''}
+      <div data-chart="cspeed"></div>
+      <p class="footnote">Durchschnittstempo pro Einheit (ab kurzer Mindeststrecke). Lange, lockere Einheiten sind natürlich langsamer – entscheidend ist der Trend.</p></section>` : ''}
+    <section class="card"><div class="card-title">Nach Sportart</div>
+      ${hbars(per.sort((p, q) => q.sec - p.sec).map((c) => ({ label: c.label, value: c.sec, color: c.color, km: c.km, n: c.n })), { fmt: fmtMin, sub: (x) => ` · ${x.n}×${x.km ? ` · ${fmtKm(x.km)}` : ''}` })}
+    </section>
+    <section class="card"><div class="card-title">${icon('trophy', 'gold')} Cardio-Rekorde im Zeitraum</div>
+      ${recs.length ? recs.map((p) => `<a class="pr-row" href="#/ex/${encodeURIComponent(p.exercise)}"><div><b>${esc(p.exercise)}</b><small>${esc(prLabel(p.kind))} · ${esc(fmtDate(p.date))}</small></div><span class="pr-val">${esc(prValue(p))}<small>vorher ${esc(prValue({ ...p, value: p.prev }))}</small></span></a>`).join('') : '<div class="chart-empty">Noch keine Cardio-Rekorde im Zeitraum – weiter, länger oder schneller als je zuvor zählt.</div>'}
+    </section>`;
+
+  const mount = (root) => {
+    const now = Date.now();
+    const bs = buckets(unit, from, end || to);
+    for (const s of cur) { const bk = bs.find((x) => s.date >= x.start && s.date < x.end); if (bk) bk.items.push(s); }
+    const keys = CSPORTS.filter((c) => per.some((p) => p.key === c.key));
+    stackedBars(root.querySelector('[data-chart="cmin"]'), {
+      keys, yFmt: (v) => `${num(v, 0)}`, valFmt: (v) => `${num(v, 0)} min`,
+      data: bs.map((bk) => ({ label: bucketLabel(bk, unit), head: bucketHead(bk, unit), partial: bk.end > now, values: Object.fromEntries(keys.map((k) => [k.key, sum(bk.items.filter((s) => s.g === k.key), (s) => s.sec) / 60])) })),
+    });
+    const kmData = bs.map((bk) => {
+      const v = sum(bk.items, (s) => s.km);
+      const lg = bk.items.reduce((m, s) => Math.max(m, s.km), 0);
+      return { label: bucketLabel(bk, unit), value: v, partial: bk.end > now, tip: `<div class="tt-h">${esc(bucketHead(bk, unit))}</div><div class="tt-r"><b>${fmtKm(v)}</b> · ${bk.items.length} Einheiten</div>${lg ? `<div class="tt-r muted">längste: ${fmtKm(lg)}</div>` : ''}` };
+    });
+    const nz = kmData.filter((x) => x.value);
+    barChart(root.querySelector('[data-chart="ckm"]'), { data: kmData, color: SERIES[0], yFmt: (v) => num(v, 0), refLine: nz.length ? { value: sum(nz, (x) => x.value) / nz.length, label: 'Ø' } : null });
+    const sp = root.querySelector('[data-chart="cspeed"]');
+    if (sp && ui.csport) {
+      const pts = cur.filter((s) => s.g === ui.csport).map((s) => ({ s, v: cardioSpeed(s.ck, s.km, s.sec) })).filter((q) => q.v).map(({ s, v }) => ({ x: s.date, y: v, meta: s }));
+      const nm = pts[0]?.meta.name || '';
+      lineChart(sp, {
+        series: [{ name: 'Tempo', points: pts, color: CS[ui.csport].color }], area: false, dots: true,
+        yFmt: (v) => fmtSpeed(nm, v).replace(' /km', '').replace(' /500 m', '').replace(' /100 m', '').replace(' km/h', ''),
+        tipFmt: (p) => `<div class="tt-h">${esc(fmtDate(p.x))}</div><div class="tt-r"><b>${esc(fmtSpeed(p.meta.name, p.y))}</b></div><div class="tt-r muted">${esc(p.meta.name)} · ${fmtKm(p.meta.km)} · ${fmtDur(p.meta.sec)}</div>`,
+      });
+    }
+  };
+  return { html, mount, clicks: { csport: (el, rr) => { ui.csport = el.dataset.csport; rr(); } } };
 }
 
 // ---------------- Übersicht ----------------

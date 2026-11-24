@@ -12,6 +12,12 @@ import { icon, overlay, formDialog, confirmDialog, toast, sheet } from './ui.js'
 import { tick as tickSound, phaseStart, finishFanfare, speak, unlockAudio } from './fx.js';
 import { esc, fmtClock, num, uid } from './utils.js';
 import { openCardioBuilder, customUnits, deleteUnit, blocksToPhases } from './cardioBuilder.js';
+import { startWorkout, logPastWorkout } from './workout.js';
+import { pickExercises } from './picker.js';
+
+// Frei eintragen: ohne Programm, z. B. einen Lauf draußen
+const FREE = ['Laufen', 'Radfahren', 'Inliner', 'Schwimmen', 'Rudermaschine', 'Wandern', 'Crosstrainer', 'Laufband'];
+const FREE_LABEL = { Rudermaschine: 'Rudern' };
 
 const KEY = 'gymlog-guided';
 const BREATH = 10; // Sekunden pro Atemzyklus: 4 ein, 6 aus
@@ -29,6 +35,7 @@ const stage = () => stageFor(weekStreaks().current).index;
 // ---------------- Auswahl: Cardio ----------------
 export function openCardioSetup() {
   let device = state.settings.lastDevice || 'treadmill';
+  let free = state.settings.lastFreeCardio || 'Laufen';
   const opts = {};
   const o = overlay('', 'guided-setup');
   const st = stage();
@@ -38,6 +45,13 @@ export function openCardioSetup() {
     o.innerHTML = `
       <div class="panel-head"><button class="icon-btn" data-close>${icon('x')}</button><div class="panel-title">Cardio</div><button class="link-btn" data-calib>Gerät</button></div>
       <div class="panel-body">
+        <section class="card free-card">
+          <div class="card-title">${icon('plus', 'xs')} Frei eintragen <small>ohne Programm</small></div>
+          <div class="chips">${[...new Set([...FREE, free])].map((n) => `<button class="chip ${n === free ? 'on' : ''}" data-free="${esc(n)}">${esc(FREE_LABEL[n] || n)}</button>`).join('')}<button class="chip" data-free-other>Andere…</button></div>
+          <div class="row-btns"><button class="btn primary" data-free-start>${icon('play', 'xs')} Jetzt starten</button><button class="btn ghost" data-free-past>${icon('calendar', 'xs')} Nachtragen</button></div>
+          <p class="footnote">Distanz und Zeit trägst du selbst ein – ideal für Läufe draußen oder Sport ohne Gerät.</p>
+        </section>
+        <h2 class="section-title">Geführt</h2>
         <div class="device-grid">${Object.entries(DEVICES).map(([k, d]) => `<button class="device ${k === device ? 'on' : ''}" data-dev="${k}">${poseSVG(d.pose, { stage: st, t: 0.25 })}<span>${esc(d.label)}</span></button>`).join('')}</div>
         <p class="footnote">Grundtempo: ${esc(baseText(device))} – über „Gerät“ anpassen.</p>
         <div class="section-row"><h2 class="section-title">Meine Einheiten</h2><button class="link-btn" data-build>${icon('plus', 'xs')} Eigene bauen</button></div>
@@ -72,6 +86,21 @@ export function openCardioSetup() {
     const op = e.target.closest('[data-opt]');
     if (op) { const [id, v] = op.dataset.opt.split(':'); opts[id] = +v; draw(); return; }
     if (e.target.closest('[data-calib]')) { await calibrate(device); draw(); return; }
+    const fr = e.target.closest('[data-free]');
+    if (fr) { free = fr.dataset.free; draw(); return; }
+    if (e.target.closest('[data-free-other]')) {
+      const n = await pickExercises({ multi: false, title: 'Sportart wählen' });
+      if (n?.[0]) { free = n[0]; draw(); }
+      return;
+    }
+    if (e.target.closest('[data-free-start]') || e.target.closest('[data-free-past]')) {
+      const past = !!e.target.closest('[data-free-past]');
+      await saveSettings({ lastFreeCardio: free });
+      o.close();
+      const cfg = { title: `Cardio: ${FREE_LABEL[free] || free}`, exercises: [{ name: free, sets: [{ type: 'normal' }] }] };
+      if (past) logPastWorkout(cfg); else startWorkout(cfg);
+      return;
+    }
     if (e.target.closest('[data-build]')) { openCardioBuilder({ device, onSave: draw, onStart: (u, ph) => { o.close(); startUnit(u, ph); } }); return; }
     const ad = e.target.closest('[data-adapt]');
     if (ad) {
