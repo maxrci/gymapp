@@ -6,14 +6,14 @@ import {
   streakInfo, alltimeStats, challengeValue, challengeStatus,
   startOfMonth, addMonths, startOfYear, addYears, STAGE_NAMES, VISIBILITY, kingStats, exerciseBests, LIFTS,
 } from './compete.js';
-import { eligible, xpScore, workoutXp, xpParams, xpRecords as xpScoreRecords } from './xp.js';
+import { eligible, xpScore, workoutXp, xpParams, xpRecords as xpScoreRecords, realWeight } from './xp.js';
 
 export const visOf = (p) => (VISIBILITY.some(([k]) => k === p?.visibility) ? p.visibility : 'full');
 
 export function prepUsers(users) {
   return users.map((u) => {
     const profile = u.profile || {};
-    const all = [...u.sums].filter((s) => s.start).sort((a, b) => a.start - b.start);
+    const all = [...u.sums].filter((s) => s.start).map(realWeight).sort((a, b) => a.start - b.start);
     // el = zählende Workouts (in der App getrackt/nachgetragen, Strava erst ab Verbindung) → XP, Rekorde, Streak
     // sums = was andere sehen dürfen: ohne Historie (h) und ohne Strava (ext, zählt nur als XP)
     const el = eligible(all);

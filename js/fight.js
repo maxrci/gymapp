@@ -132,7 +132,7 @@ export function startExerciseFight(g, aId, bId, name, rel = false) {
   const txt = (b) => { const v = val(b); if (!v) return '–'; return isW ? (rel ? `${num(v, 2)} × KG` : `${num(v, 1)} kg`) : t === 'cardio' ? `${num(v, 2)} km` : t === 'duration' ? `${Math.round(v / 60)} Min.` : `${num(v, 0)} Wdh.`; };
   const people = [[A, ba], [B, bb]].map(([m, b]) => ({ id: m.id, name: m.name, look: m.look || {}, stage: m.stage, value: val(b), text: txt(b) }));
   const kind = isW || t === 'bodyweight' ? 'lift' : t === 'cardio' ? 'race' : MOBILITY_RE.test(name) ? 'stretch' : 'race';
-  startShowdown({ kind, title: name, sub: isW ? (rel ? 'Bestes 1RM ÷ Körpergewicht' : 'Bestes geschätztes 1RM') : '', people });
+  startShowdown({ kind, title: name, sub: isW ? (rel ? 'Bestgewicht ÷ Körpergewicht' : 'Schwerstes bewegtes Gewicht') : '', people });
 }
 
 // ---------- Vorschläge: zu jedem Freund eine Kategorie, in der er/sie vorne liegt ----------

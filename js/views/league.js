@@ -216,10 +216,10 @@ const LEADER_CATS = [
   ['xp', 'EP', 'flame', (v) => `${num(v, 0)} EP`, 'sum'],
   ['workouts', 'Workouts', 'dumbbell', (v) => num(v, 0), 'sum'],
   ['km', 'Cardio-Kilometer', 'bolt', (v) => `${num(v, 1)} km`, 'sum'],
-  ['bench', 'Bankdrücken (1RM)', 'weight', (v) => `${num(v, 1)} kg`, 'best'],
-  ['squat', 'Kniebeuge (1RM)', 'weight', (v) => `${num(v, 1)} kg`, 'best'],
-  ['deadlift', 'Kreuzheben (1RM)', 'weight', (v) => `${num(v, 1)} kg`, 'best'],
-  ['ohp', 'Schulterdrücken (1RM)', 'weight', (v) => `${num(v, 1)} kg`, 'best'],
+  ['bench', 'Bankdrücken (Bestgewicht)', 'weight', (v) => `${num(v, 1)} kg`, 'best'],
+  ['squat', 'Kniebeuge (Bestgewicht)', 'weight', (v) => `${num(v, 1)} kg`, 'best'],
+  ['deadlift', 'Kreuzheben (Bestgewicht)', 'weight', (v) => `${num(v, 1)} kg`, 'best'],
+  ['ohp', 'Schulterdrücken (Bestgewicht)', 'weight', (v) => `${num(v, 1)} kg`, 'best'],
 ];
 function leaders(g) {
   const T = g.trends;
@@ -320,13 +320,13 @@ function alltime(g) {
     <div class="chips scroll">${ALLTIME.map((c) => `<button class="chip ${c.key === cat.key ? 'on' : ''}" data-cat="${c.key}">${esc(c.label)}</button>`).join('')}</div>
     ${cat.strength ? `<div class="rel-row"><div class="rel-switch"><button class="${rel ? '' : 'on'}" data-arel="0">kg</button><button class="${rel ? 'on' : ''}" data-arel="1">× KG</button></div></div>` : ''}
     <section class="card">
-      <div class="card-title">${esc(cat.label)} <small>${rel ? 'relativ zum Körpergewicht' : cat.strength ? 'bestes geschätztes 1RM' : 'gesamt'}</small></div>
+      <div class="card-title">${esc(cat.label)} <small>${rel ? 'relativ zum Körpergewicht' : cat.strength ? 'schwerstes bewegtes Gewicht' : 'gesamt'}</small></div>
       ${rows.map((r, i) => `<a class="lg-row ${r.m.id === me ? 'me' : ''}" href="#/member/${esc(r.m.id)}">
         <span class="lg-rank ${i < 3 && r.v ? `m${i + 1}` : ''}">${i + 1}</span>${head(r.m)}
         <span class="lg-main"><b>${esc(r.m.name)}</b><div class="bar"><i style="width:${r.v ? Math.max(3, (r.v / best) * 100) : 0}%"></i></div></span>
         <span class="lg-val">${fmt(r.v)}</span>${fightBtn(r.m.id)}</a>`).join('')}
       <p class="footnote">Tippe auf ${icon('bolt', 'xs')}, um jemanden in dieser Kategorie zum Kampf herauszufordern – wer den besseren Wert hat, gewinnt.</p>
-      ${cat.strength ? `<p class="footnote">Bestes geschätztes 1RM (Epley) mit der Langhantel aus allen Workouts.${rel ? ' Geteilt durch das Körpergewicht am Tag des Satzes – dafür muss jeder sein Gewicht im Profil eintragen.' : ''}${cat.key === 'big3' ? ' Big 3 = Bankdrücken + Kniebeuge + Kreuzheben.' : ''}</p>` : ''}
+      ${cat.strength ? `<p class="footnote">Schwerstes wirklich bewegtes Gewicht mit der Langhantel (egal wie viele Wiederholungen) aus allen in der App getrackten Workouts.${rel ? ' Geteilt durch das Körpergewicht am Tag des Satzes – dafür muss jeder sein Gewicht im Profil eintragen.' : ''}${cat.key === 'big3' ? ' Big 3 = Bankdrücken + Kniebeuge + Kreuzheben.' : ''}</p>` : ''}
     </section>`;
   return {
     html,
@@ -469,7 +469,7 @@ export function memberView({ id }) {
       ${kpi('Trainingszeit', `${num(at.hours || 0, 0)} h`, null, 'clock')}
       ${kpi('Titel', `${titleOf(g, id).years ? `${titleOf(g, id).years} J · ` : ''}${titleOf(g, id).months} M`, null, 'trophy')}
     </div>
-    ${lifts.length ? `<section class="card"><div class="card-title">Maximalkraft <small>geschätztes 1RM</small></div>
+    ${lifts.length ? `<section class="card"><div class="card-title">Maximalkraft <small>schwerstes bewegtes Gewicht</small></div>
       ${lifts.map((k) => `<div class="pr-row"><div><b>${L[k]}</b>${at.rel[k] ? `<small>${num(at.rel[k], 2)} × Körpergewicht</small>` : ''}</div><span class="pr-val">${num(at.abs[k], 1)} kg</span></div>`).join('')}</section>` : ''}
     <h2 class="section-title">Workouts</h2>
     ${feedHtml}`;

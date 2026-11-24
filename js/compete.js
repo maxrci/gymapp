@@ -267,7 +267,7 @@ export const ALLTIME = [
   { key: 'big3', label: 'Big 3 Total', unit: 'kg', strength: true },
 ];
 
-// Bestwerte eines Nutzers: absolut (1RM) und relativ zum damaligen Körpergewicht
+// Bestwerte eines Nutzers: absolut (in der Arena: schwerstes bewegtes Gewicht) und relativ zum damaligen Körpergewicht
 export function alltimeStats(sums, bwLog, goal) {
   const r = { workouts: sums.length, volume: 0, hours: 0, km: 0, streak: streakInfo(sums, goal).longest, abs: {}, rel: {}, at: {} };
   for (const w of sums) {
@@ -309,7 +309,7 @@ export const CHALLENGE_TYPES = {
   exReps: { label: 'Übung: meiste Wiederholungen', unit: 'Wdh.', ex: true },
   exVolume: { label: 'Übung: meistes Volumen', unit: 'kg', ex: true, rel: true },
   exSets: { label: 'Übung: meiste Sätze', unit: 'Sätze', ex: true },
-  exE1rm: { label: 'Übung: höchstes 1RM', unit: 'kg', ex: true, rel: true, dec: 1 },
+  exE1rm: { label: 'Übung: schwerstes Gewicht', unit: 'kg', ex: true, rel: true, dec: 1 },
 };
 
 export const CHALLENGE_TEMPLATES = [

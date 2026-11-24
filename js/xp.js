@@ -16,7 +16,12 @@ export const xpRules = (P = XP_DEFAULT) => `${P.workout} EP pro Workout (max. ${
 export const counts = (s) => !!s && !s.h;
 // Mindestens etwas gemacht (ein Satz, Cardio-/Mobility-Zeit) – leere Workouts bringen nichts
 export const active = (s) => (s.sets || 0) > 0 || !!s.mob || (s.cmin || 0) > 0 || (s.ex || []).some((x) => (x.sec || 0) > 0 || (x.s || 0) > 0);
-export const eligible = (sums) => sums.filter((s) => counts(s) && active(s)).sort((a, b) => a.start - b.start);
+// Arena rechnet mit wirklich bewegtem Gewicht: 3 × 100 kg zählt als 100 kg (kein geschätztes 1RM)
+export function realWeight(s) {
+  if (!s || !Array.isArray(s.ex) || s._rw) return s;
+  return { ...s, _rw: 1, ex: s.ex.map((x) => (x.t === 'weight' || x.t === 'weighted_bw' ? { ...x, e: x.w || 0 } : x)) };
+}
+export const eligible = (sums) => sums.filter((s) => counts(s) && active(s)).map(realWeight).sort((a, b) => a.start - b.start);
 export const trainMinutes = (s, P = XP_DEFAULT) => Math.max(0, Math.min(P.maxMin, Math.round((s.dur || 0) / 60)));
 
 // XP eines einzelnen Workouts (ohne Tages-Grenze; für die Anzeige)

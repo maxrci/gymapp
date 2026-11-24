@@ -35,6 +35,8 @@ export function exercisesView({ embed = false } = {}) {
   const right = (i) => {
     if (!i.x) return '';
     const t = i.x.type;
+    // in der Arena: wirklich bewegtes Gewicht statt geschätztem 1RM
+    if ((t === 'weight' || t === 'weighted_bw') && embed && i.x.best.weight) return `<div class="er-right"><b>${num(i.x.best.weight, 1)}</b><small>max kg</small></div>`;
     if ((t === 'weight' || t === 'weighted_bw') && i.x.best.e1rm) return `<div class="er-right"><b>${num(i.x.best.e1rm, 1)}</b><small>1RM kg</small></div>`;
     if (t === 'bodyweight' && i.x.best.reps) return `<div class="er-right"><b>${i.x.best.reps}</b><small>max Wdh.</small></div>`;
     if (t === 'cardio' && i.x.best.distance) return `<div class="er-right"><b>${num(i.x.best.distance, 1)}</b><small>km</small></div>`;
@@ -219,7 +221,7 @@ function groupCompare(name, type) {
   const rows = g.members.map((m) => ({ m, b: g.exercises[m.id]?.[k] })).filter((r) => r.b).map((r) => ({ ...r, v: val(r.b) })).sort((a, b) => b.v - a.v);
   if (rows.length < 2 && !rows.some((r) => r.m.id !== me)) return `<section class="card"><div class="card-title">${icon('users')} Vergleich in der Arena</div><p class="footnote">Noch niemand sonst aus ${g.demo ? 'der Demo-Arena' : 'deiner Gruppe'} hat diese Übung trainiert.</p></section>`;
   const top = rows[0]?.v || 1;
-  const label = isW ? (relOn ? 'Bestes 1RM ÷ Körpergewicht' : 'Bestes geschätztes 1RM') : type === 'cardio' ? 'Längste Distanz' : type === 'duration' ? 'Längste Dauer' : 'Meiste Wiederholungen';
+  const label = isW ? (relOn ? 'Bestgewicht ÷ Körpergewicht' : 'Schwerstes bewegtes Gewicht') : type === 'cardio' ? 'Längste Distanz' : type === 'duration' ? 'Längste Dauer' : 'Meiste Wiederholungen';
   return `<section class="card">
     <div class="card-title">${icon('users')} Vergleich in der Arena <small>${esc(label)}</small></div>
     ${isW ? `<div class="rel-row"><div class="rel-switch"><button class="${relOn ? '' : 'on'}" data-gxrel="0">kg</button><button class="${relOn ? 'on' : ''}" data-gxrel="1">× KG</button></div></div>` : ''}
