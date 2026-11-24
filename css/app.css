@@ -1865,3 +1865,11 @@ textarea[data-key] { width: 100%; box-sizing: border-box; font: 13px/1.4 ui-mono
 .fr-n small { color: var(--muted); font-weight: 400; font-size: 12px; }
 .fr-row .btn { flex: none; }
 .fr-tag { font-size: 12px; color: var(--muted); border: 1px solid var(--line-2); border-radius: 8px; padding: 2px 8px; }
+
+.hc-mode { margin: 0 0 8px; }
+.hc-year { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.hc-m { border: 0; border-radius: 10px; padding: 10px 4px; background: color-mix(in srgb, var(--accent) calc(var(--a) * 100%), var(--surface-2)); color: var(--text); display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.hc-m b { font-size: 13px; text-transform: capitalize; }
+.hc-m small { font-size: 12px; color: var(--text-2); }
+.hc-m.on small { color: var(--text); font-weight: 700; }
+.hc-sum { text-align: center; color: var(--muted); font-size: 13px; margin: 8px 0 0; }

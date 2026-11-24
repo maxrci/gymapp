@@ -4,6 +4,7 @@
 #   bash deploy/cli.sh add "Lisa" lisa
 #   bash deploy/cli.sh passwd lisa
 #   bash deploy/cli.sh users
+#   bash deploy/cli.sh countfrom max 2026-11-19   (EP zählen erst ab diesem Tag)
 #   bash deploy/cli.sh backup ~/gym-backup.db
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."

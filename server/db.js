@@ -196,6 +196,8 @@ export function openDb(dir) {
   if (!ccols.includes('group_id')) db.exec('ALTER TABLE challenges ADD COLUMN group_id TEXT');
   // Migration (v3.10): Einstellungen + eigene Übungen pro Konto (für Gerätewechsel und den Umzug auf den Pi)
   if (!cols.includes('prefs')) db.exec('ALTER TABLE users ADD COLUMN prefs TEXT');
+  // Migration (v3.13.1): EP zählen erst ab diesem Zeitpunkt (ältere Workouts nur privat)
+  if (!cols.includes('count_from')) db.exec('ALTER TABLE users ADD COLUMN count_from INTEGER NOT NULL DEFAULT 0');
   if (!cols.includes('prefs_updated')) db.exec('ALTER TABLE users ADD COLUMN prefs_updated INTEGER NOT NULL DEFAULT 0');
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS users_username ON users (username) WHERE username IS NOT NULL');
 

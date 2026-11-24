@@ -1,7 +1,7 @@
 // Gamification: Kämpfer-Stufen, Kampfkraft, Level/XP, Abzeichen, Wochen-Aufgaben
 
 import { state } from './store.js';
-import { idx, weekStreaks, countsW } from './stats.js';
+import { idx, weekStreaks, countsW, countFrom } from './stats.js';
 import { startOfWeek, sum, DAY, num, fmtVolume } from './utils.js';
 import { cardioKind, MOBILITY_RE, LIFTS, bwAt } from './compete.js';
 import { summarizer, cachedGroup, myId } from './sync.js';
@@ -36,13 +36,14 @@ export function stageFor(streak) {
 // ---------- EP: ein System für Level, Arena und Streak (Regeln in js/xp.js) ----------
 let xpCache = { v: -1 };
 export function xpState() {
-  if (xpCache.v === state.version && xpCache.cfg === conf('points')) return xpCache;
+  if (xpCache.v === state.version && xpCache.cfg === conf('points') && xpCache.from === countFrom()) return xpCache;
   const sum1 = summarizer();
-  const sums = state.workouts.map((w) => ({ ...sum1(w), id: w.id }));
+  const from = countFrom();
+  const sums = state.workouts.map((w) => { const x = { ...sum1(w), id: w.id }; if (w.start < from) x.h = 1; return x; });
   const P = xpParams(conf('points'));
   const prs = xpRecords(sums);
   const score = xpScore({ sums, goal: state.settings.weekGoal || 3, prs, P });
-  xpCache = { v: state.version, cfg: conf('points'), sums, byId: new Map(sums.map((x) => [x.id, x])), P, prs, score };
+  xpCache = { v: state.version, from: countFrom(), cfg: conf('points'), sums, byId: new Map(sums.map((x) => [x.id, x])), P, prs, score };
   return xpCache;
 }
 export const EP_RULES_TEXT = () => xpRules(xpState().P);
@@ -55,7 +56,7 @@ export function workoutEp(w) {
   const s = X.byId.get(w.id);
   if (!s) return null;
   const r = workoutXp(s, X.prs.get(w.id) || 0, X.P);
-  return { ...r, reason: !countsW(w) ? (w.source === 'import' ? 'Importiert – zählt nur in deiner privaten Statistik' : 'Strava-Aktivität von vor der Verbindung – nur privat') : !r.counts ? 'Noch keine Sätze oder Zeit eingetragen' : '' };
+  return { ...r, reason: !countsW(w) ? (w.source === 'import' ? 'Importiert – zählt nur in deiner privaten Statistik' : w.start < countFrom() ? 'Vor dem Start deiner EP-Wertung – zählt nur in deiner privaten Statistik' : 'Strava-Aktivität von vor der Verbindung – nur privat') : !r.counts ? 'Noch keine Sätze oder Zeit eingetragen' : '' };
 }
 
 export function profileStats() {
@@ -65,7 +66,9 @@ export function profileStats() {
   const totalVol = sum(asc, (w) => wStats.get(w.id).volume);
   const sets = sum(asc, (w) => wStats.get(w.id).sets);
   // Level = Arena: angemeldet zählt der Server-Stand (inkl. Challenge-Siege), falls er höher ist
-  const me = cachedGroup()?.members?.find((m) => m.id === myId());
+  const gd = cachedGroup();
+  // nur Arena-Daten nach aktueller Regel (xpv 2: Importe und alles vor „EP zählen ab“ ausgeschlossen)
+  const me = gd?.xpv === 2 ? gd.members?.find((m) => m.id === myId()) : null;
   const xp = Math.max(X.score.points, me?.xp || 0);
   const lvl = levelFor(xp);
   const recs = [...X.prs.values()].reduce((a, b) => a + b, 0);

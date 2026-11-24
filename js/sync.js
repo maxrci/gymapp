@@ -1,8 +1,8 @@
 // Gruppen-Server: Anmeldung per Schlüssel, Offline-first-Sync, Gruppendaten.
 // Ohne Server (z. B. GitHub Pages) bleibt alles lokal – dieses Modul ist dann inaktiv.
 
-import { state, hooks, applyRemote, saveSettings, onChange, prefsData, applyPrefs } from './store.js';
-import { idx } from './stats.js';
+import { state, hooks, applyRemote, saveSettings, onChange, prefsData, applyPrefs, bumpVersion } from './store.js';
+import { idx, setCountFrom } from './stats.js';
 import { toast } from './ui.js';
 import { demoApi, demoGroup, setSummarizer } from './demo.js';
 import { cardioKind, MOBILITY_RE } from './compete.js';
@@ -11,6 +11,8 @@ const LS = 'gymlog-srv';
 const LS_GROUP = 'gymlog-group';
 const empty = () => ({ server: '', token: null, user: null, group: '', cursor: 0, dirty: { workout: {}, routine: {} }, tomb: [], profHash: '', profUpdated: 0, prefHash: '', prefsSeen: 0, lastSync: 0 });
 let S = load();
+setCountFrom(S.user?.countFrom);
+let countFromNow = S.user?.countFrom || 0;
 let tick = 0;
 
 function load() {
@@ -139,6 +141,7 @@ export async function redeemCode(code, device) {
 }
 async function finishLogin(r, server) {
   S = { ...empty(), server, token: r.token, user: r.user, group: r.group };
+  setCountFrom(r.user?.countFrom);
   srv.available = true;
   if (r.profileUpdated > 0) await applyProfile(r.profile, r.profileUpdated);
   // Vorhandene lokale Daten hochladen (Duplikate erkennt der Server)
@@ -298,6 +301,7 @@ export function syncNow() {
         if (r.profileUpdated > S.profUpdated) await applyProfile(r.profile, r.profileUpdated);
         S.cursor = r.cursor;
         S.user = r.user || S.user;
+        if ((S.user?.countFrom || 0) !== countFromNow) { countFromNow = S.user?.countFrom || 0; setCountFrom(countFromNow); bumpVersion(); }
         save();
         more = again || r.more || pendingCount() > 0;
       }

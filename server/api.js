@@ -88,7 +88,7 @@ function cleanProfile(p) {
   return out;
 }
 
-const userOut = (u) => ({ id: u.id, name: u.name, role: u.role, username: u.username || null });
+const userOut = (u) => ({ id: u.id, name: u.name, role: u.role, username: u.username || null, countFrom: u.count_from || 0 });
 
 const MAX_ITEM = 300000; // Zeichen pro gespeichertem Workout/Routine
 
@@ -102,6 +102,9 @@ export function makeApi(D, cfg) {
   };
 
   G.ensureDefaultGroup(D, cfg.groupName);
+  // Einmalig: vor v3.12 gespeicherte Importe als Historie markieren (zählen nicht für EP/Arena)
+  D.run(`UPDATE items SET summary = json_set(summary, '$.h', 1) WHERE kind = 'workout' AND deleted = 0 AND summary IS NOT NULL
+    AND json_extract(summary, '$.h') IS NULL AND (json_extract(data, '$.source') = 'import' OR json_extract(data, '$.hist') = 1 OR id LIKE 'imp-%')`);
   const started = Date.now();
   const gx = (fn) => { try { return fn(); } catch (e) { fail(e.status || 400, e.message); } };
   // Gruppe aus der Anfrage (?g=…) – muss eine eigene sein; sonst die erste eigene
@@ -256,7 +259,7 @@ export function makeApi(D, cfg) {
       const r = D.get("SELECT kind, id, data FROM items WHERE user_id = ? AND kind = 'workout' AND id = ?", me.id, id);
       if (r && !out.some((o) => o.id === id)) out.push({ kind: r.kind, id: r.id, deleted: false, data: parse(r.data, null) });
     }
-    const u = D.get('SELECT name, role, profile, profile_updated, prefs, prefs_updated FROM users WHERE id = ?', me.id);
+    const u = D.get('SELECT name, role, profile, profile_updated, prefs, prefs_updated, count_from FROM users WHERE id = ?', me.id);
     // Einstellungen nur schicken, wenn das Gerät einen älteren Stand hat
     const prefsNew = u.prefs_updated > (Number(body.prefsSeen) || 0) && u.prefs;
     return {
@@ -288,7 +291,7 @@ export function makeApi(D, cfg) {
     if (!gid) return { me: me.id, group: '', groupId: null, none: true, now: Date.now(), members: [], season: { rows: [], month: { rows: [] }, months: [] }, seasons: [], titles: {}, alltime: {}, kings: { month: {}, season: {}, all: {} }, exercises: {}, challenges: [], trends: null };
     const { users, ...g } = groupData(D, gid);
     const meta = D.get('SELECT name FROM groups WHERE id = ?', gid);
-    return { me: me.id, group: meta?.name || '', groupId: gid, now: Date.now(), ...g };
+    return { me: me.id, group: meta?.name || '', groupId: gid, now: Date.now(), xpv: 2, ...g };
   });
 
   on('GET', '/api/members/:id/workouts', 'user', ({ me, params, url }) => {
@@ -525,7 +528,7 @@ export function makeApi(D, cfg) {
 
   // ---- Admin ----
   on('GET', '/api/admin/users', 'admin', () => {
-    const users = D.all('SELECT id, name, role, created, disabled, username, pw_hash IS NOT NULL AS hasPassword FROM users ORDER BY created');
+    const users = D.all('SELECT id, name, role, created, disabled, username, count_from AS countFrom, pw_hash IS NOT NULL AS hasPassword FROM users ORDER BY created');
     const devs = D.all('SELECT id, user_id, name, created, last_seen FROM devices ORDER BY last_seen DESC');
     const inv = D.all('SELECT user_id, expires FROM invites WHERE used_at IS NULL AND expires > ?', Date.now());
     const items = D.all("SELECT user_id, COUNT(*) AS n FROM items WHERE kind = 'workout' AND deleted = 0 GROUP BY user_id");
@@ -588,6 +591,8 @@ export function makeApi(D, cfg) {
     if (body.name) D.run('UPDATE users SET name = ? WHERE id = ?', str(body.name, 40), u.id);
     if (body.username != null) { const un = normUser(body.username); checkUsername(un, u.id); D.run('UPDATE users SET username = ? WHERE id = ?', un, u.id); }
     if (body.role === 'admin' || body.role === 'member') D.run('UPDATE users SET role = ? WHERE id = ?', body.role, u.id);
+    // EP zählen ab (0 = alles, was in der App getrackt wurde)
+    if (body.countFrom != null) { const t = Number(body.countFrom); D.run('UPDATE users SET count_from = ? WHERE id = ?', Number.isFinite(t) && t > 0 ? Math.min(t, Date.now()) : 0, u.id); }
     if (body.disabled != null) {
       D.run('UPDATE users SET disabled = ? WHERE id = ?', body.disabled ? 1 : 0, u.id);
       if (body.disabled) D.run('DELETE FROM devices WHERE user_id = ?', u.id);

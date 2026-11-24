@@ -224,7 +224,6 @@ function overview() {
   const cal = calendar();
 
   const html = `
-    ${headline()}
     ${filters()}
     <div class="kpis four">
       ${kpi('Workouts', num(a.n, 0), d(a.n, b.n), 'dumbbell')}
@@ -779,24 +778,3 @@ function weekDays(bs) {
   </div>`).join('')}</section>`;
 }
 
-// ---------- Klartext-Überschrift: diese Woche (unabhängig vom Zeitraum-Filter) ----------
-function headline() {
-  const { asc } = idx();
-  const w = rangeBounds('1w', 0);
-  const cur = agg(inRange(asc, w.from, w.to));
-  const prev = agg(inRange(asc, w.prevFrom, w.prevTo));
-  const st = weekStreaks();
-  const goal = Math.max(1, state.settings.weekGoal || 3);
-  const parts = cur.n ? [`${cur.n} Workout${cur.n === 1 ? '' : 's'}`, fmtDurShort(cur.dur), ...(cur.vol > 0 ? [fmtVolume(cur.vol)] : [])] : [];
-  const diff = cur.n - prev.n;
-  const cmpTxt = !cur.n && !prev.n ? ''
-    : diff > 0 ? `<span class="delta up">↑ ${diff} mehr</span> als letzte Woche zur selben Zeit`
-    : diff < 0 ? `<span class="delta down">↓ ${-diff} weniger</span> als letzte Woche zur selben Zeit`
-    : `<span class="delta flat">= gleich viele</span> wie letzte Woche zur selben Zeit`;
-  return `<section class="card stats-hl">
-    <div class="card-title">Diese Woche</div>
-    ${parts.length ? `<p class="hl-main">${parts.join(' · ')}</p>` : '<p class="hl-main muted">Noch kein Training diese Woche</p>'}
-    ${cmpTxt ? `<p class="hl-sub">${cmpTxt}</p>` : ''}
-    <p class="hl-sub">Wochenziel <b>${cur.n}/${goal}</b>${st.current ? ` · Serie <b>${st.current} Woche${st.current === 1 ? '' : 'n'}</b>` : ''}</p>
-  </section>`;
-}

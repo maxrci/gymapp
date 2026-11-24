@@ -7,7 +7,7 @@
 import { prMap, streakInfo, startOfWeek, DAY } from './compete.js';
 
 // Standardwerte – der Admin kann sie später im Dashboard ändern (config 'points')
-export const XP_DEFAULT = { workout: 100, perDay: 2, minute: 2, maxMin: 120, pr: 50, goalWeek: 250, win: 500 };
+export const XP_DEFAULT = { workout: 100, perDay: 10, minute: 2, maxMin: 720, pr: 50, goalWeek: 250, win: 500 };
 export const xpParams = (over) => ({ ...XP_DEFAULT, ...(over && typeof over === 'object' ? over : {}) });
 
 export const xpRules = (P = XP_DEFAULT) => `${P.workout} EP pro Workout (max. ${P.perDay} pro Tag) · ${P.minute} EP pro Trainingsminute (max. ${P.maxMin} Min. pro Workout) · ${P.pr} EP pro Rekord · ${P.goalWeek} EP pro erreichtem Wochenziel · ${P.win} EP pro Challenge-Sieg. Es zählt nur, was in der App getrackt oder nachgetragen wurde – keine Importe und keine Strava-Aktivitäten von vor der Verbindung.`;

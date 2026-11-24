@@ -74,6 +74,16 @@ switch (cmd) {
     console.log(`\nSchlüssel für ${u.name}: ${inv.code} (einmal gültig, ${INVITE_DAYS} Tage)\n${server}/#/join/${inv.code}\n`);
     break;
   }
+  case 'countfrom': { // EP zählen erst ab Datum (ältere Workouts nur privat), z. B. countfrom max 2026-11-19
+    const [uname, day] = args;
+    if (!uname || !day) die('Aufruf: node server/cli.js countfrom BENUTZERNAME JJJJ-MM-TT   (0 = alles)');
+    const u = findUser(uname);
+    const t = day === '0' ? 0 : new Date(`${day}T00:00:00`).getTime();
+    if (day !== '0' && !Number.isFinite(t)) die('Datum bitte als JJJJ-MM-TT angeben.');
+    D.run('UPDATE users SET count_from = ? WHERE id = ?', t, u.id);
+    console.log(t ? `EP für ${u.name} zählen ab ${new Date(t).toLocaleDateString('de-DE')}. Ältere Workouts bleiben privat sichtbar.` : `EP für ${u.name}: alle in der App getrackten Workouts zählen.`);
+    break;
+  }
   case 'users': {
     const rows = D.all(`SELECT u.name, u.username, u.role, u.disabled, u.pw_hash IS NOT NULL AS pw, (SELECT COUNT(*) FROM devices d WHERE d.user_id = u.id) AS devices,
       (SELECT COUNT(*) FROM items i WHERE i.user_id = u.id AND i.kind = 'workout' AND i.deleted = 0) AS workouts FROM users u ORDER BY u.created`);

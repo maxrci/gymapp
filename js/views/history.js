@@ -11,7 +11,7 @@ import { swipeToDelete } from '../swipe.js';
 const KINDS = [['all', 'Alle'], ['gym', 'Kraft'], ['cardio', 'Cardio'], ['mob', 'Mobility']];
 const WD = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 // Zustand bleibt beim Zurückkommen erhalten
-const ui = { q: '', kind: 'all', month: null, day: null };
+const ui = { q: '', kind: 'all', cal: 'month', anchor: null, day: null };
 
 function kindOf(w) {
   let c = 0, m = 0;
@@ -45,24 +45,62 @@ function row(w, wStats) {
   </a>`;
 }
 
+const CAL = [['week', 'Woche'], ['month', 'Monat'], ['year', 'Jahr']];
+const startOfWeekTs = (t) => { const d = new Date(t); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); };
+const isoWeekNo = (t) => { const d = new Date(t); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7)); const y = new Date(d.getFullYear(), 0, 4); return 1 + Math.round(((d - y) / 864e5 - 3 + ((y.getDay() + 6) % 7)) / 7); };
+// Zeitraum, der gerade im Kalender zu sehen ist
+function period() {
+  const a = ui.anchor ?? Date.now();
+  const d = new Date(a);
+  if (ui.cal === 'week') { const f = startOfWeekTs(a); return { from: f, to: f + 7 * 864e5 }; }
+  if (ui.cal === 'year') return { from: new Date(d.getFullYear(), 0, 1).getTime(), to: new Date(d.getFullYear() + 1, 0, 1).getTime() };
+  return { from: monthStart(a), to: new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime() };
+}
+function shift(dir) {
+  const d = new Date(ui.anchor ?? Date.now());
+  if (ui.cal === 'week') d.setDate(d.getDate() + 7 * dir);
+  else if (ui.cal === 'year') d.setFullYear(d.getFullYear() + dir, 0, 1);
+  else d.setMonth(d.getMonth() + dir, 1);
+  ui.anchor = d.getTime();
+}
 function calendar(ws) {
-  const m = ui.month ?? monthStart(Date.now());
-  const d0 = new Date(m);
-  const first = (d0.getDay() + 6) % 7;
-  const days = new Date(d0.getFullYear(), d0.getMonth() + 1, 0).getDate();
-  const has = new Map();
-  for (const w of ws) if (monthStart(w.start) === m) { const k = dayKey(w.start); has.set(k, (has.get(k) || 0) + 1); }
+  const { from, to } = period();
+  const counts = new Map();
+  for (const w of ws) if (w.start >= from && w.start < to) { const k = dayKey(w.start); counts.set(k, (counts.get(k) || 0) + 1); }
   const today = dayKey(Date.now());
-  let cells = '';
-  for (let i = 0; i < first; i++) cells += '<span></span>';
-  for (let d = 1; d <= days; d++) {
-    const k = `${d0.getFullYear()}-${d0.getMonth()}-${d}`;
-    cells += `<button class="hc-d ${has.has(k) ? 'on' : ''} ${k === today ? 'today' : ''} ${ui.day === k ? 'sel' : ''}" data-day="${k}" ${has.has(k) ? '' : 'disabled'}>${d}${has.get(k) > 1 ? `<i>${has.get(k)}</i>` : ''}</button>`;
+  const nextOk = to <= Date.now() ? true : false;
+  const dayBtn = (t, label) => {
+    const k = dayKey(t);
+    const n = counts.get(k) || 0;
+    return `<button class="hc-d ${n ? 'on' : ''} ${k === today ? 'today' : ''} ${ui.day === k ? 'sel' : ''}" data-day="${k}" ${n ? '' : 'disabled'}>${label}${n > 1 ? `<i>${n}</i>` : ''}</button>`;
+  };
+  let title = '', body = '';
+  if (ui.cal === 'week') {
+    const end = new Date(to - 1);
+    title = `KW ${isoWeekNo(from)} · ${fmtDate(from, { day: 'numeric', month: 'short' })} – ${fmtDate(end.getTime(), { day: 'numeric', month: 'short', year: 'numeric' })}`;
+    body = `<div class="hc-grid">${WD.map((w) => `<span class="hc-wd">${w}</span>`).join('')}${Array.from({ length: 7 }, (_, i) => { const t = new Date(from); t.setDate(t.getDate() + i); return dayBtn(t.getTime(), t.getDate()); }).join('')}</div>`;
+  } else if (ui.cal === 'year') {
+    const y = new Date(from).getFullYear();
+    title = String(y);
+    const perM = Array(12).fill(0);
+    for (const w of ws) if (w.start >= from && w.start < to) perM[new Date(w.start).getMonth()]++;
+    const max = Math.max(1, ...perM);
+    body = `<div class="hc-year">${perM.map((n, m) => `<button class="hc-m ${n ? 'on' : ''}" data-ym="${new Date(y, m, 1).getTime()}" style="--a:${n ? 0.25 + 0.75 * (n / max) : 0}"><b>${esc(fmtDate(new Date(y, m, 1).getTime(), { month: 'short' }))}</b><small>${n || '–'}</small></button>`).join('')}</div>
+      <p class="hc-sum">${perM.reduce((a, b) => a + b, 0)} Workouts in ${y}</p>`;
+  } else {
+    const d0 = new Date(from);
+    title = fmtDate(from, { month: 'long', year: 'numeric' });
+    const first = (d0.getDay() + 6) % 7;
+    const days = new Date(d0.getFullYear(), d0.getMonth() + 1, 0).getDate();
+    let cells = '';
+    for (let i = 0; i < first; i++) cells += '<span></span>';
+    for (let d = 1; d <= days; d++) cells += dayBtn(new Date(d0.getFullYear(), d0.getMonth(), d).getTime(), d);
+    body = `<div class="hc-grid">${WD.map((w) => `<span class="hc-wd">${w}</span>`).join('')}${cells}</div>`;
   }
-  const nextOk = m < monthStart(Date.now());
   return `<section class="card h-cal">
-    <div class="hc-head"><button class="icon-btn" data-mon="-1" aria-label="Vormonat">${icon('left')}</button><b>${esc(fmtDate(m, { month: 'long', year: 'numeric' }))}</b><button class="icon-btn" data-mon="1" ${nextOk ? '' : 'disabled'} aria-label="Nächster Monat">${icon('right')}</button></div>
-    <div class="hc-grid">${WD.map((w) => `<span class="hc-wd">${w}</span>`).join('')}${cells}</div>
+    <div class="seg hc-mode">${CAL.map(([k, l]) => `<button class="seg-btn ${ui.cal === k ? 'on' : ''}" data-cal="${k}">${l}</button>`).join('')}</div>
+    <div class="hc-head"><button class="icon-btn" data-mon="-1" aria-label="Zurück">${icon('left')}</button><b>${esc(title)}</b><button class="icon-btn" data-mon="1" ${nextOk ? '' : 'disabled'} aria-label="Weiter">${icon('right')}</button></div>
+    ${body}
     ${ui.day ? '<button class="btn ghost sm block" data-day="">Alle Tage zeigen</button>' : ''}
   </section>`;
 }
@@ -106,7 +144,9 @@ export function historyView() {
     },
     clicks: {
       kind: (el, rr) => { ui.kind = el.dataset.kind; rr(); },
-      mon: (el, rr) => { const d = new Date(ui.month ?? monthStart(Date.now())); ui.month = new Date(d.getFullYear(), d.getMonth() + Number(el.dataset.mon), 1).getTime(); ui.day = null; rr(); },
+      mon: (el, rr) => { shift(Number(el.dataset.mon)); ui.day = null; rr(); },
+      cal: (el, rr) => { ui.cal = el.dataset.cal; ui.day = null; rr(); },
+      ym: (el, rr) => { ui.cal = 'month'; ui.anchor = Number(el.dataset.ym); ui.day = null; rr(); },
       day: (el, rr) => { ui.day = el.dataset.day || null; rr(); },
     },
   };

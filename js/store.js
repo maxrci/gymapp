@@ -46,6 +46,8 @@ const changed = (kind, ids, deleted = false) => { try { hooks.change?.(kind, ids
 
 const listeners = new Set();
 export const onChange = (fn) => listeners.add(fn);
+// neu rechnen lassen (z. B. wenn sich „EP zählen ab“ ändert)
+export const bumpVersion = () => bump();
 function bump() {
   state.version++;
   for (const fn of listeners) fn();

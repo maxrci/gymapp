@@ -26,6 +26,7 @@ function row(u) {
     <button class="btn sm" data-act="rename">Umbenennen</button>
     <button class="btn sm" data-act="username">Benutzername ändern</button>
     <button class="btn sm" data-act="role">${u.role === 'admin' ? 'Zum Mitglied machen' : 'Zum Admin machen'}</button>
+    <button class="btn sm" data-act="countfrom">EP zählen ab: ${u.countFrom ? fmtDate(u.countFrom) : 'alles'}</button>
     <button class="btn sm" data-act="disable">${u.disabled ? 'Entsperren' : 'Sperren'}</button>
     <button class="btn sm danger" data-act="delete">Löschen</button></div>
     ${u.pendingInvite ? '<p class="muted">Offene Einladung vorhanden.</p>' : ''}
@@ -59,6 +60,14 @@ async function act(a, u, btn) {
     const to = u.role === 'admin' ? 'member' : 'admin';
     if (!(await ask(`${u.name} ${to === 'admin' ? 'zum Admin machen' : 'zum Mitglied herabstufen'}?`, 'Ja'))) return;
     await patch(`/api/admin/users/${u.id}`, { role: to }); toast('Rolle geändert');
+  } else if (a === 'countfrom') {
+    // Ältere Workouts (z. B. Importe aus anderen Apps) zählen nicht für EP, Level, Streak und Arena – bleiben aber privat sichtbar
+    const cur = u.countFrom ? new Date(u.countFrom).toISOString().slice(0, 10) : '';
+    const v = await prompt2('EP zählen ab (JJJJ-MM-TT, leer = alles, was in der App getrackt wurde)', cur);
+    if (v === null || v === undefined) return;
+    const t = String(v).trim() ? new Date(`${String(v).trim()}T00:00:00`).getTime() : 0;
+    if (String(v).trim() && !Number.isFinite(t)) { toast('Datum bitte als JJJJ-MM-TT'); return; }
+    await patch(`/api/admin/users/${u.id}`, { countFrom: t }); toast(t ? 'Gespeichert – ältere Workouts zählen nicht mehr' : 'Gespeichert – alles zählt');
   } else if (a === 'disable') {
     if (!u.disabled && !(await ask(`${u.name} sperren? Alle Geräte werden abgemeldet.`, 'Sperren'))) return;
     await patch(`/api/admin/users/${u.id}`, { disabled: !u.disabled }); toast(u.disabled ? 'Entsperrt' : 'Gesperrt');
