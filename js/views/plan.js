@@ -6,15 +6,16 @@ import { pageHead, emptyState } from '../components.js';
 import { icon, sheet, toast } from '../ui.js';
 import { esc, num, fmtDate, addDays, startOfWeek, weekday, WEEKDAYS, DAY, fmtKg } from '../utils.js';
 import { startWorkout } from '../workout.js';
-import { startGuidedCardio } from '../guided.js';
+import { startGuidedCardio, startGuidedMobility } from '../guided.js';
+import { AREAS, MOVES } from '../programs.js';
 import {
-  coachData, saveCoach, workoutCoachOn, cardioCoachOn, goalW, goalC, SPORTS, ALT, LEVELS, fmtDeadline, fmtHms, bodyComplete,
+  coachData, saveCoach, workoutCoachOn, cardioCoachOn, mobilityCoachOn, coachOn, goalW, goalC, goalM, MOB_TARGETS, MOB_LEVELS, SPORTS, ALT, LEVELS, fmtDeadline, fmtHms, bodyComplete,
 } from '../coach/core.js';
-import { weekPlan, dayKey, substitute } from '../coach/plan.js';
+import { weekPlan, dayKey, substitute, mobilityRoutines, routineById } from '../coach/plan.js';
 import { SPLITS, activeSplit } from '../coach/splits.js';
 import { alternatives } from '../coach/similar.js';
 import { VERDICTS } from '../coach/assess.js';
-import { progressWorkout, progressCardio, reviewGoals } from '../coach/review.js';
+import { progressWorkout, progressCardio, progressMobility, reviewGoals } from '../coach/review.js';
 import { openCoachSetup } from '../coach/setup.js';
 
 let weekOff = 0;
@@ -29,22 +30,25 @@ const planFor = (week) => {
 
 const W_LABEL = { strength: 'Stärker werden', muscle: 'Muskelaufbau', orm: '1RM-Ziel', bw: 'Körpergewicht' };
 
+const GOAL_IC = { workout: 'dumbbell', cardio: 'bolt', mobility: 'repeat' };
+const GOAL_NAME = { workout: 'Workout-Ziel', cardio: 'Cardio-Ziel', mobility: 'Mobility-Ziel' };
+
 function goalCard(kind) {
-  const g = kind === 'workout' ? goalW() : goalC();
+  const g = kind === 'workout' ? goalW() : kind === 'mobility' ? goalM() : goalC();
   if (!g) {
-    return `<button class="card coach-empty" data-act="setup" data-kind="${kind}">${icon(kind === 'workout' ? 'dumbbell' : 'bolt')}<div><b>${kind === 'workout' ? 'Workout-Ziel festlegen' : 'Cardio-Ziel festlegen'}</b><small>Der Coach erstellt daraus deinen Plan</small></div>${icon('right', 'muted')}</button>`;
+    return `<button class="card coach-empty" data-act="setup" data-kind="${kind}">${icon(GOAL_IC[kind])}<div><b>${GOAL_NAME[kind]} festlegen</b><small>Der Coach erstellt daraus deinen Plan</small></div>${icon('right', 'muted')}</button>`;
   }
-  const p = kind === 'workout' ? progressWorkout(g) : progressCardio(g);
+  const p = kind === 'workout' ? progressWorkout(g) : kind === 'mobility' ? progressMobility(g) : progressCardio(g);
   const V = VERDICTS[g.verdict] || VERDICTS.info;
-  const title = kind === 'workout'
+  const title = kind === 'mobility' ? (g.target && g.target !== 'none' ? `Mobility: ${esc(MOB_TARGETS[g.target]?.label || '')}` : 'Mobility') : kind === 'workout'
     ? (g.type === 'orm' ? `${esc(g.exercise)}: ${fmtKg(g.target)}` : g.type === 'bw' ? `Körpergewicht ${fmtKg(g.target)}` : W_LABEL[g.type])
     : `${esc(SPORTS[g.sport].label)}: ${num(g.distance, 1)} km${g.time ? ` in ${fmtHms(g.time)}` : ''}`;
-  const meta = kind === 'workout'
+  const meta = kind === 'mobility' ? `${g.perWeek}× pro Woche · ${esc(g.areas.map((a) => AREAS[a]).join(', '))}` : kind === 'workout'
     ? `${g.perWeek}× pro Woche · ${esc(SPLITS[activeSplit(g)].label)} · ${esc(LEVELS[g.level] || '')}`
     : `${g.perWeek}× pro Woche · ${esc(LEVELS[g.level] || '')}`;
   return `<section class="card goal-card ${kind}">
-    <div class="gc-top"><span class="gc-ic">${icon(kind === 'workout' ? 'dumbbell' : 'bolt')}</span>
-      <div class="gc-t"><b>${title}</b><small>${meta} · bis ${esc(fmtDeadline(g.deadline))}</small></div>
+    <div class="gc-top"><span class="gc-ic">${icon(GOAL_IC[kind])}</span>
+      <div class="gc-t"><b>${title}</b><small>${meta}${g.deadline ? ` · bis ${esc(fmtDeadline(g.deadline))}` : ''}</small></div>
       <button class="btn ghost sm" data-act="setup" data-kind="${kind}">${icon('edit', 'xs')} Ändern</button>
       <button class="icon-btn" data-act="goal-menu" data-kind="${kind}" aria-label="Weitere Optionen">${icon('more')}</button></div>
     <div class="bar"><i style="width:${Math.round(p.pct * 100)}%"></i></div>
@@ -94,6 +98,10 @@ function sessionCard(s, { canAct, isNext }) {
           ${act && e.slot && !e.goal ? `<button class="pse-swap" data-act="swap" data-sid="${esc(s.id)}" data-i="${i}" aria-label="Übung tauschen oder entfernen">${icon('swap', 'xs')}</button>` : ''}
         </div>`).join('')}
         ${act ? `<div class="pse-more"><button class="link-btn sm" data-act="add-ex" data-sid="${esc(s.id)}">${icon('plus', 'xs')} Übung hinzufügen</button>${s.removedCount ? `<button class="link-btn sm" data-act="restore-ex" data-sid="${esc(s.id)}">${icon('repeat', 'xs')} ${s.removedCount} entfernte zurückholen</button>` : ''}</div>` : ''}</div>`;
+    } else if (s.kind === 'mobility') {
+      body = `<div class="area-chips">${s.areas.map((a) => `<span class="area-chip ${a === s.area ? 'main' : ''}">${esc(AREAS[a])}</span>`).join('')}</div>
+        <p class="ps-desc">${esc(s.desc)}</p>
+        <div class="mob-list">${s.moves.map((m) => `<span>${esc(MOVES[m.id][0])}<small>${m.sec} s${MOVES[m.id][3] || m.sides ? ' · je Seite' : ''}</small></span>`).join('')}${s.rounds > 1 ? `<em>${s.rounds} Runden</em>` : ''}</div>`;
     } else {
       body = `<p class="ps-desc">${esc(s.desc)}</p>`;
     }
@@ -102,6 +110,7 @@ function sessionCard(s, { canAct, isNext }) {
       body += `<div class="ps-acts">
         <button class="btn primary sm" data-act="go" data-sid="${esc(s.id)}">${icon('play', 'xs')} Starten</button>
         ${s.kind === 'cardio' && s.program && S?.device ? `<button class="btn ghost sm" data-act="go-guided" data-sid="${esc(s.id)}">Geführt</button>` : ''}
+        ${s.kind === 'mobility' ? `<button class="btn ghost sm" data-act="mswap" data-sid="${esc(s.id)}">${icon('swap', 'xs')} Routine tauschen</button>` : ''}
         ${s.kind === 'cardio' && s.type !== 'goal' ? `<button class="btn ghost sm" data-act="cswap" data-sid="${esc(s.id)}">${icon('swap', 'xs')} Gerät wechseln</button>` : ''}
         <button class="btn ghost sm" data-act="move" data-sid="${esc(s.id)}">Verschieben</button>
         <button class="btn ghost sm" data-act="skip" data-sid="${esc(s.id)}">Auslassen</button>
@@ -112,7 +121,7 @@ function sessionCard(s, { canAct, isNext }) {
   }
   return `<div class="ps ${s.kind} ${s.status} ${open ? 'open' : ''}">
     <button class="ps-head" data-act="toggle" data-sid="${esc(s.id)}" data-next="${isNext ? 1 : 0}">
-      <span class="ps-ic">${icon(s.kind === 'gym' ? 'dumbbell' : 'bolt', 'xs')}</span>
+      <span class="ps-ic">${icon(s.kind === 'gym' ? 'dumbbell' : s.kind === 'mobility' ? 'repeat' : 'bolt', 'xs')}</span>
       <div><b>${esc(s.kind === 'cardio' ? `${ALT[s.sport].label} · ${s.title}` : s.title)}</b><small>${esc(s.kind === 'gym' ? `${s.exercises.length} Übungen · ${musclesOf(s)}` : s.sub)}</small></div>
       ${statusTag(s)}${icon(open ? 'up' : 'down', 'muted')}
     </button>${body}
@@ -120,21 +129,21 @@ function sessionCard(s, { canAct, isNext }) {
 }
 
 export function planView() {
-  const on = workoutCoachOn() || cardioCoachOn();
+  const on = coachOn();
   if (!on) {
     return {
-      html: `${pageHead('Trainingsplan', { back: '#/' })}${emptyState('bolt', 'AI-Coach ist aus', 'Schalte in den Einstellungen den AI-Coach für Workouts und/oder Cardio ein – dann bekommst du hier deinen persönlichen Plan.', '<a class="btn primary" href="#/profile">Zu den Einstellungen</a>')}`,
+      html: `${pageHead('Trainingsplan', { back: '#/' })}${emptyState('bolt', 'AI-Coach ist aus', 'Schalte in den Einstellungen den AI-Coach für Workouts, Cardio und/oder Mobility ein – dann bekommst du hier deinen persönlichen Plan.', '<a class="btn primary" href="#/profile">Zu den Einstellungen</a>')}`,
     };
   }
   const thisWeek = startOfWeek(Date.now());
   const week = addDays(thisWeek, weekOff * 7);
   const plan = planFor(week);
-  const starts = [goalW(), goalC()].filter(Boolean).map((g) => startOfWeek(g.start));
+  const starts = [goalW(), goalC(), goalM()].filter(Boolean).map((g) => startOfWeek(g.start));
   const minWeek = starts.length ? Math.min(...starts) : thisWeek;
   const canAct = week >= thisWeek;
   const today = weekday(Date.now());
   const next = weekOff === 0 ? plan.sessions.filter((s) => s.status === 'open').sort((a, b) => a.day - b.day).find((s) => s.day >= today) : null;
-  const phase = [plan.gym && `Kraft: ${plan.gym.phase.label}`, plan.cardio && `Cardio: ${plan.cardio.phase.label}`].filter(Boolean).join(' · ');
+  const phase = [plan.gym && `Kraft: ${plan.gym.phase.label}`, plan.cardio && `Cardio: ${plan.cardio.phase.label}`, plan.mobility && `Mobility: ${plan.mobility.phase.label}`].filter(Boolean).join(' · ');
   const missed = plan.sessions.filter((s) => s.day == null);
 
   const days = plan.days.map((list, d) => {
@@ -151,6 +160,7 @@ export function planView() {
     ${reviewCards()}
     ${workoutCoachOn() ? goalCard('workout') : ''}
     ${cardioCoachOn() ? goalCard('cardio') : ''}
+    ${mobilityCoachOn() ? goalCard('mobility') : ''}
     ${plan.sessions.length ? `
       <div class="week-nav">
         <button class="icon-btn" data-act="wk" data-d="-1" ${week <= minWeek ? 'disabled' : ''}>${icon('left')}</button>
@@ -184,7 +194,7 @@ export function planView() {
       body: () => openCoachSetup('body'),
       'goal-menu': async (el) => {
         const kind = el.dataset.kind;
-        const v = await sheet({ title: kind === 'workout' ? 'Workout-Ziel' : 'Cardio-Ziel', options: [
+        const v = await sheet({ title: GOAL_NAME[kind], options: [
           { label: 'Ziel ändern', value: 'edit', icon: 'edit' },
           { label: 'Ziel löschen', value: 'del', icon: 'trash', danger: true },
         ] });
@@ -238,6 +248,28 @@ export function planView() {
         else { delete cswap[s.id]; if (v === '__orig') delete cswapSlot[s.slot]; else cswapSlot[s.slot] = v; }
         await saveCoach({ cswap, cswapSlot });
         toast(v === '__orig' ? 'Zurückgestellt' : `${ALT[v].label}: ca. ${fmtHms(substitute(base, v, g).sec)}`);
+      },
+      // Mobility: andere Routine für denselben Bereich wählen
+      mswap: async (el) => {
+        const s = find(el);
+        const C = coachData();
+        const same = mobilityRoutines().filter((r) => r.id !== s.routine && r.areas.some((a) => s.areas.includes(a)) && (!r.recovery || s.areas.includes('full')));
+        const opts = same.map((r) => ({ label: `${r.title} · ${r.areas.slice(0, 2).map((a) => AREAS[a]).join(', ')}`, value: r.id }));
+        if (C.mswap?.[s.id] || C.mswapSlot?.[s.slot] != null) opts.push({ label: 'Coach-Vorschlag wiederherstellen', value: '__reset', icon: 'repeat' });
+        const v = await sheet({ title: `${s.title} tauschen`, message: 'Andere Routine für denselben Bereich. Eigene Routinen findest du unter Training → Mobility.', options: opts });
+        if (!v) return;
+        const mswap = { ...(C.mswap || {}) }, mswapSlot = { ...(C.mswapSlot || {}) };
+        if (v === '__reset') { delete mswap[s.id]; delete mswapSlot[s.slot]; }
+        else {
+          const how = await sheet({ title: routineById(v)?.title || 'Routine', options: [
+            { label: 'Nur diese Woche', value: 'week', icon: 'calendar' },
+            { label: 'Jede Woche an dieser Stelle', value: 'always', icon: 'repeat' },
+          ] });
+          if (!how) return;
+          if (how === 'week') mswap[s.id] = v; else { delete mswap[s.id]; mswapSlot[s.slot] = v; }
+        }
+        await saveCoach({ mswap, mswapSlot });
+        toast(v === '__reset' ? 'Zurückgesetzt' : `Getauscht: ${routineById(v)?.title}`);
       },
       skip: async (el) => { const s = find(el); await saveCoach({ skips: { ...(coachData().skips || {}), [s.id]: true } }); toast('Ausgelassen – kein Problem'); },
       unskip: async (el) => { const s = find(el); const k = { ...(coachData().skips || {}) }; delete k[s.id]; await saveCoach({ skips: k }); },
@@ -307,6 +339,7 @@ export function planView() {
 // Geplante Einheit starten (Werte sind vorausgefüllt, alles bleibt änderbar)
 export function startPlanned(s) {
   if (!s) return;
+  if (s.kind === 'mobility') return startGuidedMobility(s);
   if (s.kind === 'gym') {
     return startWorkout({
       title: s.title, planId: s.id,

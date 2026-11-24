@@ -4,12 +4,13 @@
 import { state, saveSettings } from '../store.js';
 import { idx } from '../stats.js';
 import { bwNow } from '../body.js';
-import { cardioKind } from '../compete.js';
+import { cardioKind, MOBILITY_RE } from '../compete.js';
 import { DAY, startOfWeek, addDays, fmtDate, num } from '../utils.js';
 
 export const workoutCoachOn = () => !!state.settings.aiWorkout;
 export const cardioCoachOn = () => !!state.settings.aiCardio;
-export const coachOn = () => workoutCoachOn() || cardioCoachOn();
+export const mobilityCoachOn = () => !!state.settings.aiMobility;
+export const coachOn = () => workoutCoachOn() || cardioCoachOn() || mobilityCoachOn();
 
 export const coachData = () => state.settings.coach || {};
 export async function saveCoach(patch) {
@@ -18,6 +19,23 @@ export async function saveCoach(patch) {
 // aktive Ziele (nur wenn der jeweilige Coach an ist)
 export const goalW = () => (workoutCoachOn() ? coachData().workout || null : null);
 export const goalC = () => (cardioCoachOn() ? coachData().cardio || null : null);
+export const goalM = () => (mobilityCoachOn() ? coachData().mobility || null : null);
+
+// ---------- Mobility ----------
+// Wunschziele (frei wählbar, optional) – bevorzugen passende Routinen
+export const MOB_TARGETS = {
+  none: { label: 'Einfach beweglich bleiben', progs: [] },
+  splits: { label: 'Spagat', progs: ['hamstrings', 'legs', 'hips'], areas: ['legs', 'hips'] },
+  squat: { label: 'Tiefe Hocke', progs: ['deepsquat', 'hips'], areas: ['hips', 'legs'] },
+  back: { label: 'Schmerzfreier Rücken', progs: ['backcare', 'spine'], areas: ['spine', 'hips'] },
+  shoulder: { label: 'Bewegliche Schultern', progs: ['shoulders2', 'shoulders'], areas: ['shoulders', 'spine'] },
+};
+export const MOB_LEVELS = { beginner: 'Einsteiger', inter: 'Fortgeschritten' };
+
+// Mobility-Einheiten im Verlauf (Name enthält Mobility/Yoga/Dehnen …) – für Fortschritt und Wochenabgleich
+export function mobilitySessions() {
+  return idx().asc.filter((w) => w.exercises.some((e) => MOBILITY_RE.test(e.name))).map((w) => ({ date: w.start, wid: w.id }));
+}
 
 // ---------- Körperdaten ----------
 export const ACTIVITY = [
@@ -78,6 +96,8 @@ export const ALT = {
   ...SPORTS,
   elliptical: { label: 'Crosstrainer', exercise: 'Crosstrainer', kinds: ['elliptical'], pace: 'kmh', pose: 'elliptical', device: 'elliptical', exp: 1.05, speed: { beginner: 8, inter: 9.5, adv: 11 }, minEasy: 3, noKm: true },
 };
+// Fallback für Ansichten, die ALT[s.sport] lesen (nicht aufzählbar – taucht bei Geräte-Listen nicht auf)
+Object.defineProperty(ALT, 'mobility', { value: { label: 'Mobility', exercise: 'Mobility', kinds: [], pace: 'km', exp: 1, speed: { beginner: 1, inter: 1, adv: 1 }, minEasy: 0 }, enumerable: false });
 // Umrechnung bei gleicher Pulszone: Dauer × Faktor (Laufen = 1). Rad braucht länger für denselben Reiz,
 // weil weniger Muskeln arbeiten und das Körpergewicht getragen wird; Schwimmen fordert pro Minute etwas mehr.
 export const EQUIV_F = { run: 1, walk: 1.8, bike: 1.4, skate: 1.3, row: 1.05, swim: 0.9, elliptical: 1.1 };

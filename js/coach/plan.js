@@ -4,13 +4,14 @@
 import { state, exerciseMeta } from '../store.js';
 import { idx } from '../stats.js';
 import { increment } from '../ai.js';
-import { CARDIO } from '../programs.js';
-import { cardioKind } from '../compete.js';
+import { CARDIO, MOBILITY, AREAS, mobilityPhases, programDuration } from '../programs.js';
+import { customPrograms } from '../mobilityBuilder.js';
+import { cardioKind, MOBILITY_RE } from '../compete.js';
 import { DAY, startOfWeek, startOfDay, addDays, weekday, num } from '../utils.js';
 import { SPLITS, activeSplit } from './splits.js';
 import { FAM, familyOf, pickFromFamily } from './similar.js';
 import {
-  coachData, goalW, goalC, SPORTS, ALT, timeFactor, currentE1rm, cardioBaseline, sportSessions, weekIndex, totalWeeks,
+  coachData, goalW, goalC, goalM, MOB_TARGETS, mobilitySessions, SPORTS, ALT, timeFactor, currentE1rm, cardioBaseline, sportSessions, weekIndex, totalWeeks,
   breakInfo, fmtPace, fmtHms,
 } from './core.js';
 import { predictTime, peakLong } from './assess.js';
@@ -337,6 +338,131 @@ function cardioSessions(g, week, ctx) {
   return { list, phase: ph, long };
 }
 
+// ---------- Mobility-Einheiten einer Woche ----------
+// Alle wählbaren Routinen: eingebaute Programme + eigene
+export const mobilityRoutines = () => [...MOBILITY, ...customPrograms()];
+export const routineById = (id) => mobilityRoutines().find((r) => r.id === id) || null;
+
+export function mobilityPhase(g, week) {
+  const wi = weekIndex(g, week);
+  if (wi > 0 && wi % 4 === 3) return { wi, kind: 'deload', label: 'Leichte Woche' };
+  return { wi, kind: 'build', label: `Aufbau ${wi + 1}` };
+}
+// Haltezeit-Faktor: wächst sanft mit den Wochen, in denen du wirklich Mobility gemacht hast (max. +36 %); nach Pause / Entlastung weniger
+export function mobilityFactor(g, week, ph, brk) {
+  const recent = new Set(mobilitySessions().filter((s) => s.date < week && s.date >= week - 8 * 7 * DAY).map((s) => startOfWeek(s.date)));
+  let f = 1 + 0.06 * Math.min(6, recent.size);
+  if (brk.returning) f = 0.8;
+  else if (ph.kind === 'deload') f *= 0.85;
+  return { f, weeks: recent.size };
+}
+const scaleSec = (sec, f, lvl) => Math.max(15, Math.min(90, Math.round((sec * f * (lvl === 'beginner' ? 0.85 : 1)) / 5) * 5));
+
+// Titel, Dauer und Beschreibung einer Mobility-Einheit (nach Kürzen o. Ä. neu berechnen)
+function finishMobility(s) {
+  s.sec = programDuration(mobilityPhases(s));
+  const areas = s.areas.slice(0, 3).map((a) => AREAS[a]).join(' · ');
+  s.sub = `ca. ${Math.max(1, Math.round(s.sec / 60))} min · ${areas}${s.compact ? ' · kurz' : ''}`;
+  return s;
+}
+function mobilitySessionsOf(g, week, ctx) {
+  const C = coachData();
+  const ph = mobilityPhase(g, week);
+  const { f, weeks } = mobilityFactor(g, week, ph, ctx.brk);
+  const n = Math.max(1, Math.min(7, g.perWeek || 3));
+  const T = MOB_TARGETS[g.target] || MOB_TARGETS.none;
+  const areas = g.areas?.length ? g.areas : ['full'];
+  const pool = [...areas, ...(T.areas || []).filter((a) => areas.includes(a))];
+  const routines = mobilityRoutines();
+  const used = new Set();
+  const seen = {};
+  const list = [];
+  for (let i = 0; i < n; i++) {
+    const area = pool[(i + ph.wi) % pool.length];
+    const k = seen[area] = (seen[area] ?? -1) + 1;
+    const id = `m:${weekKey(week)}:${i}`;
+    const cand = routines.filter((r) => r.areas.includes(area) && (!r.recovery || area === 'full'));
+    cand.sort((a, b) => (b.areas[0] === area) - (a.areas[0] === area));
+    const tp = (T.progs || []).map((pid) => cand.find((r) => r.id === pid)).filter(Boolean);
+    let r;
+    const forced = C.mswap?.[id] ?? C.mswapSlot?.[i];
+    if (forced && routineById(forced)) r = routineById(forced);
+    else {
+      const rest = cand.filter((c) => !tp.includes(c));
+      const want = tp.length && (k + ph.wi) % 2 === 0 ? tp[((k + ph.wi) >> 1) % tp.length] : rest.length ? rest[(ph.wi + k) % rest.length] : tp[0];
+      r = [want, ...cand].filter(Boolean).find((c) => !used.has(c.id)) || want || cand[0] || routines.find((x) => x.id === 'flow');
+    }
+    used.add(r.id);
+    const base = { ...r, moves: r.moves.map((m) => ({ ...m })) };
+    let rounds = r.rounds || 1;
+    if (!r.custom) {
+      base.moves.forEach((m) => { m.sec = scaleSec(m.sec, f, g.level); });
+      if (f >= 1.3 && programDuration(mobilityPhases(base)) < 7 * 60) rounds = 2;
+    }
+    const why = ph.kind === 'deload' ? 'Leichte Woche: etwas kürzere Haltezeiten' : ctx.brk.returning ? 'Wiedereinstieg: sanft starten' : weeks >= 2 ? `Haltezeiten wachsen mit: +${Math.round((f - 1) * 100)} % seit dem Start` : '';
+    list.push(finishMobility({
+      kind: 'mobility', id, slot: i, type: r.recovery ? 'recovery' : 'flow', area, areas: r.areas, routine: r.id, custom: !!r.custom, title: r.title,
+      moves: base.moves, rounds, rest: r.rest, desc: [r.desc, why].filter(Boolean).join(' · '), km: 0, sport: 'mobility', factor: f,
+    }));
+  }
+  return { list, phase: ph, factor: f };
+}
+
+// Mobility legt sich um das Training herum: Hüfte/Beine am Tag nach dem Beintag, Schulter/Rücken nach Oberkörper,
+// Ganzkörper/Regeneration nach harter Ausdauer – an Trainingstagen als kurze Einheit
+function placeMobility(list, res, { todayIdx, gc }) {
+  const longT = res.cardio?.long || 10;
+  const load = Array.from({ length: 9 }, () => []); // load[d + 1] = Tag d, load[0] = Sonntag davor
+  const prev = idx().asc.filter((w) => w.start >= addDays(res.week, -1) && w.start < res.week);
+  for (const w of prev) { const t = tagOfWorkout(w, gc, longT); if (t !== 'mob') load[0].push(t); }
+  for (const s of res.sessions) {
+    if (s.kind === 'mobility' || s.day == null) continue;
+    if (s.status === 'done' || s.status === 'open') load[s.day + 1].push(tagOf(s, gc));
+  }
+  for (const e of res.extras) { const t = tagOfWorkout(e.w, gc, longT); if (t !== 'mob') load[e.day + 1].push(t); }
+  const mob = Array(8).fill(0);
+  for (const s of res.sessions) if (s.kind === 'mobility' && s.day != null && s.status !== 'skipped') mob[s.day + 1]++;
+  const hard = (t) => t === 'legs' || t === 'cHard';
+  const score = (a, d) => {
+    const before = load[d], same = load[d + 1], after = load[d + 2];
+    let sc = 0;
+    if (a === 'hips' || a === 'legs') {
+      if (before.includes('legs')) sc += 3;
+      if (before.includes('cHard')) sc += 2;
+      if (same.some(hard)) sc += 1.2;
+      if (after.includes('legs')) sc -= 1.5;
+    } else if (a === 'shoulders' || a === 'spine') {
+      if (before.includes('upper')) sc += 3;
+      if (before.includes('legs')) sc += a === 'spine' ? 1.5 : 0;
+      if (same.includes('upper')) sc += 1.2;
+    } else {
+      if (before.some(hard)) sc += 3;
+      if (same.some(hard)) sc += 1;
+    }
+    if (!same.length) sc += 0.8;
+    if (same.length >= 2) sc -= 1;
+    sc -= 6 * mob[d + 1] + 0.8 * (mob[d] + mob[d + 2]);
+    return sc - d * 0.02;
+  };
+  for (const s of list) {
+    let best = null;
+    for (let d = Math.max(0, todayIdx); d < 7; d++) {
+      const sc = score(s.area, d);
+      if (!best || sc > best.sc) best = { d, sc };
+    }
+    s.day = best.d;
+    mob[best.d + 1]++;
+  }
+  // an Trainingstagen reicht eine kurze Einheit
+  for (const s of res.sessions) {
+    if (s.kind !== 'mobility' || s.status !== 'open' || s.day == null || s.compact) continue;
+    if (load[s.day + 1].length && s.moves.length > 4 && !s.custom) {
+      s.moves = s.moves.slice(0, 4); s.rounds = 1; s.compact = true;
+      finishMobility(s);
+    }
+  }
+}
+
 // ---------- Woche zusammensetzen ----------
 // gleichmäßig auf freie Tage verteilen (Mo-Mi-Fr bei 3 von 7)
 function spread(k, avail) {
@@ -362,6 +488,7 @@ function tagOfWorkout(w, gc, longKmTarget = 10) {
     if (c && LEG_SPORTS.includes(sport) && (c.km >= Math.max(8, longKmTarget * 0.6) || c.sec >= 55 * 60)) return 'cHard';
     if (c) return 'cEasy';
   }
+  if (!st?.volume && w.exercises.length && w.exercises.every((e) => MOBILITY_RE.test(e.name))) return 'mob';
   return st?.volume > 0 ? 'upper' : 'cEasy';
 }
 const HARD = (t) => t === 'legs' || t === 'cHard';
@@ -397,12 +524,13 @@ function schedule(free, res, { week, todayIdx, gc }) {
   // feste Belastung: Erledigtes, Verschobenes, Vortag (Sonntag davor)
   const fixed = Array.from({ length: 8 }, () => []);
   const prev = idx().asc.filter((w) => w.start >= addDays(week, -1) && w.start < week);
-  for (const w of prev) fixed[0].push(tagOfWorkout(w, gc, longT));
+  for (const w of prev) { const t = tagOfWorkout(w, gc, longT); if (t !== 'mob') fixed[0].push(t); }
   for (const s of res.sessions) {
+    if (s.kind === 'mobility') continue;
     if (s.status === 'done') fixed[s.day + 1].push(tagOf(s, gc));
     else if (s.status === 'open' && s.moved) fixed[s.day + 1].push(tagOf(s, gc));
   }
-  for (const e of res.extras) fixed[e.day + 1].push(tagOfWorkout(e.w, gc, longT));
+  for (const e of res.extras) { const t = tagOfWorkout(e.w, gc, longT); if (t !== 'mob') fixed[e.day + 1].push(t); }
   const tags = free.map((s) => tagOf(s, gc));
   const cost = () => {
     const days = fixed.map((x) => [...x]);
@@ -449,13 +577,13 @@ function schedule(free, res, { week, todayIdx, gc }) {
 }
 
 export function weekPlan(week = startOfWeek(Date.now())) {
-  const gw = goalW(), gc = goalC();
+  const gw = goalW(), gc = goalC(), gm = goalM();
   const now = Date.now();
   const thisWeek = startOfWeek(now);
   const brk = breakInfo(week === thisWeek ? now : week);
   const ctx = { brk };
   const C = coachData();
-  const res = { week, sessions: [], extras: [], days: Array.from({ length: 7 }, () => []), notes: [], gym: null, cardio: null };
+  const res = { week, sessions: [], extras: [], days: Array.from({ length: 7 }, () => []), notes: [], gym: null, cardio: null, mobility: null };
   const gOn = gw && week >= startOfWeek(gw.start), cOn = gc && week >= startOfWeek(gc.start);
   // beide Pläne kennen sich: Bein-Umfang bei viel Ausdauer, keine harten Cardio-Einheiten in der Kraft-Testwoche
   if (gOn && cOn && LEG_SPORTS.includes(gc.sport)) {
@@ -468,6 +596,7 @@ export function weekPlan(week = startOfWeek(Date.now())) {
   }
   if (gOn) { res.gym = gymSessions(gw, week, ctx); res.sessions.push(...res.gym.list); }
   if (cOn) { res.cardio = cardioSessions(gc, week, ctx); res.sessions.push(...res.cardio.list); }
+  if (gm && week >= startOfWeek(gm.start)) { res.mobility = mobilitySessionsOf(gm, week, ctx); res.sessions.push(...res.mobility.list); }
   if (!res.sessions.length) return res;
   if (brk.returning && week >= thisWeek) res.notes.push(`Willkommen zurück! Nach ${Math.round(brk.days)} Tagen Pause startet der Plan etwas leichter – gleich viel oder weniger Gewicht als zuletzt, weniger Umfang.`);
 
@@ -481,6 +610,11 @@ export function weekPlan(week = startOfWeek(Date.now())) {
   }
   for (const w of ws) {
     if (w.planId && res.sessions.some((x) => x.done === w)) continue;
+    if (gm && res.mobility && !isGym(w) && w.exercises.some((e) => MOBILITY_RE.test(e.name))) {
+      const cands = [...open].filter((s) => s.kind === 'mobility');
+      const pick = cands.find((s) => (w.title || '').includes(s.title)) || cands[0];
+      if (pick) { take(pick, w); continue; }
+    }
     if (gc) {
       const cands = [...open].filter((s) => s.kind === 'cardio');
       const sports = [...new Set([gc.sport, ...cands.map((s) => s.sport), ...Object.keys(ALT)])];
@@ -520,11 +654,14 @@ export function weekPlan(week = startOfWeek(Date.now())) {
   }
   const pending = res.sessions.filter((s) => s.status === 'open');
   for (const s of pending) if (moves[s.id] != null && moves[s.id] >= todayIdx) { s.day = moves[s.id]; s.moved = true; }
-  const free = pending.filter((s) => !s.moved);
+  const free = pending.filter((s) => !s.moved && s.kind !== 'mobility');
   if (free.length && todayIdx < 7) schedule(free, res, { week, todayIdx, gc });
+  const mfree = pending.filter((s) => !s.moved && s.kind === 'mobility');
+  if (todayIdx < 7) placeMobility(mfree, res, { todayIdx, gc });
   for (const s of res.sessions) if (s.day != null) res.days[s.day].push(s);
   for (const e of res.extras) res.days[e.day].push({ extra: true, w: e.w });
-  res.days.forEach((d) => d.sort((a, b) => (a.kind === 'gym' ? 0 : 1) - (b.kind === 'gym' ? 0 : 1)));
+  const ORD = { gym: 0, cardio: 1, mobility: 2 };
+  res.days.forEach((d) => d.sort((a, b) => (ORD[a.kind] ?? 1) - (ORD[b.kind] ?? 1)));
   res.total = res.sessions.length;
   res.doneCount = res.sessions.filter((s) => s.status === 'done').length;
   return res;
@@ -537,7 +674,7 @@ export function nextSession(plan = weekPlan()) {
   return open.find((s) => s.day >= today) || open[0] || null;
 }
 export const findSession = (id) => {
-  const m = /^[gc]:(\d{4})(\d{2})(\d{2}):/.exec(id || '');
+  const m = /^[gcm]:(\d{4})(\d{2})(\d{2}):/.exec(id || '');
   if (!m) return null;
   const week = startOfDay(new Date(+m[1], +m[2] - 1, +m[3]).getTime());
   return weekPlan(week).sessions.find((s) => s.id === id) || null;

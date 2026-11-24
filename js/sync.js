@@ -6,17 +6,18 @@ import { idx, setCountFrom } from './stats.js';
 import { toast } from './ui.js';
 import { demoApi, demoGroup, setSummarizer } from './demo.js';
 import { cardioKind, MOBILITY_RE } from './compete.js';
+import { getDay, applyFoodRemote } from './food.js';
 
 const LS = 'gymlog-srv';
 const LS_GROUP = 'gymlog-group';
-const empty = () => ({ server: '', token: null, user: null, group: '', cursor: 0, dirty: { workout: {}, routine: {} }, tomb: [], profHash: '', profUpdated: 0, prefHash: '', prefsSeen: 0, lastSync: 0 });
+const empty = () => ({ server: '', token: null, user: null, group: '', cursor: 0, dirty: { workout: {}, routine: {}, food: {} }, tomb: [], profHash: '', profUpdated: 0, prefHash: '', prefsSeen: 0, lastSync: 0 });
 let S = load();
 setCountFrom(S.user?.countFrom);
 let countFromNow = S.user?.countFrom || 0;
 let tick = 0;
 
 function load() {
-  try { return { ...empty(), ...JSON.parse(localStorage.getItem(LS) || '{}') }; } catch { return empty(); }
+  try { const s = { ...empty(), ...JSON.parse(localStorage.getItem(LS) || '{}') }; s.dirty = { workout: {}, routine: {}, food: {}, ...(s.dirty || {}) }; return s; } catch { return empty(); }
 }
 const save = () => { try { localStorage.setItem(LS, JSON.stringify(S)); } catch { /* voll */ } };
 
@@ -52,7 +53,7 @@ export async function setActiveGroup(id) {
 }
 export const isAdmin = () => S.user?.role === 'admin';
 export const myId = () => S.user?.id || (demoOn() ? 'me' : undefined);
-const pendingCount = () => Object.keys(S.dirty.workout).length + Object.keys(S.dirty.routine).length + S.tomb.length;
+const pendingCount = () => Object.keys(S.dirty.workout).length + Object.keys(S.dirty.routine).length + Object.keys(S.dirty.food || {}).length + S.tomb.length;
 
 // ---------- Server erkennen ----------
 // Die App kann vom Server selbst kommen (gleiche Adresse) oder z. B. von GitHub Pages – dann steht die Server-Adresse in S.server.
@@ -248,10 +249,10 @@ export function syncNow() {
         const sum = summarizer();
         const batch = [];
         const sent = [];
-        for (const kind of ['workout', 'routine']) {
-          for (const [id, v] of Object.entries(S.dirty[kind])) {
+        for (const kind of ['workout', 'routine', 'food']) {
+          for (const [id, v] of Object.entries(S.dirty[kind] || {})) {
             if (batch.length >= 80) break;
-            const obj = kind === 'workout' ? state.workouts.find((w) => w.id === id) : state.routines.find((r) => r.id === id);
+            const obj = kind === 'workout' ? state.workouts.find((w) => w.id === id) : kind === 'food' ? getDay(id) : state.routines.find((r) => r.id === id);
             if (!obj) { delete S.dirty[kind][id]; continue; }
             if (kind === 'workout' && obj.source === 'strava') {
               // Strava bleibt auf dem Handy: an den Server geht nur Start + Dauer (für EP), und nur ab der Verbindung
@@ -290,14 +291,17 @@ export function syncNow() {
 
         // Eingehende Änderungen (lokal ungespeicherte Änderungen haben Vorrang)
         const inc = { workouts: [], routines: [], delWorkouts: [], delRoutines: [] };
+        const foodIn = [];
         for (const it of r.items || []) {
           if (S.dirty[it.kind]?.[it.id]) continue;
+          if (it.kind === 'food') { if (it.data) foodIn.push(it.data); continue; }
           const key = it.kind === 'workout' ? 'Workouts' : 'Routines';
           if (it.deleted) inc[`del${key}`].push(it.id);
           else if (it.data) inc[key.toLowerCase()].push(it.data);
         }
         for (const [localId] of r.dupes || []) { inc.delWorkouts.push(localId); delete S.dirty.workout[localId]; }
         await applyRemote(inc);
+        if (foodIn.length) await applyFoodRemote(foodIn);
         if (r.profileUpdated > S.profUpdated) await applyProfile(r.profile, r.profileUpdated);
         S.cursor = r.cursor;
         S.user = r.user || S.user;
@@ -320,7 +324,7 @@ export function syncNow() {
 }
 
 // Nach lokalem Löschen aller Daten: alles neu vom Server holen
-export function resetCursor() { S.cursor = 0; S.dirty = { workout: {}, routine: {} }; S.tomb = []; save(); }
+export function resetCursor() { S.cursor = 0; S.dirty = { workout: {}, routine: {}, food: {} }; S.tomb = []; save(); }
 
 // ---------- Gruppendaten ----------
 // vollständige Gruppendaten? (alte oder kaputte Zwischenspeicher nicht verwenden)

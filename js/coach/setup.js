@@ -7,10 +7,11 @@ import { pickExercises } from '../picker.js';
 import { addBodyweight, bwNow } from '../body.js';
 import {
   coachData, saveCoach, ACTIVITY, LEVELS, SPORTS, body, estimateLevel, currentE1rm, ormCandidates, cardioBaseline,
-  fmtHms, deadlineIn, fmtDeadline, weeksBetween,
+  fmtHms, deadlineIn, fmtDeadline, weeksBetween, MOB_TARGETS, MOB_LEVELS,
 } from './core.js';
 import { SPLITS, SPLIT_INFO, splitFor } from './splits.js';
-import { assessWorkout, assessCardio, freqWorkout, freqCardio, comboNotes, VERDICTS } from './assess.js';
+import { assessWorkout, assessCardio, assessMobility, freqWorkout, freqCardio, comboNotes, VERDICTS } from './assess.js';
+import { AREAS } from '../programs.js';
 
 const W_TYPES = [
   ['strength', 'Stärker werden', 'dumbbell'],
@@ -58,6 +59,7 @@ export function openCoachSetup(kind = 'workout', { onDone } = {}) {
   const lvl = estimateLevel();
   const ex = C.workout || {};
   const cx = C.cardio || {};
+  const mx = C.mobility || {};
   const D = {
     step: 1,
     body: { sex: b0.sex, age: b0.age, height: b0.height, weight: b0.weight, activity: b0.activity },
@@ -70,6 +72,7 @@ export function openCoachSetup(kind = 'workout', { onDone } = {}) {
       sport: cx.sport || 'run', distance: cx.distance ?? '', timeH: hm(cx.time).h, timeM: hm(cx.time).m, perWeek: cx.perWeek || 3,
       level: cx.level || lvl, weeks: cx.deadline ? Math.min(52, Math.max(4, weeksBetween(Date.now(), cx.deadline))) : 12, date: cx.deadline > Date.now() + 6 * DAY ? dateVal(cx.deadline) : '', baseKm: '', baseTimeH: '', baseTimeM: '',
     },
+    mobility: { areas: mx.areas || [], level: mx.level || (lvl === 'beginner' ? 'beginner' : 'inter'), target: mx.target || 'none', perWeek: mx.perWeek || 3 },
     applied: new Set(),
   };
   const fillBase = () => {
@@ -84,7 +87,7 @@ export function openCoachSetup(kind = 'workout', { onDone } = {}) {
     D.cardio.baseTimeH = hm(cx.baseline.sec).h; D.cardio.baseTimeM = hm(cx.baseline.sec).m; D.cardio.baseAuto = true;
   } else fillBase();
   const o = overlay('', 'coach-setup');
-  const title = kind === 'cardio' ? 'AI-Coach Cardio' : kind === 'body' ? 'Körperdaten' : 'AI-Coach Workouts';
+  const title = kind === 'mobility' ? 'AI-Coach Mobility' : kind === 'cardio' ? 'AI-Coach Cardio' : kind === 'body' ? 'Körperdaten' : 'AI-Coach Workouts';
 
   // Ziel-Objekt aus dem Entwurf
   const buildGoal = () => {
@@ -95,6 +98,7 @@ export function openCoachSetup(kind = 'workout', { onDone } = {}) {
       if (d.type === 'bw') { g.target = parseNum(d.target); g.current = parseNum(D.body.weight) || bwNow() || null; }
       return g;
     }
+    if (kind === 'mobility') { const m = D.mobility; return { areas: m.areas, level: m.level, target: m.target, perWeek: m.perWeek, start: Date.now() }; }
     const d = D.cardio;
     const km = parseNum(d.baseKm), sec = secOf(d.baseTimeH, d.baseTimeM);
     return {
@@ -104,6 +108,7 @@ export function openCoachSetup(kind = 'workout', { onDone } = {}) {
   };
   const validate = () => {
     const b = D.body;
+    if (kind === 'mobility') { if (!D.mobility.areas.length) return 'Bitte mindestens einen Bereich wählen'; return null; }
     if (kind === 'body' || !coachData().body?.age) {
       if (!b.sex) return 'Bitte Geschlecht wählen';
       if (!(parseNum(b.age) >= 12 && parseNum(b.age) <= 100)) return 'Bitte Alter eingeben';
@@ -129,8 +134,24 @@ export function openCoachSetup(kind = 'workout', { onDone } = {}) {
   };
 
   const step1 = () => {
-    const needBody = kind === 'body' || !coachData().body?.age;
+    const needBody = kind !== 'mobility' && (kind === 'body' || !coachData().body?.age);
     if (kind === 'body') return bodyHtml(D.body);
+    if (kind === 'mobility') {
+      const m = D.mobility;
+      const ideal = Math.min(5, Math.max(m.level === 'beginner' ? 3 : 4, m.areas.length >= 3 ? 4 : 3));
+      return `
+        <div class="cs-sec"><div class="cs-h">${icon('target', 'xs')} Woran willst du arbeiten? <small>Mehrfachauswahl</small></div>
+          <div class="chips">${Object.entries(AREAS).map(([k, l]) => `<button class="chip ${m.areas.includes(k) ? 'on' : ''}" data-toggle="mobility.areas" data-v="${k}">${esc(l)}</button>`).join('')}</div>
+        </div>
+        <div class="cs-sec"><div class="cs-h">${icon('bolt', 'xs')} Aktueller Stand</div>
+          <div class="chips">${Object.entries(MOB_LEVELS).map(([k, l]) => `<button class="chip ${m.level === k ? 'on' : ''}" data-set="mobility.level" data-v="${k}">${l}</button>`).join('')}</div>
+        </div>
+        <div class="cs-sec"><div class="cs-h">${icon('trophy', 'xs')} Wunschziel <small>optional</small></div>
+          <div class="cs-opts">${Object.entries(MOB_TARGETS).map(([k, t]) => `<button class="cs-opt ${m.target === k ? 'on' : ''}" data-set="mobility.target" data-v="${k}"><b>${esc(t.label)}</b></button>`).join('')}</div>
+        </div>
+        <div class="cs-sec"><div class="cs-h">${icon('calendar', 'xs')} Einheiten pro Woche <small>Vorschlag: ${ideal} – du entscheidest</small></div>${perWeekChips('mobility.perWeek', m.perWeek)}
+          <p class="footnote">Welche Tage und wie lange, plant der Coach um dein Training herum – du kannst jede Einheit verschieben oder auslassen.</p></div>`;
+    }
     if (kind === 'workout') {
       const d = D.workout;
       const cur = d.type === 'orm' ? currentE1rm(d.exercise) : 0;
@@ -185,13 +206,13 @@ export function openCoachSetup(kind = 'workout', { onDone } = {}) {
   const step2 = () => {
     const g = buildGoal();
     const C2 = coachData();
-    const a = kind === 'workout' ? assessWorkout(g) : assessCardio(g);
-    const notes = kind === 'workout' ? freqWorkout(g, state.settings.aiCardio && C2.cardio ? C2.cardio.perWeek : 0) : freqCardio(g, state.settings.aiWorkout && C2.workout ? C2.workout.perWeek : 0);
-    const gw2 = kind === 'workout' ? g : state.settings.aiWorkout ? C2.workout : null;
-    const gc2 = kind === 'cardio' ? g : state.settings.aiCardio ? C2.cardio : null;
+    const a = kind === 'workout' ? assessWorkout(g) : kind === 'mobility' ? assessMobility(g, { gym: state.settings.aiWorkout && C2.workout ? 1 : 0, cardio: state.settings.aiCardio && C2.cardio ? 1 : 0 }) : assessCardio(g);
+    const notes = kind === 'mobility' ? a.notes : kind === 'workout' ? freqWorkout(g, state.settings.aiCardio && C2.cardio ? C2.cardio.perWeek : 0) : freqCardio(g, state.settings.aiWorkout && C2.workout ? C2.workout.perWeek : 0);
+    const gw2 = kind === 'mobility' ? null : kind === 'workout' ? g : state.settings.aiWorkout ? C2.workout : null;
+    const gc2 = kind === 'mobility' ? null : kind === 'cardio' ? g : state.settings.aiCardio ? C2.cardio : null;
     if (gw2 && gc2) notes.push(...comboNotes(gw2, gc2));
     const V = VERDICTS[a.verdict];
-    const head = kind === 'workout'
+    const head = kind === 'mobility' ? `Mobility: ${esc(g.areas.map((x) => AREAS[x]).join(', '))}${g.target !== 'none' ? ` · ${esc(MOB_TARGETS[g.target].label)}` : ''}` : kind === 'workout'
       ? (g.type === 'orm' ? `${esc(g.exercise)}: ${fmtKg(g.target)}` : g.type === 'bw' ? `Körpergewicht: ${fmtKg(g.target)}` : g.type === 'muscle' ? 'Muskelaufbau' : 'Stärker werden')
       : `${esc(SPORTS[g.sport].label)}: ${num(g.distance, 1)} km${g.time ? ` in ${fmtHms(g.time)}` : ''}`;
     const prop = (p, i, src) => {
@@ -203,7 +224,7 @@ export function openCoachSetup(kind = 'workout', { onDone } = {}) {
     return `
       <div class="card cs-verdict ${V.cls}">
         <div class="csv-top"><span class="ai-badge">AI</span><b>${head}</b></div>
-        <small>${g.perWeek}× pro Woche · bis ${esc(fmtDeadline(g.deadline))} (${weeksBetween(Date.now(), g.deadline)} Wochen)${kind === 'workout' ? ` · ${esc(SPLITS[g.split === 'auto' ? splitFor(g.perWeek, g.level) : g.split].label)}` : ''}</small>
+        <small>${g.perWeek}× pro Woche${kind === 'mobility' ? ` · ${esc(MOB_LEVELS[g.level])}` : ` · bis ${esc(fmtDeadline(g.deadline))} (${weeksBetween(Date.now(), g.deadline)} Wochen)`}${kind === 'workout' ? ` · ${esc(SPLITS[g.split === 'auto' ? splitFor(g.perWeek, g.level) : g.split].label)}` : ''}</small>
         <div class="csv-pill ${V.cls}">${esc(V.label)}</div>
         ${a.lines.map((l) => `<p>${esc(l)}</p>`).join('')}
         ${a.proposals.length ? `<div class="cs-l">Alternativ-Vorschlag</div>${a.proposals.map((p, i) => prop(p, i, 'a')).join('')}` : ''}
@@ -240,6 +261,15 @@ export function openCoachSetup(kind = 'workout', { onDone } = {}) {
       if (D.step === 2) { D.step = 1; D.applied.clear(); draw(); return; }
       return o.close();
     }
+    const tg = e.target.closest('[data-toggle]');
+    if (tg) {
+      const [a, k] = tg.dataset.toggle.split('.');
+      const set = new Set(D[a][k]);
+      if (set.has(tg.dataset.v)) set.delete(tg.dataset.v); else set.add(tg.dataset.v);
+      D[a][k] = Object.keys(AREAS).filter((x) => set.has(x));
+      draw();
+      return;
+    }
     const s = e.target.closest('[data-set]');
     if (s) {
       const [a, k] = s.dataset.set.split('.');
@@ -274,12 +304,13 @@ export function openCoachSetup(kind = 'workout', { onDone } = {}) {
       return;
     }
     if (e.target.closest('[data-act="save"]')) {
-      await saveBody();
+      if (kind !== 'mobility') await saveBody();
       const g = buildGoal();
       g.verdict = D.lastA?.verdict || null;
       // gleiches Ziel nur angepasst → Trainingsphase läuft weiter (kein Neustart der Periodisierung)
       const prevG = coachData()[kind];
-      if (prevG && prevG.deadline > Date.now() && (kind === 'workout' ? prevG.type === g.type && prevG.exercise === g.exercise : prevG.sport === g.sport)) g.start = prevG.start;
+      if (kind === 'mobility' && prevG?.start) g.start = prevG.start;
+      else if (prevG && prevG.deadline > Date.now() && (kind === 'workout' ? prevG.type === g.type && prevG.exercise === g.exercise : prevG.sport === g.sport)) g.start = prevG.start;
       await saveCoach({ [kind]: g, moves: {}, skips: {} });
       o.close();
       toast('Dein Plan ist fertig!');

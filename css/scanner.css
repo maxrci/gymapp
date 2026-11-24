@@ -1,0 +1,15 @@
+/* Barcode-Scanner (Vollbild) */
+.scan-overlay { position: fixed; inset: 0; z-index: 300; background: #000; color: #fff; display: flex; flex-direction: column; }
+.scan-top { display: flex; align-items: center; gap: 10px; padding: max(12px, env(safe-area-inset-top)) 14px 10px; }
+.scan-top b { flex: 1; text-align: center; font-size: 17px; }
+.scan-top button { width: 40px; height: 40px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, .14); color: #fff; font-size: 17px; }
+.scan-stage { position: relative; flex: 1; overflow: hidden; }
+.scan-stage video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.scan-frame { position: absolute; left: 7%; right: 7%; top: 50%; aspect-ratio: 2.2 / 1; transform: translateY(-50%); border: 3px solid rgba(255, 255, 255, .9); border-radius: 18px; box-shadow: 0 0 0 9999px rgba(0, 0, 0, .45); }
+.scan-frame i { position: absolute; left: 6%; right: 6%; top: 50%; height: 2px; background: #ff4d4d; box-shadow: 0 0 8px #ff4d4d; animation: scanLine 1.6s ease-in-out infinite; }
+@keyframes scanLine { 0%, 100% { top: 18%; } 50% { top: 82%; } }
+@media (prefers-reduced-motion: reduce) { .scan-frame i { animation: none; } }
+.scan-msg { position: absolute; left: 16px; right: 16px; bottom: 18px; text-align: center; font-size: 15px; text-shadow: 0 1px 3px #000; margin: 0; }
+.scan-manual { display: flex; gap: 8px; padding: 12px 14px max(14px, env(safe-area-inset-bottom)); background: #111; }
+.scan-manual input { flex: 1; font-size: 17px; padding: 12px; border-radius: 12px; border: 1px solid #333; background: #1c1c1c; color: #fff; }
+.scan-manual button { border: 0; border-radius: 12px; padding: 0 18px; background: #3987e5; color: #fff; font-weight: 700; font-size: 16px; }

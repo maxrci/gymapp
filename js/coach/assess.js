@@ -1,7 +1,8 @@
 // Einordnung der Ziele: realistisch / ambitioniert / zu ambitioniert – immer nur als Hinweis mit Gegenvorschlag
 
 import { SPLITS, splitFor } from './splits.js';
-import { SPORTS, LEVELS, body, currentE1rm, cardioBaseline, totalWeeks, fmtDeadline, fmtHms, fmtPace, deadlineIn } from './core.js';
+import { AREAS as MOB_AREAS } from '../programs.js';
+import { MOB_TARGETS, SPORTS, LEVELS, body, currentE1rm, cardioBaseline, totalWeeks, fmtDeadline, fmtHms, fmtPace, deadlineIn } from './core.js';
 import { num, DAY, fmtKg } from '../utils.js';
 
 export const VERDICTS = {
@@ -226,4 +227,21 @@ export function comboNotes(gw, gc) {
   if (legSport) notes.push({ text: 'Kraft und Cardio werden zusammen geplant: kein Beintag direkt vor, nach oder am selben Tag wie lange oder harte Cardio-Einheiten. In der Cardio-Zielwoche werden die Beine geschont.', proposals: [] });
   if (legSport && legGoal && longGoal) notes.push({ text: `Maximalkraft in den Beinen (${gw.exercise}) und ein langes Ausdauerziel bremsen sich gegenseitig etwas. Der Plan nimmt dafür einen Satz Bein-Umfang raus – beides gleichzeitig geht, nur etwas langsamer.`, proposals: [] });
   return notes;
+}
+
+// ---------- Mobility-Ziel ----------
+// Kein Zeitplan, keine feste Dauer: nur eine Einordnung der Häufigkeit – dein Vorschlag zählt
+export function assessMobility(g, { gym = 0, cardio = 0 } = {}) {
+  const out = { verdict: 'info', lines: [], proposals: [], notes: [] };
+  const n = g.perWeek;
+  const lvl = g.level || 'beginner';
+  const areas = (g.areas?.length ? g.areas : ['full']).map((a) => MOB_AREAS[a]).join(', ');
+  const ideal = Math.min(5, Math.max(lvl === 'beginner' ? 3 : 4, g.areas?.length >= 3 ? 4 : 3));
+  out.lines.push(`Schwerpunkt: ${areas}. Der Coach wechselt die Routinen ab und plant kurze Einheiten rund um dein Training.`);
+  out.lines.push('Haltezeiten und Runden wachsen sanft mit, nach einer Pause startet es leichter. Alle 4 Wochen gibt es eine leichte Woche.');
+  if (n < 2) { out.lines.push('Mit 1 Einheit pro Woche geht es langsam voran – Beweglichkeit wächst mit Regelmäßigkeit.'); out.proposals.push({ label: `${ideal} Einheiten pro Woche`, sub: 'kurz und regelmäßig', patch: { perWeek: ideal } }); }
+  else if (n < ideal && (g.target === 'splits' || g.target === 'squat')) { out.lines.push(`Für „${MOB_TARGETS[g.target].label}“ bringen ${ideal} Einheiten pro Woche spürbar mehr.`); out.proposals.push({ label: `${ideal} Einheiten pro Woche`, patch: { perWeek: ideal } }); }
+  if (n > 5 && lvl === 'beginner') out.proposals.push({ label: '4 Einheiten pro Woche', sub: 'für den Einstieg reicht das gut', patch: { perWeek: 4 } });
+  if (gym || cardio) out.notes.push({ text: 'Mobility wird mit deinem Training abgestimmt: Hüfte und Beine nach dem Beintag, Schulter und Rücken nach Oberkörper-Tagen, Regeneration nach harter Ausdauer. An Trainingstagen gibt es nur eine kurze Einheit.', proposals: [] });
+  return out;
 }

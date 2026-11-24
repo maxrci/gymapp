@@ -46,6 +46,12 @@ Alle Daten bleiben lokal auf dem Gerät (IndexedDB).
 - **Ein Punktesystem** (`js/xp.js`) für Level, Arena und Streak: EP pro Workout, Trainingsminute, Rekord, Wochenziel
   und Challenge-Sieg. Es zählt nur, was in der App getrackt oder nachgetragen wurde – Importe und Strava von vor der
   Verbindung erscheinen nur in der privaten Statistik. Rekorde zählen neu ab dem ersten zählenden Workout.
+- **Mobility-Coach** (wie Cardio): Fokusbereiche, Wunschziel (z. B. Spagat, tiefe Hocke), Einheiten passend zum
+  Training im Wochenplan (Hüfte nach dem Beintag, Schultern nach Push/Pull), sanfte Steigerung, eigene Routinen im
+  Baukasten, „Anpassen“ für jedes Programm, frei eintragen.
+- **Ernährung** (optional, Einstellungen → App personalisieren): Tagebuch mit Mahlzeiten, Suche in Open Food Facts
+  (über den Server, zwischengespeichert), eigener Barcode-Scanner (EAN/UPC, ohne fremde Bibliothek), Favoriten,
+  eigene Produkte und Gerichte, alle Nährwerte; Ziel und Verbrauch aus Körperdaten, Training und Coach. Nur privat.
 - **Abzeichen** (über 100, mit Medaillen-Stufen) schalten **Objekte für den Kämpfer** frei (Hüte, Brillen, Hanteln …).
 - **Cardio geführt**: Grundlage, 4×4, 30/30, Pyramide, Steigerung, Schwelle, 12-3-30, Regeneration für
   Laufband/Rad/Crosstrainer/Rudergerät. Vollbild mit Geräte-Einstellungen, Zonen, Countdown-Tönen

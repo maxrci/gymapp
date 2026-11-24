@@ -16,6 +16,8 @@ import { weekPlan } from '../coach/plan.js';
 import { nutrition } from '../coach/nutrition.js';
 import { openCoachSetup } from '../coach/setup.js';
 import { startPlanned } from './plan.js';
+import { foodTargets } from './food.js';
+import { dayOf, dayId, totals } from '../food.js';
 
 // Geplante Einheiten pro Wochentag (AI-Coach)
 function planList(plan, today) {
@@ -29,13 +31,25 @@ function planList(plan, today) {
       if (!items.length) return `<div class="pw-row rest ${cls}"><span class="pw-d">${WEEKDAYS[d]}</span><span class="pw-t">Ruhetag</span></div>`;
       return items.map((s, i) => {
         if (s.extra) return `<a class="pw-row done ${cls}" href="#/w/${encodeURIComponent(s.w.id)}"><span class="pw-d">${i ? '' : WEEKDAYS[d]}</span><span class="pw-t">${esc(s.w.title)}<small>eigenes Workout</small></span><span class="pw-s">${icon('check', 'xs')}</span></a>`;
-        const t = s.kind === 'gym' ? s.title : `${ALT[s.sport].label} · ${s.title}`;
-        const sub = s.kind === 'gym' ? `${s.exercises.length} Übungen` : `${num(s.km, 1)} km`;
+        const t = s.kind === 'gym' ? s.title : s.kind === 'mobility' ? `Mobility · ${s.title}` : `${ALT[s.sport].label} · ${s.title}`;
+        const sub = s.kind === 'gym' ? `${s.exercises.length} Übungen` : s.kind === 'mobility' ? (s.sub || 'Beweglichkeit') : `${num(s.km, 1)} km`;
         const st = s.status === 'done' ? icon('check', 'xs') : s.status === 'skipped' ? '<em>aus</em>' : s === next ? `<button class="pw-go" data-act="plan-go" data-sid="${esc(s.id)}">${icon('play', 'xs')}</button>` : '';
-        return `<a class="pw-row ${s.status} ${cls} ${s === next ? 'next' : ''}" href="#/plan"><span class="pw-d">${i ? '' : WEEKDAYS[d]}</span><span class="pw-ic ${s.kind}">${icon(s.kind === 'gym' ? 'dumbbell' : 'bolt', 'xs')}</span><span class="pw-t">${esc(t)}<small>${esc(sub)}</small></span><span class="pw-s">${st}</span></a>`;
+        return `<a class="pw-row ${s.status} ${cls} ${s === next ? 'next' : ''}" href="#/plan"><span class="pw-d">${i ? '' : WEEKDAYS[d]}</span><span class="pw-ic ${s.kind}">${icon(s.kind === 'gym' ? 'dumbbell' : s.kind === 'mobility' ? 'repeat' : 'bolt', 'xs')}</span><span class="pw-t">${esc(t)}<small>${esc(sub)}</small></span><span class="pw-s">${st}</span></a>`;
       }).join('');
     }).join('')}
   </div>`;
+}
+
+function foodCard() {
+  const t = totals(dayOf(dayId()).entries);
+  const T = foodTargets();
+  const p = T.goal ? Math.min(100, (t.kcal / T.goal) * 100) : 0;
+  return `<a class="card food-card" href="#/food">
+    <div class="card-title">${icon('heart', 'xs')} Ernährung heute ${T.burned ? `<small>Verbraucht ${num(T.burned, 0)} kcal</small>` : ''}</div>
+    <div class="fc-top"><b>${num(t.kcal, 0)}</b><span>${T.goal ? `/ ${num(T.goal, 0)} kcal` : 'kcal gegessen'}</span>${icon('right', 'muted')}</div>
+    <div class="bar"><i style="width:${p}%"></i></div>
+    <small class="nu-sub">Eiweiß ${num(t.protein, 0)}${T.protein ? `/${T.protein}` : ''} g · Kohlenhydrate ${num(t.carbs, 0)}${T.carbs ? `/${T.carbs}` : ''} g · Fett ${num(t.fat, 0)}${T.fat ? `/${T.fat}` : ''} g</small>
+  </a>`;
 }
 
 function nutritionCard(plan) {
@@ -157,7 +171,7 @@ export function homeView() {
       ${planList(plan, today)}
     </section>` : plan?.sessions.length ? `<section class="card week-card">${planList(plan, today)}</section>` : ''}
     ${coach}
-    ${coachActive && hasGoal ? nutritionCard(plan) : ''}
+    ${state.settings.food ? foodCard() : coachActive && hasGoal ? nutritionCard(plan) : ''}
     <section class="quick">
       <button class="btn primary block lg" data-act="start">${icon('plus')} Leeres Workout starten</button>
       ${routines ? `<div class="quick-row">${routines}</div>` : ''}

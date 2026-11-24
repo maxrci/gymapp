@@ -29,6 +29,9 @@ export const DEFAULT_SETTINGS = {
   arenaDemo: true,         // DEMO: Arena mit 2 NPCs ohne Server
   accent: 'blau',          // Farbprofil
   simple: false,           // Simple Mode: ohne Avatare & Animationen
+  aiMobility: false,       // AI-Coach Mobility (adaptiv wie Cardio)
+  food: false,             // Ernährungs-Tracking (nur wenn eingeschaltet)
+  foodGoal: null,          // eigenes Kalorienziel (sonst vom Coach)
 };
 
 export const state = {

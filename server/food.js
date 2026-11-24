@@ -1,0 +1,73 @@
+// Lebensmittel-Datenbank: Open Food Facts (offene Datenbank, Lizenz ODbL – Quellenangabe in der App).
+// Der Server fragt stellvertretend an (Geräte bleiben unbekannt), speichert Ergebnisse 30 Tage zwischen und bremst Massenanfragen.
+
+const BASE = () => (process.env.OFF_BASE || 'https://world.openfoodfacts.org').replace(/\/$/, '');
+const UA = 'GymSelfHosted/1.0 (private fitness app; open source)';
+const TTL = 30 * 864e5;
+const FIELDS = 'code,product_name,product_name_de,generic_name_de,brands,nutriments,serving_quantity,quantity,image_small_url';
+const num = (v) => { const n = Number(v); return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null; };
+const str = (v, m) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, m);
+
+export function ensureFoodTables(D) {
+  D.db.exec(`CREATE TABLE IF NOT EXISTS food_cache (key TEXT PRIMARY KEY, data TEXT NOT NULL, fetched INTEGER NOT NULL)`);
+}
+
+// Produkt in ein schlankes, geprüftes Format bringen (Nährwerte pro 100 g/ml)
+export function cleanProduct(p) {
+  if (!p || typeof p !== 'object') return null;
+  const n = p.nutriments || {};
+  const kcal = num(n['energy-kcal_100g']) ?? (num(n.energy_100g) != null ? Math.round(num(n.energy_100g) / 4.184) : null);
+  const name = str(p.product_name_de || p.product_name || p.generic_name_de, 120);
+  if (!name || kcal == null) return null;
+  const code = str(p.code, 20).replace(/\D/g, '');
+  return {
+    code, name, brand: str(p.brands, 80).split(',')[0].trim(), qty: str(p.quantity, 30),
+    serving: num(p.serving_quantity),
+    per100: {
+      kcal, protein: num(n.proteins_100g), carbs: num(n.carbohydrates_100g), sugar: num(n.sugars_100g), fat: num(n.fat_100g),
+      satfat: num(n['saturated-fat_100g']), fiber: num(n.fiber_100g), salt: num(n.salt_100g),
+    },
+    image: /^https:\/\/images\.openfoodfacts\.org\//.test(p.image_small_url || '') ? p.image_small_url : '',
+    src: 'off',
+  };
+}
+
+async function cached(D, key, fetcher) {
+  const r = D.get('SELECT data, fetched FROM food_cache WHERE key = ?', key);
+  if (r && r.fetched > Date.now() - TTL) return JSON.parse(r.data);
+  const data = await fetcher();
+  D.run('INSERT INTO food_cache (key, data, fetched) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET data = excluded.data, fetched = excluded.fetched', key, JSON.stringify(data), Date.now());
+  if (Math.random() < 0.02) D.run('DELETE FROM food_cache WHERE fetched < ?', Date.now() - TTL);
+  return data;
+}
+
+async function get(url) {
+  let res;
+  try { res = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'application/json' }, signal: AbortSignal.timeout(12000) }); } catch {
+    throw Object.assign(new Error('Die Lebensmittel-Datenbank ist gerade nicht erreichbar.'), { status: 502 });
+  }
+  if (res.status === 404) return null;
+  if (res.status === 429) throw Object.assign(new Error('Die Lebensmittel-Datenbank bremst gerade – bitte kurz warten.'), { status: 429 });
+  if (!res.ok) throw Object.assign(new Error(`Lebensmittel-Datenbank antwortet nicht (${res.status})`), { status: 502 });
+  return res.json().catch(() => null);
+}
+
+export async function searchFood(D, q) {
+  const s = str(q, 60).toLowerCase();
+  if (s.length < 2) return { products: [] };
+  return cached(D, `s:${s}`, async () => {
+    const qs = new URLSearchParams({ search_terms: s, search_simple: '1', action: 'process', json: '1', page_size: '24', fields: FIELDS, lc: 'de', sort_by: 'unique_scans_n' });
+    const j = await get(`${BASE()}/cgi/search.pl?${qs}`);
+    return { products: (Array.isArray(j?.products) ? j.products : []).map(cleanProduct).filter(Boolean).slice(0, 24) };
+  });
+}
+
+export async function productByCode(D, code) {
+  const c = String(code || '').replace(/\D/g, '');
+  if (c.length < 8 || c.length > 14) throw Object.assign(new Error('Ungültiger Barcode'), { status: 400 });
+  return cached(D, `c:${c}`, async () => {
+    const j = await get(`${BASE()}/api/v2/product/${c}.json?fields=${FIELDS}`);
+    const p = j?.product ? cleanProduct({ ...j.product, code: j.product.code || c }) : null;
+    return { product: p };
+  });
+}

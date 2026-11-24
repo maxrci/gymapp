@@ -1,0 +1,30 @@
+/* Mobility-Coach: Bereichs-Chips, Routinen-Liste im Plan, Baukasten & Übungs-Auswahl */
+.area-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
+.area-chip { font-size: 11.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--surface-2); color: var(--text-2); }
+.area-chip.main { background: color-mix(in srgb, #7b2ff7 18%, var(--surface-2)); color: var(--text); }
+.mob-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 4px; }
+.mob-list span { font-size: 12.5px; padding: 4px 9px; border-radius: 10px; background: var(--surface-2); display: inline-flex; flex-direction: column; line-height: 1.2; }
+.mob-list small { color: var(--muted); font-size: 11px; }
+.mob-list em { align-self: center; font-style: normal; font-size: 12px; color: var(--muted); }
+.ps.mobility .ps-ic { background: color-mix(in srgb, #7b2ff7 20%, var(--surface-2)); color: #7b2ff7; }
+.mob-coach .prog-head { margin-bottom: 6px; }
+.mob-coach p { color: var(--text-2); font-size: 13.5px; margin: 6px 0 10px; }
+.mob-coach .row-btns { display: flex; gap: 8px; align-items: center; }
+.mob-coach .row-btns .icon-btn { flex: none; }
+.pw-ic.mobility { color: #7b2ff7; }
+.goal-card.mobility .gc-ic { color: #7b2ff7; }
+.m-mobility .master-fig { filter: drop-shadow(0 0 12px rgba(150, 60, 240, .45)); }
+.ch-stage.n3 .ch-masters { grid-template-columns: 1fr 1fr 1fr; }
+.ch-stage.n3 .master-fig { max-width: 110px; }
+.prog-strip i.mob-seg { background: #1baf7a; opacity: .85; border-right: 2px solid var(--surface); }
+.mobility-builder .mm-pose { display: inline-block; width: 34px; height: 34px; border-radius: 9px; background: var(--surface-2); overflow: hidden; vertical-align: middle; margin-right: 8px; }
+.mobility-builder .mm-pose svg { width: 100%; height: 100%; }
+.mobility-builder .cb-row .chips { margin: 0; flex-wrap: nowrap; }
+.mob-picker .mp-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.mp-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 14px; background: var(--surface); text-align: left; width: 100%; }
+.mp-item:active { background: var(--surface-2); }
+.mp-pose { width: 46px; height: 46px; flex: none; border-radius: 10px; background: var(--surface-2); overflow: hidden; }
+.mp-pose svg { width: 100%; height: 100%; }
+.mp-t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.mp-t small { color: var(--muted); font-size: 12px; }
+.mp-n { font-style: normal; font-size: 12px; font-weight: 700; color: var(--accent); display: inline-flex; align-items: center; gap: 3px; }

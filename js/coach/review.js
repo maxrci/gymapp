@@ -3,7 +3,7 @@
 import { bwNow } from '../body.js';
 import { startOfWeek, fmtKg, num } from '../utils.js';
 import {
-  goalW, goalC, coachData, SPORTS, currentE1rm, cardioBaseline, sportSessions, weekIndex, totalWeeks, fmtHms,
+  goalW, goalC, coachData, mobilitySessions, SPORTS, currentE1rm, cardioBaseline, sportSessions, weekIndex, totalWeeks, fmtHms,
 } from './core.js';
 import { assessWorkout, assessCardio, predictTime } from './assess.js';
 
@@ -40,6 +40,16 @@ export function progressCardio(g) {
     longest, pred, reached, wi, W, pct: reached ? 1 : Math.min(pd, pt) * 0.98,
     text: `Längste Einheit: ${num(longest, 1)} von ${num(g.distance, 1)} km${g.time ? ` · Prognose ${fmtHms(pred)} (Ziel ${fmtHms(g.time)})` : ''}`,
   };
+}
+
+// Mobility: kein Enddatum – Regelmäßigkeit der letzten 4 Wochen im Vergleich zum Wunsch
+export function progressMobility(g) {
+  const now = Date.now();
+  const since = Math.max(g.start, now - 28 * 24 * 3600e3);
+  const n = mobilitySessions().filter((s) => s.date >= since).length;
+  const weeks = Math.max(1, Math.min(4, (now - since) / (7 * 24 * 3600e3)));
+  const want = Math.max(1, Math.round(g.perWeek * weeks));
+  return { n, pct: clamp(n / want), text: `${n} Einheit${n === 1 ? '' : 'en'} in den letzten ${Math.round(weeks)} Wochen · Ziel ${g.perWeek}× pro Woche` };
 }
 
 // Hinweise, die der Coach von sich aus zeigt

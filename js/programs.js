@@ -165,39 +165,95 @@ export const MOVES = {
   butterfly: ["Butterfly Stretch", 'butterfly', 'Fußsohlen zusammen, Knie sinken lassen, aufrecht sitzen.'],
   legswing: ["Leg Swings", 'legswing', 'Festhalten, Bein locker vor und zurück schwingen.', true],
   fold: ["Forward Fold", 'fold', 'Knie leicht gebeugt, Oberkörper locker hängen lassen.'],
+  lowlunge: ["Tiefer Ausfallschritt", 'hipflexor', 'Hinteres Knie am Boden, Becken sinken lassen, Brust offen.', true],
+  frog: ["Frog Stretch", 'butterfly', 'Knie weit auseinander, Unterarme am Boden, Becken sanft nach hinten schieben.'],
+  supinetwist: ["Rückenlage-Twist", 'kneeHug', 'Rückenlage, Knie zur Seite sinken lassen, Schultern bleiben am Boden.', true],
+  happybaby: ["Happy Baby", 'kneeHug', 'Rückenlage, Füße greifen, Knie Richtung Achseln ziehen.'],
+  figure4: ["Figure-4 (Gesäß)", 'kneeHug', 'Rückenlage, Knöchel auf das andere Knie, Bein zur Brust ziehen.', true],
+  sleeper: ["Sleeper Stretch", 'chest', 'Seitlage, Unterarm sanft Richtung Boden drehen – dehnt die hintere Schulter.', true],
+  needle: ["Thread the Needle", 'thoracic', 'Vierfüßlerstand, Arm unter dem Körper durchfädeln, Schulter ablegen.', true],
+  wallangel: ["Wall Angels", 'chest', 'Rücken an die Wand, Arme in U-Haltung langsam hoch und runter gleiten lassen.'],
+  sphinx: ["Sphinx", 'cobra', 'Bauchlage auf die Unterarme gestützt, Brust öffnen, Nacken lang.'],
+  quadstand: ["Quadrizeps-Dehnung", 'couch', 'Fuß zum Gesäß ziehen, Knie zusammen, Becken aufrichten.', true],
+  calf: ["Waden-Dehnung", 'ankle', 'Hände an die Wand, hinteres Bein gestreckt, Ferse bleibt unten.', true],
+  cossack: ["Cossack Squat", 'squatHold', 'Breiter Stand, tief auf eine Seite sinken, anderes Bein bleibt gestreckt.', true],
+  ninety: ["90/90 Hüfte", 'pigeon', 'Beide Knie 90° gebeugt, aufrecht sitzen, dann über das vordere Schienbein lehnen.', true],
+  pyramid: ["Spagat-Pyramide", 'hamstring', 'Weiter Ausfallschritt, Beine gestreckt, Oberkörper über das vordere Bein.', true],
+  jefferson: ["Jefferson Curl", 'fold', 'Langsam Wirbel für Wirbel nach unten abrollen, Knie leicht gebeugt.'],
+  neck: ["Nacken-Dehnung", 'stand', 'Ohr sanft zur Schulter neigen, Gegenschulter bewusst tief lassen.', true],
+  hipcircle: ["Hüftkreisen", 'legswing', 'Standbein stabil, Knie in großen Kreisen bewegen.', true],
+  sidebend: ["Seitbeuge", 'stand', 'Arm über den Kopf, Oberkörper zur Seite neigen, Becken bleibt ruhig.', true],
+  wrist: ["Handgelenk-Mobility", 'stand', 'Handgelenke kreisen und Finger sanft nach hinten ziehen.'],
+  seatedfold: ["Sitzende Vorbeuge", 'hamstring', 'Beine lang ausstrecken, mit langem Rücken nach vorn beugen.'],
+  tricep: ["Trizeps-Dehnung", 'chest', 'Ellbogen hinter den Kopf, mit der anderen Hand sanft nach unten drücken.', true],
+};
+
+// Bereiche: hips = Hüfte, shoulders = Schultern, spine = Rücken/Wirbelsäule, legs = Beine/Hamstrings, full = Ganzkörper
+export const AREAS = {
+  hips: 'Hüfte', shoulders: 'Schultern', spine: 'Rücken / Wirbelsäule', legs: 'Beine / Hamstrings', full: 'Ganzkörper',
+};
+export const MOVE_AREAS = {
+  catcow: ['spine'], child: ['spine', 'hips'], wgs: ['hips', 'spine', 'full'], hipflexor: ['hips'], couch: ['hips', 'legs'], pigeon: ['hips'],
+  hamstring: ['legs'], squat: ['hips', 'legs'], thoracic: ['spine', 'shoulders'], arms: ['shoulders'], chest: ['shoulders'], ankle: ['legs'],
+  hang: ['shoulders'], bridge: ['hips', 'spine'], birddog: ['spine'], cobra: ['spine'], downdog: ['legs', 'shoulders', 'full'], kneehug: ['hips', 'spine'],
+  butterfly: ['hips'], legswing: ['hips', 'legs'], fold: ['legs', 'spine'], lowlunge: ['hips'], frog: ['hips'], supinetwist: ['spine'], happybaby: ['hips'],
+  figure4: ['hips'], sleeper: ['shoulders'], needle: ['spine', 'shoulders'], wallangel: ['shoulders', 'spine'], sphinx: ['spine'], quadstand: ['legs'],
+  calf: ['legs'], cossack: ['hips', 'legs'], ninety: ['hips'], pyramid: ['legs', 'hips'], jefferson: ['spine', 'legs'], neck: ['shoulders'],
+  hipcircle: ['hips'], sidebend: ['spine', 'shoulders'], wrist: ['shoulders'], seatedfold: ['legs'], tricep: ['shoulders'],
 };
 
 const M = (id, sec) => ({ id, sec });
 export const MOBILITY = [
-  { id: 'morning', title: 'Morgen-Mobility', desc: 'Wirbelsäule, Hüfte und Schultern sanft aufwecken.',
+  { id: 'morning', areas: ['full', 'spine', 'hips'], title: 'Morgen-Mobility', desc: 'Wirbelsäule, Hüfte und Schultern sanft aufwecken.',
     moves: [M('catcow', 60), M('wgs', 40), M('thoracic', 30), M('squat', 60), M('legswing', 30), M('arms', 40), M('fold', 45)] },
-  { id: 'hips', title: 'Hüfte & unterer Rücken', desc: 'Löst die Hüftbeuger und entlastet den unteren Rücken.',
+  { id: 'hips', areas: ['hips', 'spine'], title: 'Hüfte & unterer Rücken', desc: 'Löst die Hüftbeuger und entlastet den unteren Rücken.',
     moves: [M('catcow', 60), M('pigeon', 60), M('hipflexor', 45), M('butterfly', 60), M('kneehug', 40), M('child', 60)] },
-  { id: 'shoulders', title: 'Schulter & Brustwirbelsäule', desc: 'Vor Push- und Pull-Tagen oder nach langem Sitzen.',
+  { id: 'shoulders', areas: ['shoulders', 'spine'], title: 'Schulter & Brustwirbelsäule', desc: 'Vor Push- und Pull-Tagen oder nach langem Sitzen.',
     moves: [M('arms', 45), M('thoracic', 40), M('chest', 40), M('hang', 30), M('cobra', 40), M('child', 45)] },
-  { id: 'legs', title: 'Beine nach dem Training', desc: 'Cool-down für Beinrückseite, Hüfte und Waden.',
+  { id: 'legs', areas: ['legs', 'hips'], title: 'Beine nach dem Training', desc: 'Cool-down für Beinrückseite, Hüfte und Waden.',
     moves: [M('hamstring', 60), M('couch', 45), M('pigeon', 45), M('ankle', 30), M('squat', 45)] },
-  { id: 'flow', title: 'Ganzkörper-Flow', desc: 'Kompletter Durchgang für Beweglichkeit und Stabilität.',
+  { id: 'flow', areas: ['full'], title: 'Ganzkörper-Flow', desc: 'Kompletter Durchgang für Beweglichkeit und Stabilität.',
     moves: [M('catcow', 60), M('downdog', 45), M('cobra', 30), M('wgs', 45), M('birddog', 40), M('bridge', 45), M('kneehug', 40), M('child', 60)] },
-  { id: 'desk', title: 'Schreibtisch-Reset', desc: '6 Minuten gegen Bürohaltung.',
+  { id: 'desk', areas: ['shoulders', 'hips', 'spine'], title: 'Schreibtisch-Reset', desc: '6 Minuten gegen Bürohaltung.',
     moves: [M('arms', 40), M('chest', 30), M('hipflexor', 30), M('fold', 40), M('squat', 40)] },
+  { id: 'spine', areas: ['spine'], title: 'Rücken & Wirbelsäule', desc: 'Beweglichkeit für Lendenwirbelsäule und Brustwirbelsäule.',
+    moves: [M('catcow', 60), M('thoracic', 40), M('needle', 40), M('supinetwist', 40), M('sphinx', 40), M('child', 60)] },
+  { id: 'hamstrings', areas: ['legs', 'hips'], goal: 'splits', title: 'Hamstrings & Spagat-Basis', desc: 'Beinrückseite, Adduktoren und Hüftbeuger Schritt für Schritt öffnen.',
+    moves: [M('legswing', 30), M('fold', 45), M('hamstring', 60), M('pyramid', 45), M('lowlunge', 45), M('frog', 60), M('butterfly', 45)] },
+  { id: 'deepsquat', areas: ['hips', 'legs'], goal: 'squat', title: 'Tiefe Hocke', desc: 'Sprunggelenke, Hüfte und Adduktoren für eine entspannte tiefe Hocke.',
+    moves: [M('ankle', 40), M('calf', 30), M('squat', 60), M('cossack', 40), M('ninety', 45), M('hipflexor', 40)] },
+  { id: 'backcare', areas: ['spine', 'hips'], goal: 'back', title: 'Schmerzfreier Rücken', desc: 'Sanft mobilisieren und stabilisieren – entlastet den unteren Rücken.',
+    moves: [M('catcow', 60), M('birddog', 40), M('bridge', 45), M('kneehug', 40), M('happybaby', 45), M('child', 60)] },
+  { id: 'shoulders2', areas: ['shoulders'], goal: 'shoulder', title: 'Schulter-Öffner', desc: 'Hintere Schulter, Brust und Trizeps lösen – gut bei Überkopf-Problemen.',
+    moves: [M('arms', 40), M('sleeper', 40), M('wallangel', 40), M('tricep', 30), M('chest', 40), M('hang', 30)] },
+  { id: 'yoga', areas: ['full', 'hips'], title: 'Yoga-Flow', desc: 'Fließender Durchgang vom Hund bis in die Taube.',
+    moves: [M('downdog', 45), M('cobra', 30), M('lowlunge', 40), M('wgs', 45), M('pigeon', 45), M('supinetwist', 40), M('child', 60)] },
+  { id: 'recovery', areas: ['full'], recovery: true, title: 'Sanfte Regeneration', desc: 'Ganz ruhig nach harten Einheiten – Beine, Hüfte und Rücken lockern.',
+    moves: [M('child', 60), M('figure4', 45), M('supinetwist', 45), M('happybaby', 45), M('seatedfold', 45), M('kneehug', 40)] },
 ];
 
 const PREP = 6;   // Sekunden Vorbereitung vor jeder Übung
 const SWITCH = 5; // Seitenwechsel
 
+// prog: { moves: [{ id, sec, sides? }], rounds?, rest? } – rest = Übergangszeit zwischen den Übungen, rounds = Durchgänge
 export function mobilityPhases(prog) {
   const ph = [];
-  prog.moves.forEach((m, i) => {
-    const [name, pose, cue, sides] = MOVES[m.id];
-    const base = { name, pose, cue, idx: i };
-    ph.push({ ...base, label: `Gleich: ${name}`, kind: 'prep', dur: i === 0 ? 10 : PREP });
-    if (sides) {
-      ph.push({ ...base, label: name, kind: 'move', dur: m.sec, side: 'Links' });
-      ph.push({ ...base, label: 'Seite wechseln', kind: 'switch', dur: SWITCH });
-      ph.push({ ...base, label: name, kind: 'move', dur: m.sec, side: 'Rechts' });
-    } else ph.push({ ...base, label: name, kind: 'move', dur: m.sec });
-  });
+  const rounds = Math.max(1, Math.min(5, prog.rounds || 1));
+  const prep = prog.rest ?? PREP;
+  const moves = prog.moves.filter((m) => MOVES[m.id]);
+  for (let r = 0; r < rounds; r++) {
+    moves.forEach((m, i) => {
+      const [name, pose, cue, dflt] = MOVES[m.id];
+      const sides = m.sides ?? dflt;
+      const base = { name, pose, cue, idx: i };
+      ph.push({ ...base, label: `Gleich: ${name}`, kind: 'prep', dur: i === 0 ? (r ? prep + 4 : 10) : prep });
+      if (sides) {
+        ph.push({ ...base, label: name, kind: 'move', dur: m.sec, side: 'Links' });
+        ph.push({ ...base, label: 'Seite wechseln', kind: 'switch', dur: SWITCH });
+        ph.push({ ...base, label: name, kind: 'move', dur: m.sec, side: 'Rechts' });
+      } else ph.push({ ...base, label: name, kind: 'move', dur: m.sec });
+    });
+  }
   return ph;
 }
 export const programDuration = (phases) => phases.reduce((a, p) => a + p.dur, 0);

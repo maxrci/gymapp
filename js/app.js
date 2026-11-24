@@ -13,6 +13,8 @@ import { profileView } from './views/profile.js';
 import { badgesView } from './views/badges.js';
 import { planView } from './views/plan.js';
 import { historyView } from './views/history.js';
+import { foodView } from './views/food.js';
+import { loadFood } from './food.js';
 import { applyTheme, applyLook } from './theme.js';
 import { resumeGuided } from './guided.js';
 import { nav, goBack } from './nav.js';
@@ -54,6 +56,7 @@ function parseRoute() {
     case 'badges': return { tab: 'profile', view: badgesView };
     case 'plan': return { tab: 'home', view: planView };
     case 'history': return { tab: 'home', view: historyView };
+    case 'food': return { tab: 'home', view: foodView };
     case 'arena':
     case 'league': return { tab: 'arena', view: leagueView, params: { tab: b || (loggedIn() || demoOn() ? 'season' : 'exercises') } };
     case 'member': return { tab: 'arena', view: memberView, params: { id: decodeURIComponent(b) } };
@@ -220,6 +223,7 @@ async function main() {
 
   render({ keepScroll: false });
   document.body.classList.add('ready');
+  if (state.settings.food) loadFood().then(() => rerender());
   // Beim ersten Öffnen: Onboarding statt Start-Animation (nicht bei Anmelde-Links)
   const viaLink = /^#\/(join|login)/.test(location.hash) || justMoved();
   if (shouldOnboard() && !viaLink) showOnboarding();

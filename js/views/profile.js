@@ -54,6 +54,10 @@ export function profileView({ section = '' } = {}) {
         ${s.simple ? '' : toggle('introAnim', 'flame', 'Start-Animation beim Öffnen')}
         ${s.simple ? '' : toggle('prEffects', 'trophy', 'PR-Animation & Feuer-Satz')}
       </div>
+      <div class="list-label">Funktionen</div>
+      <div class="set-group">
+        ${toggle('food', 'heart', 'Ernährung tracken', '<small class="si-sub">Essen erfassen (Barcode, Datenbank, Gerichte), Kalorien und Makros – mit Verbrauch aus deinem Training</small>')}
+      </div>
       <div class="list-label">Töne</div>
       <div class="set-group">
         ${toggle('prSound', 'volume', 'Rekord-Sound (Musik-Einspieler)')}
@@ -76,7 +80,8 @@ export function profileView({ section = '' } = {}) {
       <div class="set-group">
         ${toggle('aiWorkout', 'bolt', 'AI-Coach Workouts', ' <em class="tag demo">DEMO</em><small class="si-sub">Trainingsplan zu deinem Ziel, Gewichtsvorschläge, Erholung, Balance, Ernährung</small>')}
         ${toggle('aiCardio', 'bolt', 'AI-Coach Cardio', ' <em class="tag demo">DEMO</em><small class="si-sub">Ausdauerplan für Distanz & Zielzeit</small>')}
-        ${s.aiWorkout || s.aiCardio ? `<a class="set-item" href="#/plan"><span class="si-ic">${icon('calendar')}</span><span class="si-l">Trainingsplan & Ziele</span>${icon('right', 'muted')}</a>` : ''}
+        ${toggle('aiMobility', 'repeat', 'AI-Coach Mobility', ' <em class="tag demo">DEMO</em><small class="si-sub">Beweglichkeit passend zu deinem Training – z. B. Hüfte nach dem Beintag</small>')}
+        ${s.aiWorkout || s.aiCardio || s.aiMobility ? `<a class="set-item" href="#/plan"><span class="si-ic">${icon('calendar')}</span><span class="si-l">Trainingsplan & Ziele</span>${icon('right', 'muted')}</a>` : ''}
       </div>`],
     group: ['Gruppen & Privacy', `
       ${groupSection(row)}
@@ -128,7 +133,7 @@ export function profileView({ section = '' } = {}) {
     <div class="set-group set-menu">
       ${link('app', 'eye', 'App personalisieren', `${s.simple ? 'Simple · ' : ''}${esc(accentName)}`, 'Darstellung, Farbprofil, Simple Mode, Töne')}
       ${link('training', 'dumbbell', 'Training', '', 'Körpergewicht, Wochenziel, Pausen')}
-      ${link('coach', 'bolt', 'AI-Coach', s.aiWorkout || s.aiCardio ? 'an' : 'aus', 'Trainingsplan, Ziele, Ernährung')}
+      ${link('coach', 'bolt', 'AI-Coach', s.aiWorkout || s.aiCardio || s.aiMobility ? 'an' : 'aus', 'Trainingsplan, Ziele, Ernährung')}
       ${link('group', 'users', 'Gruppen & Privacy', loggedIn() ? esc(account().group || '') : '', loggedIn() ? 'Gruppe, Sichtbarkeit, Abmelden' : 'Bei einer Gruppe anmelden')}
       ${loggedIn() ? link('connect', 'share', 'Verbindungen', esc(stravaText()), 'Strava') : ''}
       ${link('data', 'download', 'Daten & Backup', '', 'Import, Export, Backup')}
@@ -143,7 +148,7 @@ export function profileView({ section = '' } = {}) {
         const k = el.dataset.toggle;
         await saveSettings({ [k]: el.checked });
         // AI-Coach eingeschaltet → nach Zielen fragen (überspringbar)
-        const kind = k === 'aiWorkout' ? 'workout' : k === 'aiCardio' ? 'cardio' : null;
+        const kind = k === 'aiWorkout' ? 'workout' : k === 'aiCardio' ? 'cardio' : k === 'aiMobility' ? 'mobility' : null;
         if (kind && el.checked && !state.settings.coach?.[kind]) openCoachSetup(kind);
       }));
       root.querySelectorAll('[data-theme-set]').forEach((el) => el.addEventListener('click', () => { applyTheme(el.dataset.themeSet); saveSettings({ theme: el.dataset.themeSet }); }));

@@ -27,6 +27,7 @@ function sessionKcal(s, kg) {
     const kind = { run: 'run', bike: 'bike', skate: 'skate', row: 'row', swim: 'swim', walk: 'walk', elliptical: 'elliptical' }[s.sport];
     return cardioWork(kind, s.km, s.sec, kg);
   }
+  if (s.kind === 'mobility') return 2.5 * kg * ((s.min || 20) / 60); // Mobility/Dehnen ≈ 2,5 MET
   return 5 * kg * 1.0 * 0.85; // ca. 60 min Krafttraining
 }
 
@@ -40,7 +41,7 @@ export function nutrition(plan, day = Date.now()) {
   const done = idx().asc.filter((w) => w.start >= d0 && w.start < d1);
   const items = done.map((w) => ({ label: w.title, kcal: workoutKcal(w, kg), done: true }));
   const wd = (new Date(day).getDay() + 6) % 7;
-  for (const s of plan?.days?.[wd] || []) if (!s.extra && s.status === 'open') items.push({ label: s.kind === 'gym' ? s.title : `${s.title} (${s.km} km)`, kcal: sessionKcal(s, kg), done: false });
+  for (const s of plan?.days?.[wd] || []) if (!s.extra && s.status === 'open') items.push({ label: s.kind === 'gym' || s.kind === 'mobility' ? s.title : `${s.title} (${s.km} km)`, kcal: sessionKcal(s, kg), done: false });
   const train = items.reduce((a, i) => a + i.kcal, 0);
   const gw = goalW(), gc = goalC();
   // Ziel-Anpassung

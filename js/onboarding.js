@@ -66,6 +66,13 @@ function slides() {
       extra: () => `<div class="onb-actions"><button class="btn ghost" data-import>${icon('upload', 'xs')} CSV importieren</button><button class="btn ghost" data-login>${icon('key', 'xs')} Bei Gruppe anmelden</button></div>`,
     },
     {
+      key: 'food', cls: 'food',
+      fig: () => `<div class="onb-food"><span>🥗</span><span>▥</span><span>🔥</span></div>`,
+      title: 'Ernährung – wenn du willst',
+      text: 'Gym kann auch dein Essen erfassen: Barcode scannen, in einer großen Datenbank suchen, eigene Produkte und Gerichte anlegen. Dazu siehst du, wie viel du durch dein Training verbrauchst.',
+      bullets: [['heart', 'Kalorien, Eiweiß, Kohlenhydrate, Fett und alle Nährwerte'], ['target', 'Ziel und Verbrauch passend zu Gewicht, Training und AI-Coach'], ['eye', 'Standardmäßig aus – einschalten unter Profil → App personalisieren'], ['info', 'Dein Tagebuch siehst nur du, nie deine Gruppe']],
+    },
+    {
       key: 'strava', cls: 'strava',
       fig: () => `<div class="onb-strava"><span class="o-st">${icon('bolt')}</span><i>${icon('right')}</i><span class="o-gym">${icon('dumbbell')}</span></div>`,
       title: 'Strava verbinden',

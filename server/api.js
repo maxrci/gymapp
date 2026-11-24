@@ -8,6 +8,7 @@ import { groupData, memberWorkouts, bump, visOf } from './group.js';
 import { cleanSummary } from './summary.js';
 import * as strava from './strava.js';
 import * as G from './groups.js';
+import * as food from './food.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import * as garmin from './garmin.js';
@@ -15,7 +16,8 @@ import { CHALLENGE_TYPES, VISIBILITY } from '../js/compete.js';
 
 const parse = (s, d) => { try { return JSON.parse(s); } catch { return d; } };
 // ext = nur Punkte-Grundlage (Strava vom Handy): Start, Dauer – keine Details, nie an andere Geräte zurück
-const KINDS = new Set(['workout', 'routine', 'ext']);
+// food = Ernährungs-Tagebuch (ein Tag pro Eintrag) – nur für die Person selbst, nie in Gruppen
+const KINDS = new Set(['workout', 'routine', 'ext', 'food']);
 const MAX_PREFS = 600000;
 const TRANSFER_TTL = 10 * 60000;
 const BAD_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
@@ -102,6 +104,7 @@ export function makeApi(D, cfg) {
   };
 
   G.ensureDefaultGroup(D, cfg.groupName);
+  food.ensureFoodTables(D);
   // Einmalig: vor v3.12 gespeicherte Importe als Historie markieren (zählen nicht für EP/Arena)
   D.run(`UPDATE items SET summary = json_set(summary, '$.h', 1) WHERE kind = 'workout' AND deleted = 0 AND summary IS NOT NULL
     AND json_extract(summary, '$.h') IS NULL AND (json_extract(data, '$.source') = 'import' OR json_extract(data, '$.hist') = 1 OR id LIKE 'imp-%')`);
@@ -319,6 +322,16 @@ export function makeApi(D, cfg) {
   on('PATCH', '/api/groups/:id/members/:uid', 'user', ({ me, params, body }) => { const r = gx(() => G.setMemberRole(D, me, params.id, params.uid, body.role)); bump(); return r; });
   on('DELETE', '/api/groups/:id/members/:uid', 'user', ({ me, params }) => { const r = gx(() => G.removeMember(D, me, params.id, params.uid)); bump(); return r; });
   on('DELETE', '/api/groups/:id', 'user', ({ me, params }) => { const r = gx(() => G.deleteGroup(D, me, params.id)); bump(); return r; });
+
+  // ---- Lebensmittel (Open Food Facts über den Server) ----
+  on('GET', '/api/food/search', 'user', async ({ me, url }) => {
+    if (tooMany(`food:${me.id}`, 60, 60000)) fail(429, 'Bitte kurz warten.');
+    try { return await food.searchFood(D, url.searchParams.get('q')); } catch (e) { fail(e.status || 502, e.message); }
+  });
+  on('GET', '/api/food/code/:code', 'user', async ({ me, params }) => {
+    if (tooMany(`food:${me.id}`, 60, 60000)) fail(429, 'Bitte kurz warten.');
+    try { return await food.productByCode(D, params.code); } catch (e) { fail(e.status || 502, e.message); }
+  });
 
   // ---- Freunde (nur Konten auf diesem Server) ----
   on('GET', '/api/friends', 'user', ({ me }) => G.friendsOf(D, me.id));

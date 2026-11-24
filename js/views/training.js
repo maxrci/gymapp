@@ -29,7 +29,7 @@ function weekNumbers() {
   return { cardio: Math.round(cardio), mob: Math.round(mob), gym };
 }
 import { openCardioSetup, openMobilitySetup, hasGuided, resumeGuided } from '../guided.js';
-import { coachOn, workoutCoachOn, cardioCoachOn, ALT, goalW, goalC } from '../coach/core.js';
+import { coachOn, workoutCoachOn, cardioCoachOn, mobilityCoachOn, ALT, goalW, goalC, goalM } from '../coach/core.js';
 import { masterSlot, mountMasters } from '../master.js';
 import { openCoachSetup } from '../coach/setup.js';
 import { weekPlan, nextSession } from '../coach/plan.js';
@@ -70,7 +70,7 @@ function coachHtml() {
 // Eine Karte für den AI-Coach: Meister-Animation, darunter das nächste Training (nur ein Start-Button)
 function coachHero() {
   if (!coachOn()) return '';
-  const kinds = [workoutCoachOn() && 'gym', cardioCoachOn() && 'cardio'].filter(Boolean);
+  const kinds = [workoutCoachOn() && 'gym', cardioCoachOn() && 'cardio', mobilityCoachOn() && 'mobility'].filter(Boolean);
   const plan = weekPlan();
   const today = weekday(Date.now());
   const dayLabel = (d) => (d === today ? 'heute' : d === today + 1 ? 'morgen' : WEEKDAYS[d]);
@@ -79,7 +79,7 @@ function coachHero() {
     const nx = nextSession(plan);
     if (nx) {
       small += ` · ${dayLabel(nx.day)}`;
-      title = nx.kind === 'gym' ? nx.title : `${ALT[nx.sport].label} · ${nx.title}`;
+      title = nx.kind === 'gym' || nx.kind === 'mobility' ? nx.title : `${ALT[nx.sport].label} · ${nx.title}`;
       sub = nx.kind === 'gym' ? `${nx.exercises.length} Übungen · ${musclesOf(nx)}` : nx.sub;
       start = `<button class="btn primary" data-act="plan-go" data-sid="${esc(nx.id)}">${icon('play', 'xs')} Starten</button>`;
     } else { title = 'Woche geschafft!'; sub = `${plan.doneCount}/${plan.total} Einheiten erledigt – alles Weitere ist Bonus`; }
@@ -103,7 +103,7 @@ function coachHero() {
     <div class="ch-head"><span class="ai-badge">AI</span><b>AI Coach</b><span class="demo-tag sm">DEMO</span></div>
     <div class="ch-stage n${kinds.length}">
       ${bubble ? `<div class="ch-bubble">${esc(bubble)}</div>` : ''}
-      <div class="ch-masters">${kinds.map((k) => masterSlot(k, kinds.length > 1)).join('')}</div>
+      <div class="ch-masters">${kinds.map((k) => (k === 'mobility' ? `<div class="master m-mobility"><div class="master-fig" data-tfig="splits"></div>${kinds.length > 1 ? '<small>Mobility-Meisterin</small>' : ''}</div>` : masterSlot(k, kinds.length > 1))).join('')}</div>
     </div>
     <div class="ch-next"><small>${esc(small)}</small><b>${esc(title)}</b><small>${esc(sub)}</small></div>
     <div class="row-btns">${start}${plan.sessions.length ? '<a class="btn ghost" href="#/plan">Ganze Woche</a>' : ''}</div>
@@ -179,6 +179,7 @@ export function trainingView() {
         const opts = [];
         if (state.settings.aiWorkout) opts.push({ label: goalW() ? 'Workout-Ziel ändern' : 'Workout-Ziel festlegen', value: 'workout', icon: 'dumbbell' });
         if (state.settings.aiCardio) opts.push({ label: goalC() ? 'Cardio-Ziel ändern' : 'Cardio-Ziel festlegen', value: 'cardio', icon: 'bolt' });
+        if (state.settings.aiMobility) opts.push({ label: goalM() ? 'Mobility-Ziel ändern' : 'Mobility-Ziel festlegen', value: 'mobility', icon: 'repeat' });
         opts.push({ label: 'Körperdaten', value: 'body', icon: 'user' });
         const v = await sheet({ title: 'AI-Coach', options: opts });
         if (v) openCoachSetup(v);

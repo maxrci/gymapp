@@ -10,8 +10,13 @@ import { poseSVG, mountPose } from './poses.js';
 import { stageFor } from './gamification.js';
 import { icon, overlay, formDialog, confirmDialog, toast, sheet } from './ui.js';
 import { tick as tickSound, phaseStart, finishFanfare, speak, unlockAudio } from './fx.js';
-import { esc, fmtClock, num, uid } from './utils.js';
+import { esc, fmtClock, num, uid, weekday } from './utils.js';
 import { openCardioBuilder, customUnits, deleteUnit, blocksToPhases } from './cardioBuilder.js';
+import { openMobilityBuilder, customMobility, deleteMobility, mobilityMinutes } from './mobilityBuilder.js';
+import { AREAS } from './programs.js';
+import { mobilityCoachOn, goalM } from './coach/core.js';
+import { weekPlan } from './coach/plan.js';
+import { openCoachSetup } from './coach/setup.js';
 import { startWorkout, logPastWorkout } from './workout.js';
 import { pickExercises } from './picker.js';
 import { keepAwake, releaseAwake } from './platform.js';
@@ -158,31 +163,124 @@ async function calibrate(dev) {
 }
 
 // ---------------- Auswahl: Mobility ----------------
+const FREE_MOB = ['Yoga', 'Pilates', 'Dehnen', 'Mobility', 'Faszienrolle'];
+const WD = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+
+// nächste offene Mobility-Einheit aus dem Coach-Plan
+function nextMobility() {
+  const plan = weekPlan();
+  const today = weekday(Date.now());
+  const open = plan.sessions.filter((s) => s.kind === 'mobility' && s.status === 'open').sort((a, b) => a.day - b.day);
+  return { plan, next: open.find((s) => s.day >= today) || open[0] || null, today, left: open.length };
+}
+
 export function openMobilitySetup() {
   const st = stage();
-  const o = overlay(`
-    <div class="panel-head"><button class="icon-btn" data-close>${icon('x')}</button><div class="panel-title">Mobility</div><span style="width:40px"></span></div>
-    <div class="panel-body">
-      <p class="footnote">Der Timer führt dich durch alle Übungen, inklusive Seitenwechsel. Du musst nichts abhaken.</p>
-      ${MOBILITY.map((p) => {
-        const ph = mobilityPhases(p);
-        return `<div class="card prog-card">
-          <div class="prog-head"><b>${esc(p.title)}</b><span>${Math.round(programDuration(ph) / 60)} min</span></div>
-          <div class="move-thumbs">${p.moves.map((m) => `<figure>${poseSVG(MOVES[m.id][1], { stage: st, t: 0.5 })}<figcaption>${esc(MOVES[m.id][0])}</figcaption></figure>`).join('')}</div>
-          <p>${esc(p.desc)}</p>
-          <button class="btn primary block" data-start="${p.id}">${icon('play', 'xs')} Starten</button>
-        </div>`;
-      }).join('')}
-    </div>`, 'guided-setup');
-  o.addEventListener('click', (e) => {
-    if (e.target.closest('[data-close]')) return o.close();
-    const stb = e.target.closest('[data-start]');
+  let free = state.settings.lastFreeMobility || 'Yoga';
+  let area = 'all';
+  const o = overlay('', 'guided-setup');
+  const thumbs = (moves) => `<div class="move-thumbs">${moves.filter((m) => MOVES[m.id]).map((m) => `<figure>${poseSVG(MOVES[m.id][1], { stage: st, t: 0.5 })}<figcaption>${esc(MOVES[m.id][0])}</figcaption></figure>`).join('')}</div>`;
+  const chipsOf = (areas) => `<div class="area-chips">${areas.map((a) => `<span class="area-chip">${esc(AREAS[a])}</span>`).join('')}</div>`;
+  const coachCard = () => {
+    if (!mobilityCoachOn()) return '';
+    if (!goalM()) return `<button class="card coach-empty" data-coach-goal>${icon('repeat')}<div><b>Mobility-Ziel festlegen</b><small>Der Coach plant deine Mobility passend zu deinem Training</small></div>${icon('right', 'muted')}</button>`;
+    const { next, today, left } = nextMobility();
+    if (!next) return `<section class="card mob-coach"><div class="card-title"><span class="ai-badge xs">AI</span> Mobility-Coach</div><p class="footnote">Diese Woche ist alles geschafft${left ? '' : ' – schön beweglich!'} Alles Weitere ist Bonus.</p><button class="link-btn sm" data-coach-goal>${icon('edit', 'xs')} Ziel ändern</button></section>`;
+    const when = next.day === today ? 'heute' : next.day === today + 1 ? 'morgen' : WD[next.day];
+    return `<section class="card mob-coach">
+      <div class="card-title"><span class="ai-badge xs">AI</span> Mobility-Coach <small>nächste Einheit · ${esc(when)}</small></div>
+      <div class="prog-head"><b>${esc(next.title)}</b><span>${esc(next.sub)}</span></div>
+      ${thumbs(next.moves)}
+      ${next.desc ? `<p>${esc(next.desc)}</p>` : ''}
+      <div class="row-btns"><button class="btn primary" data-coach-go>${icon('play', 'xs')} Starten</button><a class="btn ghost" href="#/plan" data-close-link>Plan</a><button class="icon-btn" data-coach-goal aria-label="Ziel ändern">${icon('edit', 'xs')}</button></div>
+    </section>`;
+  };
+  const draw = () => {
+    const y = o.querySelector('.panel-body')?.scrollTop || 0;
+    const mine = customMobility();
+    const progs = MOBILITY.filter((p) => area === 'all' || p.areas.includes(area));
+    o.innerHTML = `
+      <div class="panel-head"><button class="icon-btn" data-close>${icon('x')}</button><div class="panel-title">Mobility</div><span style="width:40px"></span></div>
+      <div class="panel-body">
+        ${coachCard()}
+        <section class="card free-card">
+          <div class="card-title">${icon('plus', 'xs')} Frei eintragen <small>ohne Programm</small></div>
+          <div class="chips">${[...new Set([...FREE_MOB, free])].map((n) => `<button class="chip ${n === free ? 'on' : ''}" data-free="${esc(n)}">${esc(n)}</button>`).join('')}<button class="chip" data-free-other>Andere…</button></div>
+          <div class="row-btns"><button class="btn primary" data-free-start>${icon('play', 'xs')} Jetzt starten</button><button class="btn ghost" data-free-past>${icon('calendar', 'xs')} Nachtragen</button></div>
+          <p class="footnote">Dauer trägst du selbst ein – ideal für Yoga- oder Pilates-Kurse und alles ohne Timer.</p>
+        </section>
+        <div class="section-row"><h2 class="section-title">Meine Mobility</h2><button class="link-btn" data-build>${icon('plus', 'xs')} Eigene bauen</button></div>
+        ${mine.length ? mine.map((u) => `<div class="card prog-card mine">
+          <div class="prog-head"><b>${esc(u.title)}</b><span>${mobilityMinutes(u)} min · ${u.moves.length} Übungen</span></div>
+          ${thumbs(u.moves)}
+          <div class="row-btns"><button class="btn primary" data-ustart="${esc(u.id)}">${icon('play', 'xs')} Starten</button><button class="btn ghost" data-uedit="${esc(u.id)}">${icon('edit', 'xs')} Bearbeiten</button><button class="icon-btn" data-udel="${esc(u.id)}" aria-label="Löschen">${icon('trash', 'xs')}</button></div>
+        </div>`).join('') : `<button class="card build-card" data-build>${icon('layers')}<div><b>Eigene Mobility bauen</b><small>Übungen frei wählen und ordnen – Haltezeit, Seiten, Runden und Pausen einstellen</small></div>${icon('right', 'muted')}</button>`}
+        <h2 class="section-title">Programme</h2>
+        <div class="chips">${[['all', 'Alle'], ...Object.entries(AREAS)].map(([k, l]) => `<button class="chip ${area === k ? 'on' : ''}" data-area="${k}">${esc(l)}</button>`).join('')}</div>
+        <p class="footnote">Der Timer führt dich durch alle Übungen, inklusive Seitenwechsel. Du musst nichts abhaken.</p>
+        ${progs.map((p) => {
+          const ph = mobilityPhases(p);
+          return `<div class="card prog-card">
+            <div class="prog-head"><b>${esc(p.title)}</b><span>${Math.round(programDuration(ph) / 60)} min</span></div>
+            ${thumbs(p.moves)}
+            ${chipsOf(p.areas)}
+            <p>${esc(p.desc)}</p>
+            <div class="row-btns"><button class="btn primary" data-start="${p.id}">${icon('play', 'xs')} Starten</button><button class="btn ghost" data-adapt="${p.id}">${icon('edit', 'xs')} Anpassen</button></div>
+          </div>`;
+        }).join('')}
+      </div>`;
+    o.querySelector('.panel-body').scrollTop = y;
+  };
+  const startUnit = (u) => start({ kind: 'mobility', programId: `custom:${u.id}`, title: u.title, phases: mobilityPhases(u) });
+  draw();
+  o.addEventListener('click', async (e) => {
+    const t = (sel) => e.target.closest(sel);
+    if (t('[data-close]') || t('[data-close-link]')) return o.close();
+    const ar = t('[data-area]');
+    if (ar) { area = ar.dataset.area; return draw(); }
+    if (t('[data-coach-goal]')) { openCoachSetup('mobility', { onDone: draw }); return; }
+    if (t('[data-coach-go]')) { const { next } = nextMobility(); if (next) { o.close(); startGuidedMobility(next); } return; }
+    const fr = t('[data-free]');
+    if (fr) { free = fr.dataset.free; return draw(); }
+    if (t('[data-free-other]')) {
+      const n = await pickExercises({ multi: false, title: 'Aktivität wählen' });
+      if (n?.[0]) { free = n[0]; draw(); }
+      return;
+    }
+    if (t('[data-free-start]') || t('[data-free-past]')) {
+      const past = !!t('[data-free-past]');
+      await saveSettings({ lastFreeMobility: free });
+      o.close();
+      const cfg = { title: `Mobility: ${free}`, exercises: [{ name: free, sets: [{ type: 'normal' }] }] };
+      if (past) logPastWorkout(cfg); else startWorkout(cfg);
+      return;
+    }
+    if (t('[data-build]')) { openMobilityBuilder({ onSave: draw, onStart: (u) => { o.close(); startUnit(u); } }); return; }
+    const ad = t('[data-adapt]');
+    if (ad) {
+      const p = MOBILITY.find((x) => x.id === ad.dataset.adapt);
+      openMobilityBuilder({ template: { title: `${p.title} (angepasst)`, moves: p.moves, rounds: 1 }, onSave: draw, onStart: (u) => { o.close(); startUnit(u); } });
+      return;
+    }
+    const us = t('[data-ustart]');
+    if (us) { const u = customMobility().find((x) => x.id === us.dataset.ustart); if (u) { o.close(); startUnit(u); } return; }
+    const ue = t('[data-uedit]');
+    if (ue) { const u = customMobility().find((x) => x.id === ue.dataset.uedit); if (u) openMobilityBuilder({ unit: u, onSave: draw, onStart: (uu) => { o.close(); startUnit(uu); } }); return; }
+    const ud = t('[data-udel]');
+    if (ud) { if (await confirmDialog('Diese Routine löschen?', 'Löschen', true)) { await deleteMobility(ud.dataset.udel); draw(); } return; }
+    const stb = t('[data-start]');
     if (stb) {
       const p = MOBILITY.find((x) => x.id === stb.dataset.start);
       o.close();
       start({ kind: 'mobility', programId: p.id, title: p.title, phases: mobilityPhases(p) });
     }
   });
+}
+
+// Geplante Mobility-Einheit aus dem AI-Coach direkt geführt starten (Haltezeiten sind schon angepasst)
+export function startGuidedMobility(s) {
+  if (!s) return;
+  start({ kind: 'mobility', programId: s.routine, planId: s.id, title: s.title, phases: mobilityPhases(s) });
 }
 
 // Geplante Einheit aus dem AI-Coach direkt geführt starten

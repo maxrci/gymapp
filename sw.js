@@ -1,5 +1,5 @@
 // Service Worker: App offline verfügbar machen (stale-while-revalidate)
-const CACHE = 'gymlog-v3.13.2';
+const CACHE = 'gymlog-v3.14.0';
 const ASSETS = [
   './',
   'index.html',
@@ -7,6 +7,8 @@ const ASSETS = [
   'css/app.css',
   'css/items.css',
   'css/stats.css',
+  'css/scanner.css',
+  'css/mobility.css',
   'js/actions.js',
   'js/ai.js',
   'js/app.js',
@@ -55,6 +57,10 @@ const ASSETS = [
   'js/stravamap.js',
   'js/swipe.js',
   'js/circles.js',
+  'js/scanner.js',
+  'js/food.js',
+  'js/views/food.js',
+  'js/mobilityBuilder.js',
   'js/views/history.js',
   'js/garmin.js',
   'js/store.js',
