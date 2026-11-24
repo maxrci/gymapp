@@ -11,7 +11,8 @@ import * as garmin from './garmin.js';
 import { CHALLENGE_TYPES, VISIBILITY } from '../js/compete.js';
 
 const parse = (s, d) => { try { return JSON.parse(s); } catch { return d; } };
-const KINDS = new Set(['workout', 'routine']);
+// ext = nur Punkte-Grundlage (Strava vom Handy): Start, Dauer – keine Details, nie an andere Geräte zurück
+const KINDS = new Set(['workout', 'routine', 'ext']);
 const MAX_PREFS = 600000;
 const TRANSFER_TTL = 10 * 60000;
 const BAD_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
@@ -72,6 +73,9 @@ function cleanProfile(p) {
   const out = {};
   if (p.avatar && typeof p.avatar === 'object') {
     out.avatar = Object.fromEntries(['sex', 'hair', 'outfit', 'color', 'face'].map((k) => [k, str(p.avatar[k], 20)]));
+    // freischaltbare Objekte (nur kurze Kennungen)
+    const it = p.avatar.items && typeof p.avatar.items === 'object' ? p.avatar.items : {};
+    out.avatar.items = Object.fromEntries(['hat', 'face', 'hand'].map((k) => [k, /^[a-z]{2,20}$/.test(it[k] || '') ? it[k] : null]));
   }
   if (Array.isArray(p.bwLog)) {
     out.bwLog = p.bwLog.slice(-2000).map((e) => ({ t: Number(e.t) || 0, kg: Number(e.kg) || 0 })).filter((e) => e.kg > 20 && e.kg < 400);
@@ -173,7 +177,19 @@ export function makeApi(D, cfg) {
         const id = String(it.id);
         const data = it.deleted ? null : it.data;
         if (!it.deleted && (!data || typeof data !== 'object' || JSON.stringify(data).length > MAX_ITEM)) continue;
-        const summary = it.deleted || it.kind !== 'workout' ? null : cleanSummary(it.summary);
+        let summary = null;
+        if (!it.deleted && it.kind === 'workout') {
+          summary = cleanSummary(it.summary);
+          // Historie (Import, Strava vor der Verbindung): sichtbar nur privat, keine XP
+          if (summary) { if (data.source === 'import' || data.hist) summary.h = 1; else delete summary.h; }
+        } else if (!it.deleted && it.kind === 'ext') {
+          // nur Start + Dauer: daraus werden XP (Workout, Trainingsminuten, Wochenziel); sonst nichts gespeichert
+          const st = Number(data.start), dur = Math.max(0, Math.min(86400, Number(data.dur) || 0));
+          if (!Number.isFinite(st) || !dur) continue;
+          it.data = { start: st, dur };
+          summary = cleanSummary({ start: st, end: st + dur * 1000, title: '', dur, sets: 0, cmin: Math.round(dur / 60), ex: [] });
+          if (!summary) continue;
+        }
         const start = Number(data?.start) || null;
         if (!it.deleted && it.kind === 'workout' && start) {
           // Duplikat (gleiche Startminute + Titel unter anderer ID)?
@@ -190,7 +206,7 @@ export function makeApi(D, cfg) {
         pushed.add(seq);
         D.run(`INSERT INTO items (user_id, kind, id, data, summary, start, deleted, seq) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(user_id, kind, id) DO UPDATE SET data = excluded.data, summary = excluded.summary, start = excluded.start, deleted = excluded.deleted, seq = excluded.seq`,
-        me.id, it.kind, id, data ? JSON.stringify(data) : null, summary ? JSON.stringify(summary) : null, start, it.deleted ? 1 : 0, seq);
+        me.id, it.kind, id, it.kind === 'ext' && it.data ? JSON.stringify(it.data) : data ? JSON.stringify(data) : null, summary ? JSON.stringify(summary) : null, start, it.deleted ? 1 : 0, seq);
       }
       // Einstellungen + eigene Übungen (nur die eigenen, nie für andere sichtbar)
       const pu = Number(body.prefs?.updated);
@@ -205,12 +221,12 @@ export function makeApi(D, cfg) {
     });
     if (items.length || body.profile) bump();
 
-    const rows = D.all('SELECT kind, id, data, deleted, seq FROM items WHERE user_id = ? AND seq > ? ORDER BY seq LIMIT 1000', me.id, cursor);
+    const rows = D.all("SELECT kind, id, data, deleted, seq FROM items WHERE user_id = ? AND seq > ? ORDER BY seq LIMIT 1000", me.id, cursor);
     let next = cursor;
     const out = [];
     for (const r of rows) {
       next = Math.max(next, r.seq);
-      if (pushed.has(r.seq)) continue;
+      if (pushed.has(r.seq) || r.kind === 'ext') continue;
       out.push({ kind: r.kind, id: r.id, deleted: !!r.deleted, data: r.deleted ? null : parse(r.data, null) });
     }
     for (const id of extra) {
@@ -389,30 +405,37 @@ export function makeApi(D, cfg) {
     return { ok: true };
   });
 
-  // ---- Strava (jede Person mit eigener Strava-API-App) ----
+  // ---- Strava: läuft auf dem Handy; der Server reicht nur den Freigabe-Code weiter ----
+  on('POST', '/api/strava/relay/start', 'user', ({ me, req }) => strava.relayStart(D, me.id, publicBase(req, cfg)));
+  on('GET', '/api/strava/relay', null, ({ url, req }) => strava.relayCallback(D, url, cfg.appUrl || publicBase(req, cfg)));
+  on('GET', '/api/strava/relay/code', 'user', ({ me, url }) => strava.relayCode(D, me.id, url.searchParams.get('state')));
+  // Alte Server-Verbindung (bis v3.11): Status ansehen und entfernen bleibt immer möglich
   on('GET', '/api/strava', 'user', ({ me, req }) => strava.status(D, me.id, publicBase(req, cfg)));
-  on('POST', '/api/strava/config', 'user', ({ me, body, req }) => {
-    try { strava.saveConfig(D, me.id, body); } catch (e) { fail(e.status || 400, e.message); }
-    return strava.status(D, me.id, publicBase(req, cfg));
-  });
-  on('POST', '/api/strava/authorize', 'user', ({ me, req }) => {
-    try { return { url: strava.authorizeUrl(D, me.id, publicBase(req, cfg)) }; } catch (e) { fail(e.status || 400, e.message); }
-  });
-  on('GET', '/api/strava/callback', null, ({ url, req }) => strava.callback(D, url, cfg.appUrl || publicBase(req, cfg)));
-  on('POST', '/api/strava/sync', 'user', async ({ me }) => {
-    if (rateLimited(`strava:${me.id}`, 20)) fail(429, 'Bitte kurz warten.');
-    noteFail(`strava:${me.id}`);
-    try { return await strava.syncUser(D, me.id); } catch (e) { fail(e.status || 502, e.message); }
-  });
   on('DELETE', '/api/strava', 'user', async ({ me, url }) => {
     await strava.disconnect(D, me.id, url.searchParams.get('remove') === '1');
     return { ok: true };
   });
-  on('POST', '/api/strava/backfill', 'user', async ({ me, body }) => {
-    if (rateLimited(`strava:${me.id}`, 20)) fail(429, 'Bitte kurz warten.');
-    noteFail(`strava:${me.id}`);
-    try { strava.setImportFrom(D, me.id, body?.from); return await strava.syncUser(D, me.id); } catch (e) { fail(e.status || 502, e.message); }
-  });
+  // Der alte Weg über den Server (Abholen auf dem Server) nur noch mit STRAVA_SERVER=1
+  if (process.env.STRAVA_SERVER === '1') {
+    on('POST', '/api/strava/config', 'user', ({ me, body, req }) => {
+      try { strava.saveConfig(D, me.id, body); } catch (e) { fail(e.status || 400, e.message); }
+      return strava.status(D, me.id, publicBase(req, cfg));
+    });
+    on('POST', '/api/strava/authorize', 'user', ({ me, req }) => {
+      try { return { url: strava.authorizeUrl(D, me.id, publicBase(req, cfg)) }; } catch (e) { fail(e.status || 400, e.message); }
+    });
+    on('GET', '/api/strava/callback', null, ({ url, req }) => strava.callback(D, url, cfg.appUrl || publicBase(req, cfg)));
+    on('POST', '/api/strava/sync', 'user', async ({ me }) => {
+      if (rateLimited(`strava:${me.id}`, 20)) fail(429, 'Bitte kurz warten.');
+      noteFail(`strava:${me.id}`);
+      try { return await strava.syncUser(D, me.id); } catch (e) { fail(e.status || 502, e.message); }
+    });
+    on('POST', '/api/strava/backfill', 'user', async ({ me, body }) => {
+      if (rateLimited(`strava:${me.id}`, 20)) fail(429, 'Bitte kurz warten.');
+      noteFail(`strava:${me.id}`);
+      try { strava.setImportFrom(D, me.id, body?.from); return await strava.syncUser(D, me.id); } catch (e) { fail(e.status || 502, e.message); }
+    });
+  }
 
   // ---- Garmin (persönlicher API-Schlüssel aus Garmin Connect) ----
   // Vorerst aus: die Bedingungen der Garmin Personal API verbieten, den Schlüssel an andere (den Gruppen-Server) weiterzugeben.

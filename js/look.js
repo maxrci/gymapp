@@ -1,6 +1,8 @@
 // Aussehen des eigenen Kämpfers: Figur, Haarfarbe, Kleidung, Gesicht.
 // Gewählt wird die Einsteiger-Form – höhere Stufen verwandeln sie automatisch.
 
+import { ITEMS } from './unlocks.js';
+
 export const HAIR = [
   ['schwarz', 'Schwarz', '#1d1d22'],
   ['braun', 'Braun', '#5b3a24'],
@@ -38,7 +40,7 @@ export const FACES = [
   ['cool', 'Cool'],
 ];
 
-export const DEFAULT_LOOK = { sex: 'm', hair: 'schwarz', outfit: 'gi', color: 'orange', face: 'brave' };
+export const DEFAULT_LOOK = { sex: 'm', hair: 'schwarz', outfit: 'gi', color: 'orange', face: 'brave', items: { hat: null, face: null, hand: null } };
 
 let current = { ...DEFAULT_LOOK };
 
@@ -49,12 +51,15 @@ export function normLook(l) {
   if (!OUTFITS.some(([k]) => k === x.outfit)) x.outfit = DEFAULT_LOOK.outfit;
   if (!COLORS.some(([k]) => k === x.color)) x.color = DEFAULT_LOOK.color;
   if (!FACES.some(([k]) => k === x.face)) x.face = DEFAULT_LOOK.face;
+  const it = x.items && typeof x.items === 'object' ? x.items : {};
+  x.items = {};
+  for (const slot of ['hat', 'face', 'hand']) x.items[slot] = ITEMS.some((i) => i.id === it[slot] && i.slot === slot) ? it[slot] : null;
   return x;
 }
 
 export const setLook = (l) => { current = normLook(l); };
 export const getLook = () => current;
-export const lookKey = (l = current) => `${l.sex}${l.hair}${l.outfit}${l.color}${l.face}`;
+export const lookKey = (l = current) => `${l.sex}${l.hair}${l.outfit}${l.color}${l.face}${l.items ? [l.items.hat, l.items.face, l.items.hand].join('.') : ''}`;
 
 // Aufgelöste Farben
 export function palette(l = current) {

@@ -110,6 +110,8 @@ export async function importWorkouts(list) {
 export async function applyRemote({ workouts = [], routines = [], delWorkouts = [], delRoutines = [] }) {
   // auch Daten vom Server prüfen (z. B. falls ein Konto missbraucht wurde)
   workouts = cleanList(workouts, cleanWorkout).list;
+  // Strava-Workouts vom Server stammen aus der alten Server-Anbindung: nur Historie (keine EP)
+  for (const w of workouts) if (w.source === 'strava') w.hist = true;
   routines = cleanList(routines, cleanRoutine).list;
   if (!workouts.length && !routines.length && !delWorkouts.length && !delRoutines.length) return;
   if (workouts.length) {

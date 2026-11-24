@@ -243,8 +243,11 @@ export const autoUnit = (key) => (key === '1w' ? 'day' : key === '1y' || key ===
 // ---------- Serien ----------
 // Streak = aufeinanderfolgende Wochen, in denen das Wochenziel erreicht wurde.
 // Die laufende Woche bricht die Serie nicht, solange sie noch nicht vorbei ist.
+// Zählt fürs Punktesystem (Streak, Level, Arena)? Nicht: Importe und Strava von vor der Verbindung (hist)
+export const countsW = (w) => w.source !== 'import' && !w.hist;
 export function weekStreaks() {
-  const { asc } = idx();
+  const { asc: all, wStats } = idx();
+  const asc = all.filter((w) => countsW(w) && ((wStats.get(w.id)?.sets || 0) > 0 || w.exercises.some((e) => e.sets.some((q) => (q.duration || 0) > 0 || (q.distance || 0) > 0))));
   const goal = Math.max(1, state.settings.weekGoal || 3);
   const counts = new Map();
   for (const w of asc) {
@@ -268,7 +271,7 @@ export function weekStreaks() {
     }
   }
   const goalWeeks = [...counts.keys()].filter(ok).length;
-  const days = new Set(asc.map((x) => startOfDay(x.start)));
+  const days = new Set(all.map((x) => startOfDay(x.start)));
   const wd = (new Date().getDay() + 6) % 7;
   return {
     current: cur, longest, goal, goalWeeks, weeks: counts.size, days: days.size,

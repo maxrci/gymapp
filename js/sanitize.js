@@ -50,6 +50,7 @@ export function cleanWorkout(w) {
   };
   if (w.routineId) out.routineId = idOf(w.routineId);
   if (w.planId) out.planId = idOf(w.planId);
+  if (w.hist) out.hist = true;
   return out;
 }
 

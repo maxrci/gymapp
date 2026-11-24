@@ -18,8 +18,15 @@ function loadUsers(D) {
   return D.all('SELECT id, name, role, created, profile FROM users WHERE disabled = 0 ORDER BY created').map((u) => ({
     ...u,
     profile: parse(u.profile, {}),
-    sums: D.all("SELECT id, summary FROM items WHERE user_id = ? AND kind = 'workout' AND deleted = 0 AND summary IS NOT NULL", u.id)
-      .map((r) => { const s = cleanSummary(parse(r.summary, null)); return s ? { ...s, id: r.id, ...(PRIVATE_ID.test(r.id) ? { ext: 1 } : {}) } : null; }).filter(Boolean),
+    sums: D.all("SELECT id, kind, summary FROM items WHERE user_id = ? AND kind IN ('workout', 'ext') AND deleted = 0 AND summary IS NOT NULL", u.id)
+      .map((r) => {
+        const s = cleanSummary(parse(r.summary, null));
+        if (!s) return null;
+        // ext: Strava vom Handy (nur XP); alte Strava-Importe vom Server: Historie (keine XP)
+        if (r.kind === 'ext') return { ...s, id: r.id, ext: 1 };
+        if (PRIVATE_ID.test(r.id)) return { ...s, id: r.id, ext: 1, h: 1 };
+        return { ...s, id: r.id };
+      }).filter(Boolean),
   }));
 }
 
@@ -31,7 +38,8 @@ function loadChallenges(D) {
 export function groupData(D) {
   const key = `${version}|${new Date().toDateString()}|${Math.floor(Date.now() / 600000)}`;
   if (cache.key === key) return cache.data;
-  const data = buildGroup(loadUsers(D), loadChallenges(D));
+  const pts = D.get("SELECT value FROM app_config WHERE key = 'points'");
+  const data = buildGroup(loadUsers(D), loadChallenges(D), Date.now(), pts ? parse(pts.value, null) : null);
   cache = { key, data };
   return data;
 }
@@ -41,10 +49,10 @@ export function memberWorkouts(D, viewer, targetId, before = Infinity, limit = 2
   const { users } = groupData(D);
   const u = users.get(targetId);
   if (!u) return { error: 'Unbekanntes Mitglied', status: 404 };
-  // Strava-Aktivitäten sieht nur die Person selbst
+  // Strava-Aktivitäten und importierte Historie sieht nur die Person selbst
   const own = viewer.id === u.id ? 1 : 0;
   const rows = D.all(`SELECT id, data, summary FROM items WHERE user_id = ? AND kind = 'workout' AND deleted = 0 AND start < ?
-    AND (? = 1 OR id NOT LIKE 'strava-%') ORDER BY start DESC LIMIT ?`, u.id, Number.isFinite(before) ? before : 9e15, own, Math.min(50, limit));
+    AND (? = 1 OR (id NOT LIKE 'strava-%' AND json_extract(summary, '$.h') IS NULL)) ORDER BY start DESC LIMIT ?`, u.id, Number.isFinite(before) ? before : 9e15, own, Math.min(50, limit));
   const items = rows.map((r) => ({ id: r.id, data: parse(r.data, null), summary: parse(r.summary, {}) }));
   return feedFor(u, viewer.id, items, before, limit);
 }

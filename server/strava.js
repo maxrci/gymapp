@@ -12,23 +12,7 @@ const STATE_TTL = 20 * 60000;
 const MAX_PAGES = 10; // pro Abgleich höchstens 1000 Aktivitäten (Rest beim nächsten Mal)
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-// Strava-Sportart → Übungsname in der App, mit Distanz?
-const SPORTS = {
-  Run: ['Laufen', 1], TrailRun: ['Laufen', 1], VirtualRun: ['Laufband', 1],
-  Ride: ['Radfahren', 1], MountainBikeRide: ['Radfahren', 1], GravelRide: ['Radfahren', 1], VirtualRide: ['Radfahren', 1],
-  EBikeRide: ['E-Bike', 1], EMountainBikeRide: ['E-Bike', 1], Velomobile: ['Radfahren', 1], Handcycle: ['Handbike', 1],
-  InlineSkate: ['Inliner', 1], RollerSki: ['Inliner', 1], IceSkate: ['Eislaufen', 1], Skateboard: ['Longboard', 1],
-  Swim: ['Schwimmen', 1], Walk: ['Gehen', 1], Hike: ['Wandern', 1], Wheelchair: ['Rollstuhl', 1], Snowshoe: ['Schneeschuhwandern', 1],
-  Rowing: ['Rudern', 1], VirtualRow: ['Rudermaschine', 1], Canoeing: ['Kanu', 1], Kayaking: ['Kajak', 1], StandUpPaddling: ['SUP', 1],
-  Surfing: ['Surfen', 0], Kitesurf: ['Kitesurfen', 0], Windsurf: ['Windsurfen', 0], Sail: ['Segeln', 1],
-  AlpineSki: ['Ski alpin', 1], BackcountrySki: ['Skitour', 1], NordicSki: ['Langlauf', 1], Snowboard: ['Snowboard', 1],
-  Elliptical: ['Crosstrainer', 0], StairStepper: ['Stepper', 0], Yoga: ['Yoga', 0], Pilates: ['Pilates', 0],
-  Soccer: ['Fußball', 0], Tennis: ['Tennis', 0], Badminton: ['Badminton', 0], Squash: ['Squash', 0], Padel: ['Padel', 0],
-  Pickleball: ['Pickleball', 0], TableTennis: ['Tischtennis', 0], Racquetball: ['Racquetball', 0], Basketball: ['Basketball', 0],
-  Volleyball: ['Volleyball', 0], Golf: ['Golf', 1], RockClimbing: ['Klettern', 0], Crossfit: ['Crossfit', 0],
-  HighIntensityIntervalTraining: ['HIIT', 0], Workout: ['Cardio', 0],
-  WeightTraining: null, // Krafttraining hat bei Strava keine Sätze – wird in der App erfasst
-};
+import { SPORTS } from '../js/stravamap.js';
 
 export function publicHost(base) { try { return new URL(base).host; } catch { return ''; } }
 
@@ -196,4 +180,38 @@ export async function syncAll(D) {
   for (const r of D.all('SELECT user_id FROM strava WHERE refresh_token IS NOT NULL')) {
     try { await syncUser(D, r.user_id); } catch (e) { console.error('Strava-Abgleich:', e.message); }
   }
+}
+
+// ---------- Neu: Strava läuft auf dem Handy ----------
+// Der Server reicht nur bei der Anmeldung den einmaligen Freigabe-Code an die App weiter (Rückkehr-Adresse muss
+// die Domain des Servers sein). Ohne das Client Secret, das nur auf dem Handy liegt, ist der Code wertlos.
+// Zugänge, Schlüssel und Aktivitäten sieht der Server nie.
+export function relayStart(D, userId, base) {
+  const state = crypto.randomBytes(24).toString('base64url');
+  D.run('DELETE FROM strava_relay WHERE created < ? OR user_id = ?', Date.now() - STATE_TTL, userId);
+  D.run('INSERT INTO strava_relay (state, user_id, created) VALUES (?, ?, ?)', state, userId, Date.now());
+  return { state, redirectUri: `${base}/api/strava/relay`, callbackDomain: publicHost(base) };
+}
+export function relayCallback(D, url, appUrl) {
+  const state = url.searchParams.get('state') || '';
+  const row = D.get('SELECT * FROM strava_relay WHERE state = ?', state);
+  const page = (ok, title, text) => ({ __html: `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title>
+    <style>body{font:16px/1.5 -apple-system,system-ui,sans-serif;background:#0d0d0d;color:#eee;display:grid;place-items:center;min-height:100vh;margin:0;padding:20px;box-sizing:border-box;text-align:center}
+    .c{max-width:420px}.i{font-size:54px}h1{font-size:22px;margin:8px 0}p{color:#aaa}a{display:inline-block;margin-top:14px;background:#3987e5;color:#fff;padding:12px 22px;border-radius:12px;text-decoration:none;font-weight:700}</style></head>
+    <body><div class="c"><div class="i">${ok ? '✅' : '⚠️'}</div><h1>${esc(title)}</h1><p>${esc(text)}</p><a href="${esc(appUrl)}">Zurück zur App</a></div></body></html>` });
+  if (!row || row.created < Date.now() - STATE_TTL || row.code) return page(false, 'Link abgelaufen', 'Bitte in der App erneut auf „Mit Strava verbinden“ tippen.');
+  if (url.searchParams.get('error')) { D.run('DELETE FROM strava_relay WHERE state = ?', state); return page(false, 'Nicht verbunden', 'Der Zugriff wurde bei Strava nicht erlaubt.'); }
+  const scope = String(url.searchParams.get('scope') || '').slice(0, 200);
+  if (!scope.includes('activity:read')) return page(false, 'Zugriff fehlt', 'Bitte bei Strava das Lesen der Aktivitäten erlauben (Häkchen nicht entfernen).');
+  const code = String(url.searchParams.get('code') || '').replace(/[^\w-]/g, '').slice(0, 200);
+  if (!code) return page(false, 'Kein Code', 'Strava hat keinen Freigabe-Code geschickt. Bitte erneut verbinden.');
+  D.run('UPDATE strava_relay SET code = ?, scope = ? WHERE state = ?', code, scope, state);
+  return page(true, 'Fast geschafft', 'Geh jetzt zurück zur Gym-App – sie schließt die Verbindung ab und holt deine Aktivitäten direkt von Strava.');
+}
+export function relayCode(D, userId, state) {
+  const row = D.get('SELECT * FROM strava_relay WHERE state = ? AND user_id = ?', String(state || ''), userId);
+  if (!row || row.created < Date.now() - STATE_TTL) return { status: 'expired' };
+  if (!row.code) return { status: 'waiting' };
+  D.run('DELETE FROM strava_relay WHERE state = ?', row.state); // nur einmal abholbar
+  return { status: 'ok', code: row.code, scope: row.scope };
 }

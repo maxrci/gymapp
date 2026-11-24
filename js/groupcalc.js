@@ -3,9 +3,10 @@
 // challenges: [{ id, creator, title, type, exercise, relative, start, end, created, members: [{ user_id, status }] }]
 
 import {
-  prMap, streakInfo, seasonScore, alltimeStats, challengeValue, challengeStatus,
-  startOfMonth, addMonths, startOfYear, addYears, STAGE_NAMES, VISIBILITY, kingStats, exerciseBests, summaryEp,
+  streakInfo, alltimeStats, challengeValue, challengeStatus,
+  startOfMonth, addMonths, startOfYear, addYears, STAGE_NAMES, VISIBILITY, kingStats, exerciseBests, LIFTS,
 } from './compete.js';
+import { eligible, xpScore, workoutXp, xpParams, xpRecords as xpScoreRecords } from './xp.js';
 
 export const visOf = (p) => (VISIBILITY.some(([k]) => k === p?.visibility) ? p.visibility : 'full');
 
@@ -13,17 +14,20 @@ export function prepUsers(users) {
   return users.map((u) => {
     const profile = u.profile || {};
     const all = [...u.sums].filter((s) => s.start).sort((a, b) => a.start - b.start);
-    // ext = Einträge aus Strava: zählen nur für die EP, alles andere (Streak, Könige, Bestwerte, Challenges, Statistik) ohne sie
-    const sums = all.filter((s) => !s.ext);
+    // el = zählende Workouts (in der App getrackt/nachgetragen, Strava erst ab Verbindung) → XP, Rekorde, Streak
+    // sums = was andere sehen dürfen: ohne Historie (h) und ohne Strava (ext, zählt nur als XP)
+    const el = eligible(all);
+    const sums = all.filter((s) => !s.ext && !s.h);
     return {
-      ...u, profile, sums, all, prs: prMap(all),
+      ...u, profile, sums, all, el, prs: xpScoreRecords(el), // Rekorde neu ab dem ersten zählenden Workout
       goal: Math.max(1, Math.min(14, profile.weekGoal || 3)),
       bwLog: Array.isArray(profile.bwLog) ? profile.bwLog : [],
     };
   });
 }
 
-export function buildGroup(rawUsers, rawChallenges, now = Date.now()) {
+export function buildGroup(rawUsers, rawChallenges, now = Date.now(), points = null) {
+  const P = xpParams(points);
   const users = prepUsers(rawUsers);
   const byId = new Map(users.map((u) => [u.id, u]));
 
@@ -49,21 +53,23 @@ export function buildGroup(rawUsers, rawChallenges, now = Date.now()) {
     for (const m of c.members) if (m.status === 'joined') results.get(m.id)?.push({ end: c.end, won: c.winners.includes(m.id) });
   }
   const score = (u, a, b) => {
-    const own = seasonScore({ sums: u.sums, prs: u.prs, goal: u.goal, results: results.get(u.id) }, a, b);
-    if (u.all.length === u.sums.length) return own;
-    // Gesamt-EP inkl. Strava; die Aufschlüsselung (Workouts, Minuten, Rekorde …) nur aus eigenen Einträgen
-    const total = seasonScore({ sums: u.all, prs: u.prs, goal: u.goal, results: results.get(u.id) }, a, b).points;
-    return { ...own, points: Math.max(own.points, total), ext: Math.max(0, total - own.points) };
+    const base = { goal: u.goal, results: results.get(u.id), prs: u.prs, P, now };
+    const total = xpScore({ ...base, sums: u.all }, a, b);
+    if (!u.all.some((s) => s.ext)) return total;
+    // Strava: Gesamt-XP inkl. Strava; die Aufschlüsselung (Workouts, Minuten, Rekorde …) nur aus eigenen Einträgen
+    const own = xpScore({ ...base, sums: u.all.filter((s) => !s.ext) }, a, b);
+    return { ...own, points: Math.max(own.points, total.points), ext: Math.max(0, total.points - own.points) };
   };
   const from = startOfMonth(now), to = addMonths(now, 1);
 
   const members = users.map((u) => {
-    const st = streakInfo(u.sums, u.goal, now);
+    const st = streakInfo(u.el, u.goal, now);
     const last = u.sums[u.sums.length - 1];
     return {
       id: u.id, name: u.name, role: u.role, look: u.profile.avatar || null, visibility: visOf(u.profile),
       stage: st.stage, stageName: STAGE_NAMES[st.stage], streak: st.current, longest: st.longest, goal: u.goal,
       thisWeek: st.thisWeek, workouts: u.sums.length, lastWorkout: last?.start || null, npc: !!u.npc,
+      xp: score(u, 0, Infinity).points,
     };
   });
 
@@ -105,7 +111,25 @@ export function buildGroup(rawUsers, rawChallenges, now = Date.now()) {
   const exercises = Object.fromEntries(users.map((u) => [u.id, exerciseBests(u.sums, u.bwLog)]));
 
   const alltime = Object.fromEntries(users.map((u) => [u.id, alltimeStats(u.sums, u.bwLog, u.goal)]));
-  return { members, season, seasons, titles, alltime, kings, exercises, challenges, users: byId };
+
+  // Verläufe der letzten 12 Monate: wer führt wo, und wie haben sich alle entwickelt (nur in der App Getracktes)
+  const mStarts = Array.from({ length: 12 }, (_, i) => addMonths(from, i - 11));
+  const trends = { months: mStarts, xp: {}, workouts: {}, km: {}, lifts: Object.fromEntries(Object.keys(LIFTS).map((k) => [k, {}])) };
+  for (const u of users) {
+    trends.xp[u.id] = mStarts.map((m) => score(u, m, addMonths(m, 1)).points);
+    const inM = (m) => u.sums.filter((s) => s.start >= m && s.start < addMonths(m, 1));
+    trends.workouts[u.id] = mStarts.map((m) => inM(m).length);
+    trends.km[u.id] = mStarts.map((m) => Math.round(inM(m).reduce((a, s) => a + (s.km || 0), 0) * 10) / 10);
+    for (const [k, L] of Object.entries(LIFTS)) {
+      let best = 0;
+      for (const s of u.sums) if (s.start < mStarts[0]) for (const x of s.ex || []) if (L.re.test(x.n)) best = Math.max(best, x.e || 0);
+      trends.lifts[k][u.id] = mStarts.map((m) => {
+        for (const s of inM(m)) for (const x of s.ex || []) if (L.re.test(x.n)) best = Math.max(best, x.e || 0);
+        return best ? Math.round(best * 10) / 10 : null;
+      });
+    }
+  }
+  return { members, season, seasons, titles, alltime, kings, exercises, challenges, trends, users: byId };
 }
 
 // Workout-Feed eines Mitglieds je nach Sichtbarkeit
@@ -116,7 +140,7 @@ export function feedFor(u, viewerId, items, before = Infinity, limit = 20) {
   const workouts = list.map(({ id, data, summary: s }) => {
     const base = {
       id, start: s.start, end: s.end, title: s.title, vol: s.vol, sets: s.sets, dur: s.dur, km: s.km,
-      prs: u.prs?.get(id) || 0, ep: summaryEp(s, u.prs?.get(id) || 0), ex: (s.ex || []).map((x) => ({ n: x.n, t: x.t, s: x.s, e: x.e, d: x.d })),
+      prs: u.prs?.get(id) || 0, ep: workoutXp(s, u.prs?.get(id) || 0).total, ex: (s.ex || []).map((x) => ({ n: x.n, t: x.t, s: x.s, e: x.e, d: x.d })),
     };
     if (vis === 'full' && data) {
       base.exercises = (data.exercises || []).map((e) => ({ name: e.name, notes: e.notes, sets: (e.sets || []).map(({ type, weight, reps, distance, duration }) => ({ type, weight, reps, distance, duration })) }));

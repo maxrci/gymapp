@@ -4,17 +4,19 @@ import { pageHead, emptyState, kpi } from '../components.js';
 import { icon, chips, sheet, confirmDialog, toast, overlay } from '../ui.js';
 import { esc, num, fmtVolume, fmtDate, fmtRelDay, fmtDurShort, fmtClock } from '../utils.js';
 import { fighterSVG, fighterFx, fighterHead } from '../fighter.js';
+import { EP_RULES_TEXT } from '../gamification.js';
 import { nav } from '../nav.js';
 import { cachedGroup, fetchGroup, loggedIn, myId, api, demoOn, srv } from '../sync.js';
 import {
-  ALLTIME, alltimeValue, CHALLENGE_TYPES, LEAGUE_RULES, VISIBILITY, STAGE_NAMES, KINGS,
+  ALLTIME, alltimeValue, CHALLENGE_TYPES, VISIBILITY, STAGE_NAMES, KINGS,
 } from '../compete.js';
 import { openChallengeEditor } from '../challengeEditor.js';
 import { startFight, chooseFight, fightSuggestions, catLabel, fmtCat, kingValue, fmtKing, startKingShowdown } from '../fight.js';
 import { exercisesView } from './exercises.js';
+import { lineChart, SERIES } from '../charts.js';
 import { loginFlow } from '../group.js';
 
-const TABS = [['season', 'Saison'], ['kings', 'Könige'], ['alltime', 'Ewig'], ['exercises', 'Übungen'], ['challenges', 'Challenges'], ['members', 'Mitglieder']];
+const TABS = [['season', 'Saison'], ['leaders', 'Wer führt?'], ['kings', 'Könige'], ['alltime', 'Ewig'], ['exercises', 'Übungen'], ['challenges', 'Challenges'], ['members', 'Mitglieder']];
 const ui = { cat: 'workouts', rel: false, kp: 'season' };
 let lastFetch = 0;
 
@@ -57,7 +59,7 @@ export function leagueView({ tab = 'season' }) {
       }),
     };
   }
-  const views = { season, kings, alltime, challenges, members };
+  const views = { season, leaders, kings, alltime, challenges, members };
   const v = (views[tab] || season)(g);
   return {
     html: `${pageHead(g.group || 'Arena', { sub: `${g.members.length} Mitglieder` })}${g.demo ? demoBanner() : ''}${tabs}${v.html}`,
@@ -83,7 +85,8 @@ function rankRows(g, rows, me, sub) {
     <span class="lg-main"><b>${esc(nameOf(g, r.id))}</b><small>${sub(r)}</small></span>
     <span class="lg-val">${num(r.points, 0)}<small>EP</small></span>${fightBtn(r.id)}</a>`).join('');
 }
-const rowSub = (r) => `${r.workouts} Workouts${r.minutes ? ` · ${r.minutes} Min. Cardio/Mobility` : ''} · ${r.goalWeeks} Wochenziele · ${r.prs} Rekorde${r.wins ? ` · ${r.wins} Siege` : ''}${r.ext ? ` · +${num(r.ext, 0)} EP über Strava` : ''}`;
+const leagueRules = () => `Eine Saison dauert ein Kalenderjahr, jeden Monat gibt es einen Monatssieger. ${EP_RULES_TEXT()} Strava-Aktivitäten (ab Verbindung) zählen nur als EP – sehen kann sie nur, wer sie gemacht hat.`;
+const rowSub = (r) => `${r.workouts} Workouts${r.minutes ? ` · ${r.minutes} Min. Training` : ''} · ${r.goalWeeks} Wochenziele · ${r.prs} Rekorde${r.wins ? ` · ${r.wins} Siege` : ''}${r.ext ? ` · +${num(r.ext, 0)} EP über Strava` : ''}`;
 
 function openRanking(g, which = 'year') {
   const me = myId();
@@ -96,7 +99,7 @@ function openRanking(g, which = 'year') {
       <div class="panel-body">
         <div class="seg two"><button class="seg-btn ${which === 'year' ? 'on' : ''}" data-w="year">Saison ${new Date(s.from).getFullYear()}</button><button class="seg-btn ${which === 'month' ? 'on' : ''}" data-w="month">${esc(monthName(s.month?.from || Date.now()))}</button></div>
         <section class="card">${rankRows(g, rows, me, rowSub)}</section>
-        <p class="footnote">${esc(LEAGUE_RULES)}</p>
+        <p class="footnote">${esc(leagueRules())}</p>
       </div>`;
   };
   draw();
@@ -183,7 +186,7 @@ function season(g) {
       ${g.seasons.slice(0, 10).map((x) => `<div class="lg-row"><span class="lg-main"><b>Saison ${new Date(x.from).getFullYear()}</b>
         <small>${x.top.map((t, i) => `${i + 1}. ${esc(nameOf(g, t.id))} (${num(t.points, 0)})`).join(' · ')}</small></span>${icon('trophy', 'gold')}</div>`).join('')}
     </section>` : ''}
-    <p class="footnote">${esc(LEAGUE_RULES)}</p>`;
+    <p class="footnote">${esc(leagueRules())}</p>`;
   return {
     html,
     handlers: {
@@ -196,6 +199,55 @@ function season(g) {
 }
 
 // ---------------- Könige ----------------
+// ---------- Wer führt? Führende je Bereich + Verlauf aller (Farbe gehört zur Person, nicht zum Rang) ----------
+const LEADER_CATS = [
+  ['xp', 'EP', 'flame', (v) => `${num(v, 0)} EP`, 'sum'],
+  ['workouts', 'Workouts', 'dumbbell', (v) => num(v, 0), 'sum'],
+  ['km', 'Cardio-Kilometer', 'bolt', (v) => `${num(v, 1)} km`, 'sum'],
+  ['bench', 'Bankdrücken (1RM)', 'weight', (v) => `${num(v, 1)} kg`, 'best'],
+  ['squat', 'Kniebeuge (1RM)', 'weight', (v) => `${num(v, 1)} kg`, 'best'],
+  ['deadlift', 'Kreuzheben (1RM)', 'weight', (v) => `${num(v, 1)} kg`, 'best'],
+  ['ohp', 'Schulterdrücken (1RM)', 'weight', (v) => `${num(v, 1)} kg`, 'best'],
+];
+function leaders(g) {
+  const T = g.trends;
+  if (!T) return { html: emptyState('chart', 'Noch keine Verläufe', 'Der Server ist noch auf einer älteren Version.') };
+  const color = (id) => SERIES[Math.max(0, g.members.findIndex((m) => m.id === id)) % SERIES.length];
+  const seriesOf = (key) => (T[key] || T.lifts?.[key] || {});
+  const cards = LEADER_CATS.map(([key, label, ic, fmt, mode]) => {
+    const per = seriesOf(key);
+    // Monat (Summen) bzw. aktueller Bestwert
+    const rows = g.members.map((m) => {
+      const arr = per[m.id] || [];
+      const v = mode === 'best' ? (arr[arr.length - 1] || 0) : (arr[arr.length - 1] || 0);
+      return { m, v };
+    }).filter((r) => r.v > 0).sort((a, b) => b.v - a.v);
+    if (!rows.length) return '';
+    const lead = rows[0];
+    return `<section class="card ld-card">
+      <div class="ld-head"><span class="ld-ic">${icon(ic, 'xs')}</span><b>${esc(label)}</b><small>${mode === 'best' ? 'Bestwert' : 'diesen Monat'}</small></div>
+      <div class="ld-lead"><div class="ld-fig">${fighterHead(lead.m.stage || 0, look(lead.m))}</div><div><small>Führt</small><b>${esc(lead.m.name)}</b><span>${esc(fmt(lead.v))}</span></div></div>
+      <div class="ld-rows">${rows.slice(0, 6).map((r, i) => `<div class="ld-row"><span class="ld-dot" style="background:${color(r.m.id)}"></span><span class="ld-n">${i + 1}. ${esc(r.m.name)}${r.m.id === myId() ? ' (du)' : ''}</span><b>${esc(fmt(r.v))}</b></div>`).join('')}</div>
+      <div class="ld-chart" data-ld="${key}"></div>
+    </section>`;
+  }).join('');
+  return {
+    html: `<p class="footnote">Wer gerade wo vorne liegt – und wie sich alle in den letzten 12 Monaten entwickelt haben. Es zählt nur, was in der App getrackt wurde.</p>${cards || emptyState('chart', 'Noch keine Daten', 'Sobald trainiert wird, erscheinen hier die Führenden.')}`,
+    mount: (root) => {
+      for (const host of root.querySelectorAll('[data-ld]')) {
+        const key = host.dataset.ld;
+        const cat = LEADER_CATS.find(([k]) => k === key);
+        const per = seriesOf(key);
+        const series = g.members.map((m) => ({
+          name: m.name, color: color(m.id),
+          points: (per[m.id] || []).map((y, i) => (y == null ? null : { x: T.months[i], y })).filter(Boolean),
+        })).filter((s) => s.points.some((p) => p.y > 0));
+        if (series.length) lineChart(host, { series, height: 150, yFmt: (v) => cat[3](v), area: false, yZero: cat[4] === 'sum' });
+      }
+    },
+  };
+}
+
 function kings(g) {
   const me = myId();
   const per = ui.kp;

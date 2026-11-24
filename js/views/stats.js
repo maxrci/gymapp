@@ -19,7 +19,11 @@ import {
   MONTHS, WEEKDAYS, weekday, startOfDay, DAY,
 } from '../utils.js';
 
-const TABS = [['overview', 'Übersicht'], ['strength', 'Kraft'], ['cardio', 'Cardio'], ['volume', 'Volumen'], ['balance', 'Balance'], ['calendar', 'Kalender'], ['records', 'Rekorde']];
+const TABS = [['overview', 'Übersicht'], ['strength', 'Kraft'], ['cardio', 'Cardio'], ['records', 'Rekorde'], ['balance', 'Balance']];
+// Alte Tabs (Volumen, Kalender) sind jetzt Abschnitte der Übersicht – Link springt dorthin
+const TAB_ALIAS = { volume: 'overview', calendar: 'overview' };
+const TAB_ANCHOR = { volume: 'stats-volume', calendar: 'stats-calendar' };
+let lastTab = null;
 const ui = { range: '6m', unit: null, muscle: 'Brust', year: new Date().getFullYear(), wOff: 0, csport: null };
 const bounds = () => rangeBounds(ui.range, ui.wOff);
 const unitWord = (u) => (u === 'day' ? 'Tag' : u === 'week' ? 'Woche' : 'Monat');
@@ -48,24 +52,37 @@ function bucketHead(b, unit) {
   return fmtDate(b.start, { month: 'long', year: 'numeric' });
 }
 
-export function statsView({ tab = 'overview' }) {
-  if (!state.workouts.length) {
-    return { html: pageHead('Statistik') + emptyState('chart', 'Noch keine Daten', 'Importiere deine Workouts oder starte dein erstes Training, um Statistiken zu sehen.', '<a class="btn primary" href="#/profile">Zum Import</a>') };
-  }
-  // Balance (Auffälligkeiten) gibt es nur im AI-Mode
-  const tabList = TABS.filter(([k]) => k !== 'balance' || aiOn());
-  if (!tabList.some(([k]) => k === tab)) tab = 'overview';
-  const tabs = `<div class="tabs scroll">${tabList.map(([k, l]) => `<a class="tab ${k === tab ? 'on' : ''}" href="#/stats/${k}">${l}${k === 'balance' ? ' <span class="ai-badge xs">AI</span>' : ''}</a>`).join('')}</div>`;
-  const rangeChips = chips(RANGES, ui.range, 'data-range');
-  const views = { overview, strength, cardio, volume, balance, calendar, records };
-  const v = (views[tab] || overview)();
+// Kompakte Zeitraum-Chips (+ Wochen-Navigation) – gilt für alle Abschnitte darunter
+function filters() {
   const b = bounds();
   const weekNav = ui.range === '1w' ? `<div class="week-nav"><button class="icon-btn" data-wk="-1" aria-label="Vorherige Woche">${icon('left')}</button>
     <div><b>KW ${isoWeek(b.from)}${ui.wOff === 0 ? ' · diese Woche' : ui.wOff === -1 ? ' · letzte Woche' : ''}</b><small>${esc(fmtDate(b.from, { day: 'numeric', month: 'short' }))} – ${esc(fmtDate(b.end, { day: 'numeric', month: 'short', year: 'numeric' }))}</small></div>
     <button class="icon-btn" data-wk="1" ${ui.wOff >= 0 ? 'disabled' : ''} aria-label="Nächste Woche">${icon('right')}</button></div>` : '';
+  return `<div class="filter-row stats-range" role="group" aria-label="Zeitraum">${chips(RANGES, ui.range, 'data-range')}</div>${weekNav}`;
+}
+// Trenner zwischen Einfach (oben) und Detail (unten)
+const moreDivider = (id, title, sub = '') => `<h2 class="section-title stats-more" id="${id}">${title}${sub ? ` <small class="muted">${sub}</small>` : ''}</h2>`;
+
+export function statsView({ tab = 'overview' }) {
+  if (!state.workouts.length) {
+    return { html: pageHead('Statistik') + emptyState('chart', 'Noch keine Daten', 'Importiere deine Workouts oder starte dein erstes Training, um Statistiken zu sehen.', '<a class="btn primary" href="#/profile">Zum Import</a>') };
+  }
+  const anchor = TAB_ANCHOR[tab];
+  const fresh = lastTab !== tab;
+  lastTab = tab;
+  tab = TAB_ALIAS[tab] || tab;
+  // Balance (Auffälligkeiten) gibt es nur im AI-Mode
+  const tabList = TABS.filter(([k]) => k !== 'balance' || aiOn());
+  if (!tabList.some(([k]) => k === tab)) tab = 'overview';
+  const tabs = `<div class="tabs scroll">${tabList.map(([k, l]) => `<a class="tab ${k === tab ? 'on' : ''}" href="#/stats/${k}">${l}${k === 'balance' ? ' <span class="ai-badge xs">AI</span>' : ''}</a>`).join('')}</div>`;
+  const views = { overview, strength, cardio, balance, records };
+  const v = (views[tab] || overview)();
   return {
-    html: `${pageHead('Statistik')}${tabs}${tab !== 'calendar' ? `<div class="filter-row">${rangeChips}</div>${weekNav}` : ''}${v.html}`,
-    mount: v.mount,
+    html: `${pageHead('Statistik')}${tabs}${v.html}`,
+    mount: (root) => {
+      v.mount?.(root);
+      if (anchor && fresh) setTimeout(() => document.getElementById(anchor)?.scrollIntoView({ block: 'start' }), 60);
+    },
     clicks: {
       ...(v.clicks || {}),
       range: (el, rerender) => { ui.range = el.dataset.range; ui.unit = null; ui.wOff = 0; rerender(); },
@@ -100,7 +117,7 @@ function cardio() {
   const prev = cardioSessions(prevFrom, prevTo);
   if (!cur.length) {
     const any = [...idx().ex.values()].some((x) => x.ck);
-    return { html: emptyState('bolt', any ? 'Keine Cardio-Einheiten im Zeitraum' : 'Noch kein Cardio', any ? 'Wähle oben einen längeren Zeitraum.' : 'Trag einen Lauf, eine Radtour oder eine geführte Einheit ein – dann siehst du hier Distanz, Zeit und Tempo.', '<a class="btn primary" href="#/training">Zum Training</a>') };
+    return { html: filters() + emptyState('bolt', any ? 'Keine Cardio-Einheiten im Zeitraum' : 'Noch kein Cardio', any ? 'Wähle oben einen längeren Zeitraum.' : 'Trag einen Lauf, eine Radtour oder eine geführte Einheit ein – dann siehst du hier Distanz, Zeit und Tempo.', '<a class="btn primary" href="#/training">Zum Training</a>') };
   }
   const A = (l) => ({ n: new Set(l.map((s) => s.wid)).size, km: sum(l, (s) => s.km), sec: sum(l, (s) => s.sec) });
   const a = A(cur), b = A(prev);
@@ -120,16 +137,20 @@ function cardio() {
   const unit = autoUnit(ui.range);
 
   const html = `
-    <div class="kpis">
+    ${filters()}
+    <div class="kpis four">
       ${kpi('Einheiten', num(a.n, 0), d(a.n, b.n), 'bolt')}
       ${kpi('Distanz', fmtKm(a.km), d(a.km, b.km), 'target')}
       ${kpi('Zeit', fmtMin(a.sec), d(a.sec, b.sec), 'clock')}
-      ${kpi('Ø pro Woche', `${Math.round(a.sec / 60 / weeks)} min`, cmp ? pct(a.sec / weeks, b.sec / weeks) : null, 'calendar')}
       ${kpi('Längste Einheit', longest.km ? fmtKm(longest.km) : fmtMin(longest.sec), null, 'trophy')}
-      ${kpi('EP aus Cardio', num(Math.round(a.sec / 60) * 2, 0), d(a.sec, b.sec), 'flame')}
     </div>
     ${cmp ? '<p class="footnote">Veränderung ggü. dem vorherigen, gleich langen Zeitraum.</p>' : ''}
     <section class="card"><div class="card-title">Cardio-Zeit pro ${unitWord(unit)} <small>nach Sportart</small></div><div data-chart="cmin"></div></section>
+    ${moreDivider('cardio-more', 'Mehr Details')}
+    <div class="kpis">
+      ${kpi('Ø pro Woche', `${Math.round(a.sec / 60 / weeks)} min`, cmp ? pct(a.sec / weeks, b.sec / weeks) : null, 'calendar')}
+      ${kpi('Cardio-Minuten', num(Math.round(a.sec / 60), 0), d(a.sec, b.sec), 'flame')}
+    </div>
     <section class="card"><div class="card-title">Distanz pro ${unitWord(unit)}</div><div data-chart="ckm"></div></section>
     ${withSpeed.length ? `<section class="card"><div class="card-title">Tempo-Entwicklung <small>höher = schneller</small></div>
       ${withSpeed.length > 1 ? `<div class="chips">${withSpeed.map((c) => `<button class="chip ${c.key === ui.csport ? 'on' : ''}" data-csport="${c.key}">${esc(c.label)}</button>`).join('')}</div>` : ''}
@@ -181,7 +202,6 @@ function overview() {
   const a = agg(cur);
   const b = agg(prev);
   const cmp = ui.range !== 'all' && prev.length > 0;
-  const std = bodyweightStandards(strengthBalance().lifts);
   const d = (x, y) => (cmp ? pct(x, y) : null);
   const st = weekStreaks();
   const weeks = Math.max(1, (to - from) / (7 * DAY));
@@ -198,26 +218,36 @@ function overview() {
   }
   const splitRows = [...splits.entries()].sort((p, q) => q[1].n - p[1].n).slice(0, 10);
 
+  const cardioKm = sum(cardioSessions(from, to), (x) => x.km);
+  const cardioKmPrev = sum(cardioSessions(prevFrom, prevTo), (x) => x.km);
+  const sub = volume();
+  const cal = calendar();
+
   const html = `
-    ${strengthStandards(std)}
-    ${unit === 'day' ? weekDays(bs) : ''}
-    <div class="kpis">
+    ${headline()}
+    ${filters()}
+    <div class="kpis four">
       ${kpi('Workouts', num(a.n, 0), d(a.n, b.n), 'dumbbell')}
-      ${kpi('Volumen', fmtVolume(a.vol), d(a.vol, b.vol), 'weight')}
-      ${kpi('Arbeitssätze', num(a.sets, 0), d(a.sets, b.sets), 'layers')}
-      ${kpi('Wiederholungen', fmtCompact(a.reps), d(a.reps, b.reps), 'repeat')}
       ${kpi('Trainingszeit', fmtDurShort(a.dur), d(a.dur, b.dur), 'clock')}
-      ${kpi('Ø Dauer', fmtDurShort(a.n ? a.dur / a.n : 0), cmp && b.n ? pct(a.dur / (a.n || 1), b.dur / b.n) : null, 'timer')}
+      ${kpi('Volumen', fmtVolume(a.vol), d(a.vol, b.vol), 'weight')}
+      ${kpi('Cardio', fmtKm(cardioKm), d(cardioKm, cardioKmPrev), 'bolt')}
     </div>
     ${cmp ? `<p class="footnote">Veränderung ggü. ${unit === 'day' ? 'dem gleichen Zeitraum der Vorwoche' : 'dem vorherigen, gleich langen Zeitraum'}.</p>` : ''}
+    ${unit === 'day' ? weekDays(bs) : ''}
+    <section class="card"><div class="card-title">Workouts pro ${unitWord(unit)}</div><div data-chart="count"></div></section>
+
+    ${moreDivider('overview-more', 'Mehr Details')}
+    <div class="chips scroll stats-jump"><a class="chip" href="#/stats/volume">Volumen &amp; Muskeln</a><a class="chip" href="#/stats/calendar">Kalender</a></div>
     <div class="kpis four">
+      <div class="kpi mini"><small>Arbeitssätze</small><b>${num(a.sets, 0)}</b></div>
+      <div class="kpi mini"><small>Wiederholungen</small><b>${fmtCompact(a.reps)}</b></div>
+      <div class="kpi mini"><small>Ø Dauer</small><b>${fmtDurShort(a.n ? a.dur / a.n : 0)}</b></div>
+      <div class="kpi mini"><small>${unit === 'day' ? 'Wochenziel' : 'Ø pro Woche'}</small><b>${unit === 'day' ? `${a.n}/${state.settings.weekGoal}` : num(a.n / weeks, 1)}</b></div>
       <div class="kpi mini"><small>Aktuelle Serie</small><b>${st.current} Wo.</b></div>
       <div class="kpi mini"><small>Längste Serie</small><b>${st.longest} Wo.</b></div>
-      <div class="kpi mini"><small>${unit === 'day' ? 'Wochenziel' : 'Ø pro Woche'}</small><b>${unit === 'day' ? `${a.n}/${state.settings.weekGoal}` : num(a.n / weeks, 1)}</b></div>
       <div class="kpi mini"><small>Trainingstage</small><b>${num(st.days, 0)}</b></div>
+      <div class="kpi mini"><small>Aktive Wochen</small><b>${num(st.weeks, 0)}</b></div>
     </div>
-    <section class="card"><div class="card-title">Volumen pro ${unitWord(unit)}</div><div data-chart="vol"></div></section>
-    <section class="card"><div class="card-title">Workouts pro ${unitWord(unit)}</div><div data-chart="count"></div></section>
     <section class="card"><div class="card-title">Ø Trainingsdauer</div><div data-chart="dur"></div></section>
     <section class="card"><div class="card-title">Trainingsbelastung <small>akut : chronisch</small></div>
       <p class="footnote">Volumen der letzten 7 Tage im Verhältnis zum Wochenschnitt der letzten 4 Wochen. Im grünen Bereich (0,8–1,3) steigerst du dich sicher; deutlich darüber steigt das Verletzungsrisiko.</p>
@@ -231,18 +261,14 @@ function overview() {
         ${splitRows.map(([t, x]) => `<div class="tr"><span class="trunc">${esc(t)}</span><span>${x.n}</span><span>${fmtDurShort(x.dur / x.n)}</span><span>${fmtVolume(x.vol / x.n)}</span></div>`).join('')}
       </div>
     </section>
+
+    ${moreDivider('stats-volume', 'Volumen &amp; Muskeln', 'Zeitraum oben')}
+    ${sub.html}
+    ${moreDivider('stats-calendar', 'Kalender', 'pro Jahr')}
+    ${cal.html}
   `;
   const mount = (root) => {
     const now = Date.now();
-    const volData = bs.map((b) => {
-      const v = sum(b.items, (w) => wStats.get(w.id).volume);
-      return { label: bucketLabel(b, unit), value: v, partial: b.end > now, tip: `<div class="tt-h">${esc(bucketHead(b, unit))}</div><div class="tt-r"><b>${fmtVolume(v)}</b> · ${b.items.length} Workouts</div>` };
-    });
-    const nonEmpty = volData.filter((x) => x.value);
-    barChart(root.querySelector('[data-chart="vol"]'), {
-      data: volData, yFmt: fmtCompact,
-      refLine: nonEmpty.length ? { value: sum(nonEmpty, (x) => x.value) / nonEmpty.length, label: 'Ø' } : null,
-    });
     barChart(root.querySelector('[data-chart="count"]'), {
       data: bs.map((b) => ({ label: bucketLabel(b, unit), value: b.items.length, partial: b.end > now, tip: `<div class="tt-h">${esc(bucketHead(b, unit))}</div><div class="tt-r"><b>${b.items.length}</b> Workouts</div>` })),
       color: SERIES[2], yFmt: (v) => (Math.abs(v - Math.round(v)) < 1e-6 ? num(v, 0) : ''),
@@ -271,9 +297,10 @@ function overview() {
       return { x: b.start, y: sum(l, (w) => wStats.get(w.id).volume) / sum(l, (w) => wStats.get(w.id).duration / 60) };
     }).filter(Boolean);
     lineChart(root.querySelector('[data-chart="density"]'), { series: [{ name: 'Dichte', points: dens, color: SERIES[2] }], yFmt: (v) => `${num(v, 0)}`, tipFmt: (p) => `<div class="tt-h">${esc(fmtDate(p.x, { month: 'short', day: 'numeric', year: 'numeric' }))}</div><div class="tt-r"><b>${num(p.y, 0)} kg/min</b></div>` });
+    sub.mount(root); cal.mount(root);
     lineChart(root.querySelector('[data-chart="dur"]'), { series: [{ name: 'Dauer', points: durPts, color: SERIES[6] }], yFmt: (v) => `${num(v, 0)} min`, tipFmt: (p) => `<div class="tt-h">${esc(fmtDate(p.x, unit === 'week' ? { day: 'numeric', month: 'short', year: 'numeric' } : { month: 'long', year: 'numeric' }))}</div><div class="tt-r"><b>${num(p.y, 0)} Min.</b> Ø</div>` });
   };
-  return { html, mount };
+  return { html, mount, clicks: { ...sub.clicks, ...cal.clicks } };
 }
 
 // ---------------- Kraft ----------------
@@ -313,9 +340,18 @@ function strength() {
   }
   const intens = bins.map(([label], i) => ({ label, value: counts[i] }));
   const intTotal = sum(intens, (x) => x.value) || 1;
+  const e1rmPrs = idx().prs.filter((p) => p.date >= from && p.date <= to && p.kind === 'e1rm').length;
+  const improved = table.filter((r) => r.tr.pct > 0).length;
 
   const html = `
-    <div class="rel-head"><p class="footnote">Kraft wird als <b>geschätztes 1RM</b> (Epley-Formel) aus deinem besten Satz pro Einheit berechnet${relOn ? ', geteilt durch dein damaliges Körpergewicht' : ''}. Der Trend ist eine lineare Regression über den Zeitraum.</p>${relSwitch()}</div>
+    ${filters()}
+    <div class="kpis four">
+      ${kpi('Übungen', num(rows.length, 0), null, 'dumbbell')}
+      ${kpi('Einheiten', num(sum(rows, (r) => r.ses.length), 0), null, 'layers')}
+      ${kpi('1RM-Rekorde', num(e1rmPrs, 0), null, 'trophy')}
+      ${kpi('Im Plus', `${improved}/${table.length}`, null, 'chart')}
+    </div>
+    <h2 class="section-title">Hauptübungen</h2>
     <div class="grid2">
       ${top.map((r, i) => `<a class="card mini-card" href="#/ex/${encodeURIComponent(r.x.name)}">
         <div class="mc-name trunc">${esc(r.x.name)}</div>
@@ -325,6 +361,9 @@ function strength() {
       </a>`).join('')}
     </div>
     ${top.length ? '' : '<p class="footnote">Mindestens 3 Einheiten einer Übung im Zeitraum nötig.</p>'}
+    ${strengthStandards(bodyweightStandards(strengthBalance().lifts))}
+    ${moreDivider('strength-more', 'Mehr Details')}
+    <div class="rel-head"><p class="footnote">Kraft wird als <b>geschätztes 1RM</b> (Epley-Formel) aus deinem besten Satz pro Einheit berechnet${relOn ? ', geteilt durch dein damaliges Körpergewicht' : ''}. Der Trend ist eine lineare Regression über den Zeitraum.</p>${relSwitch()}</div>
     ${cmp.length >= 2 ? `<section class="card"><div class="card-title">Hauptübungen im Vergleich <small>Start = 100</small></div>
       <p class="footnote">Bestes 1RM pro Monat, relativ zum ersten Monat im Zeitraum – so siehst du, welche Übung am stärksten wächst.</p>
       ${legend(cmp.map((c, i) => ({ label: c.x.name, color: SERIES[i] })))}
@@ -400,7 +439,7 @@ function volume() {
 
   const html = `
     ${unit === 'day' ? '' : `<div class="filter-row">${chips([['week', 'Woche'], ['month', 'Monat']], unit, 'data-unit')}</div>`}
-    <section class="card"><div class="card-title">Volumen pro ${unitWord(unit)}</div><div data-chart="vol"></div></section>
+    <section class="card"><div class="card-title">Volumen pro ${unitWord(unit)}</div><div data-chart="vvol"></div></section>
     <section class="card"><div class="card-title">Arbeitssätze pro ${unitWord(unit)}</div><div data-chart="sets"></div></section>
     <section class="card"><div class="card-title">Körperkarte <small>Ø Sätze pro Woche</small></div>${bodyMap(Object.fromEntries(muscList.map((m) => [m.label, m.value])))}</section>
     <section class="card"><div class="card-title">Muskelgruppen im Verlauf <small>Sätze</small></div><div data-chart="stack"></div></section>
@@ -439,7 +478,7 @@ function volume() {
       }),
       valFmt: (v) => `${num(v, 1)} Sätze`,
     });
-    barChart(root.querySelector('[data-chart="vol"]'), {
+    barChart(root.querySelector('[data-chart="vvol"]'), {
       data: bs.map((b) => {
         const v = sum(b.items, (w) => wStats.get(w.id).volume);
         return { label: bucketLabel(b, unit), value: v, partial: b.end > now, tip: `<div class="tt-h">${esc(bucketHead(b, unit))}</div><div class="tt-r"><b>${fmtVolume(v)}</b></div>` };
@@ -566,19 +605,23 @@ function records() {
     .sort((a, b) => b.count - a.count);
 
   const relOn = rel.on && relAvailable();
+  const prRow = (p) => `<a class="pr-row" href="#/w/${esc(p.wid)}">
+        <div><b>${esc(p.exercise)}</b><small>${esc(prLabel(p.kind))} · ${esc(fmtDate(p.date))}</small></div>
+        <span class="pr-val">${esc(prValue(p))}<small>vorher ${esc(prValue({ ...p, value: p.prev }))}</small></span></a>`;
   const html = `
+    ${filters()}
+    <section class="card"><div class="card-title">${icon('trophy', 'gold')} Neueste Rekorde</div>
+      ${recent.length ? recent.slice(0, 5).map(prRow).join('') : '<div class="chart-empty">Keine Rekorde im Zeitraum – wähle oben einen längeren Zeitraum.</div>'}
+    </section>
     <div class="kpis four">
       <div class="kpi mini"><small>Rekorde</small><b>${cur.length}</b></div>
       <div class="kpi mini"><small>1RM-Rekorde</small><b>${cur.filter((p) => p.kind === 'e1rm').length}</b></div>
       <div class="kpi mini"><small>Gewichts-PRs</small><b>${cur.filter((p) => p.kind === 'weight').length}</b></div>
       <div class="kpi mini"><small>Übungen</small><b>${new Set(cur.map((p) => p.exercise)).size}</b></div>
     </div>
+    ${moreDivider('records-more', 'Mehr Details')}
     <section class="card"><div class="card-title">Rekorde pro ${unitWord(unit)}</div><div data-chart="prs"></div></section>
-    <section class="card"><div class="card-title">${icon('trophy', 'gold')} Letzte Rekorde</div>
-      ${recent.length ? recent.map((p) => `<a class="pr-row" href="#/w/${esc(p.wid)}">
-        <div><b>${esc(p.exercise)}</b><small>${esc(prLabel(p.kind))} · ${esc(fmtDate(p.date))}</small></div>
-        <span class="pr-val">${esc(prValue(p))}<small>vorher ${esc(prValue({ ...p, value: p.prev }))}</small></span></a>`).join('') : '<div class="chart-empty">Keine Rekorde im Zeitraum</div>'}
-    </section>
+    ${recent.length > 5 ? `<section class="card"><div class="card-title">Frühere Rekorde</div>${recent.slice(5).map(prRow).join('')}</section>` : ''}
     <section class="card"><div class="card-title">Bestwerte (gesamt) ${relSwitch()}</div>
       <div class="table">
         <div class="tr th"><span>Übung</span><span>${relOn ? '1RM ÷ KG' : '1RM'}</span><span>Max</span><span>Wdh.</span></div>
@@ -673,6 +716,7 @@ function balance() {
   const issues = vb.filter((r) => r.level === 'mild' || r.level === 'strong').length + sb.ratios.filter((r) => !r.missing && r.level !== 'ok').length;
 
   const html = `
+    ${filters()}
     <div class="card bal-summary ${issues ? 'warn' : 'ok'}">
       <span>${icon(issues ? 'info' : 'check')}</span>
       <div><b>${issues ? `${issues} Auffälligkeit${issues > 1 ? 'en' : ''} gefunden` : 'Dein Training ist ausgewogen'}</b>
@@ -733,4 +777,26 @@ function weekDays(bs) {
     <span class="wd-d"><b>${WEEKDAYS[weekday(b.start)]}</b><small>${new Date(b.start).getDate()}.</small></span>
     <span class="wd-w">${b.items.length ? b.items.map((w) => `<a href="#/w/${esc(w.id)}"><b>${esc(w.title)}</b><small>${fmtDurShort(wStats.get(w.id).duration)}${wStats.get(w.id).volume ? ` · ${fmtVolume(wStats.get(w.id).volume)}` : ''}</small></a>`).join('') : `<small class="muted">${b.start > today ? '' : 'Pause'}</small>`}</span>
   </div>`).join('')}</section>`;
+}
+
+// ---------- Klartext-Überschrift: diese Woche (unabhängig vom Zeitraum-Filter) ----------
+function headline() {
+  const { asc } = idx();
+  const w = rangeBounds('1w', 0);
+  const cur = agg(inRange(asc, w.from, w.to));
+  const prev = agg(inRange(asc, w.prevFrom, w.prevTo));
+  const st = weekStreaks();
+  const goal = Math.max(1, state.settings.weekGoal || 3);
+  const parts = cur.n ? [`${cur.n} Workout${cur.n === 1 ? '' : 's'}`, fmtDurShort(cur.dur), ...(cur.vol > 0 ? [fmtVolume(cur.vol)] : [])] : [];
+  const diff = cur.n - prev.n;
+  const cmpTxt = !cur.n && !prev.n ? ''
+    : diff > 0 ? `<span class="delta up">↑ ${diff} mehr</span> als letzte Woche zur selben Zeit`
+    : diff < 0 ? `<span class="delta down">↓ ${-diff} weniger</span> als letzte Woche zur selben Zeit`
+    : `<span class="delta flat">= gleich viele</span> wie letzte Woche zur selben Zeit`;
+  return `<section class="card stats-hl">
+    <div class="card-title">Diese Woche</div>
+    ${parts.length ? `<p class="hl-main">${parts.join(' · ')}</p>` : '<p class="hl-main muted">Noch kein Training diese Woche</p>'}
+    ${cmpTxt ? `<p class="hl-sub">${cmpTxt}</p>` : ''}
+    <p class="hl-sub">Wochenziel <b>${cur.n}/${goal}</b>${st.current ? ` · Serie <b>${st.current} Woche${st.current === 1 ? '' : 'n'}</b>` : ''}</p>
+  </section>`;
 }

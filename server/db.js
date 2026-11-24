@@ -140,6 +140,13 @@ export function openDb(dir) {
       activity_id TEXT NOT NULL,
       PRIMARY KEY (user_id, activity_id)
     );
+    CREATE TABLE IF NOT EXISTS strava_relay (
+      state TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created INTEGER NOT NULL,
+      code TEXT,
+      scope TEXT
+    );
     CREATE TABLE IF NOT EXISTS strava_states (
       state TEXT PRIMARY KEY,
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

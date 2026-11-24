@@ -51,7 +51,7 @@ export function workoutDetailView({ id }) {
       ${kpi('Arbeitssätze', `${s.sets ?? 0}`, null, 'layers')}
       ${kpi('Wiederholungen', num(s.reps, 0), null, 'repeat')}
     </div>
-    ${ep ? `<div class="card ep-card"><span class="ep-badge">+${num(ep.total, 0)} EP</span><small>${ep.parts.map(([l, v]) => `${esc(l)} ${num(v, 0)}`).join(' · ')}</small></div>` : ''}
+    ${ep ? (ep.total ? `<div class="card ep-card"><span class="ep-badge">+${num(ep.total, 0)} EP</span><small>${ep.parts.map(([l, v]) => `${esc(l)} ${num(v, 0)}`).join(' · ')}</small></div>` : `<div class="card ep-card none"><span class="ep-badge">0 EP</span><small>${esc(ep.reason)}</small></div>`) : ''}
     ${s.prs?.length ? `<div class="card pr-card">${icon('trophy', 'gold')}<div><b>${s.prs.length} persönliche Rekorde</b><small>in diesem Workout</small></div></div>` : ''}
     ${exHtml}
     <div class="btn-row">

@@ -137,8 +137,10 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     if (!users) console.log('Noch keine Nutzer. Ersten Admin anlegen:  node server/cli.js admin "Dein Name"');
   });
   // Strava: verbundene Konten alle 2 Stunden abgleichen (Arena bleibt aktuell, auch ohne App zu öffnen)
-  setTimeout(() => stravaSyncAll(D), 60000).unref();
-  setInterval(() => stravaSyncAll(D), 2 * 3600e3).unref();
+  if (process.env.STRAVA_SERVER === '1') { // alter Weg; neu holt das Handy die Aktivitäten selbst
+    setTimeout(() => stravaSyncAll(D), 60000).unref();
+    setInterval(() => stravaSyncAll(D), 2 * 3600e3).unref();
+  }
   // Garmin genauso (persönliche API liefert nichts von selbst, daher regelmäßig nachfragen)
   if (process.env.GARMIN_ENABLED === '1') { // vorerst aus (siehe api.js)
     setTimeout(() => garminSyncAll(D), 90000).unref();

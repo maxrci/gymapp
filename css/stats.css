@@ -1,0 +1,9 @@
+/* Statistik: vereinfachte Struktur (Einfach oben, Details darunter) */
+.stats-hl .hl-main { font-size: 22px; font-weight: 750; margin: 2px 0 8px; line-height: 1.25; }
+.stats-hl .hl-sub { margin: 2px 0; font-size: 14px; color: var(--muted); }
+.stats-hl .hl-sub b { color: var(--text); }
+.stats-range { margin: 2px 0 12px; }
+.stats-range .chip { padding: 5px 11px; font-size: 13px; min-height: 32px; }
+.stats-more { margin-top: 30px; padding-top: 16px; border-top: 1px solid var(--line-2); scroll-margin-top: 12px; }
+.stats-more small { font-size: 13px; font-weight: 500; }
+.stats-jump { margin-bottom: 12px; }

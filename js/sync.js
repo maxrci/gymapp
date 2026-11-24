@@ -203,6 +203,7 @@ export function summarizer() {
     return {
       start: w.start, end: w.end, title: w.title, vol: Math.round(ws.volume || 0), sets: ws.sets || 0, reps: ws.reps || 0,
       dur: Math.round(ws.duration || 0), km: +km.toFixed(3), cmin: Math.round(csec / 60), mob: w.exercises.some((e) => MOBILITY_RE.test(e.name)) ? 1 : 0, ex: exl,
+      ...(w.source === 'import' || w.hist ? { h: 1 } : {}),
     };
   };
 }
@@ -227,12 +228,23 @@ export function syncNow() {
             if (batch.length >= 80) break;
             const obj = kind === 'workout' ? state.workouts.find((w) => w.id === id) : state.routines.find((r) => r.id === id);
             if (!obj) { delete S.dirty[kind][id]; continue; }
+            if (kind === 'workout' && obj.source === 'strava') {
+              // Strava bleibt auf dem Handy: an den Server geht nur Start + Dauer (für EP), und nur ab der Verbindung
+              if (obj.hist) { delete S.dirty[kind][id]; continue; }
+              const sm = sum(obj);
+              batch.push({ kind: 'ext', id, data: { start: obj.start, dur: Math.max(sm.cmin * 60, Math.round(sm.dur || 0)) } });
+              sent.push([kind, id, v]);
+              continue;
+            }
             batch.push({ kind, id, data: obj, summary: kind === 'workout' ? sum(obj) : null });
             sent.push([kind, id, v]);
           }
         }
         const tombs = S.tomb.slice(0, 200);
-        for (const t of tombs) batch.push({ kind: t.kind, id: t.id, deleted: true });
+        for (const t of tombs) {
+          batch.push({ kind: t.kind, id: t.id, deleted: true });
+          if (t.kind === 'workout' && /^strava-/.test(t.id)) batch.push({ kind: 'ext', id: t.id, deleted: true });
+        }
         const pd = profileData();
         const h = hash(pd);
         const profile = h !== S.profHash ? { updated: Math.max(Date.now(), S.profUpdated + 1), data: pd } : null;

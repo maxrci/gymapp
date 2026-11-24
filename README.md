@@ -40,9 +40,13 @@ Alle Daten bleiben lokal auf dem Gerät (IndexedDB).
   das Ziel ein (realistisch / ambitioniert) mit Gegenvorschlag zum Übernehmen und erstellt einen flexiblen Wochenplan
   (Split nach Wunsch, Übungen tauschbar, verschieben/auslassen). Der Plan passt sich automatisch an Pausen, Krankheit
   und Fortschritt an. Auf der Startseite: Plan pro Wochentag und Ernährungs-Richtwerte (kcal & Makros).
-- **Strava**: Jede Person trägt ihre eigene Strava-API-App (Client-ID + Secret) unter Profil → Verbindungen ein; der
-  Gruppen-Server übernimmt die Anmeldung und holt neue Aktivitäten automatisch (beim Öffnen und alle 2 Stunden).
-  Gemäß Strava-Richtlinien sieht die Aktivitäten nur die Person selbst; in der Arena zählen sie nur als EP.
+- **Strava**: läuft komplett auf dem Handy. Eigene Strava-API-App (Client-ID + Secret) unter Profil → Verbindungen;
+  Secret, Zugang und Aktivitäten bleiben auf dem Gerät. Der Server reicht bei der Anmeldung nur den einmaligen
+  Freigabe-Code weiter. In die Arena geht nur die EP-Grundlage (Start + Dauer) von Aktivitäten ab der Verbindung.
+- **Ein Punktesystem** (`js/xp.js`) für Level, Arena und Streak: EP pro Workout, Trainingsminute, Rekord, Wochenziel
+  und Challenge-Sieg. Es zählt nur, was in der App getrackt oder nachgetragen wurde – Importe und Strava von vor der
+  Verbindung erscheinen nur in der privaten Statistik. Rekorde zählen neu ab dem ersten zählenden Workout.
+- **Abzeichen** (über 100, mit Medaillen-Stufen) schalten **Objekte für den Kämpfer** frei (Hüte, Brillen, Hanteln …).
 - **Cardio geführt**: Grundlage, 4×4, 30/30, Pyramide, Steigerung, Schwelle, 12-3-30, Regeneration für
   Laufband/Rad/Crosstrainer/Rudergerät. Vollbild mit Geräte-Einstellungen, Zonen, Countdown-Tönen
   und Sprachansage.

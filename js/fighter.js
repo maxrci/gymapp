@@ -10,6 +10,69 @@ const SKIN_SHADE = '#e0ae82';
 const HAIR_GOLD = '#ffd23f';
 const INK = '#222';
 
+// ---- Objekte (Koordinaten relativ zur Kopfmitte hy; Kopf: x 80–120, Oberkante -20) ----
+function hatSVG(h, C, id) {
+  const sk = (c) => `stroke="${c}" stroke-width="1.4" stroke-linejoin="round"`;
+  switch (h) {
+    case 'cap': return `<path d="M79,-10 Q78,-37 100,-37 Q122,-37 121,-10 Q100,-15 79,-10Z" fill="${C.accent}" ${sk(C.accentDark)}/><circle cx="100" cy="-37" r="2.6" fill="${C.accentDark}"/>
+      <path d="M78,-11 Q100,0 122,-11 Q100,-17 78,-11Z" fill="${C.accentDark}"/>`;
+    case 'headband': return `<path d="M79,-15 Q100,-21 121,-15 L121,-8 Q100,-14 79,-8Z" fill="#d83a34" ${sk('#a82a25')}/>
+      <path d="M121,-12 l13,-5 -3,7 9,4 -15,0 -2,-3Z" fill="#d83a34" ${sk('#a82a25')}/>`;
+    case 'beanie': return `<path d="M78,-12 Q75,-40 100,-40 Q125,-40 122,-12Z" fill="${C.accent}" ${sk(C.accentDark)}/>
+      <path d="M77,-17 Q100,-23 123,-17 L123,-8 Q100,-14 77,-8Z" fill="${C.accentDark}"/>
+      <path d="M85,-19 v9 M93,-20 v9 M101,-20 v9 M109,-20 v9 M117,-19 v9" stroke="${C.accent}" stroke-width="1.4" opacity=".6"/>
+      <circle cx="100" cy="-44" r="6.5" fill="#fff" ${sk('#cfd2dc')}/>`;
+    case 'cowboy': return `<path d="M80,-12 Q77,-34 88,-37 Q100,-31 112,-37 Q123,-34 120,-12Z" fill="#9a6a3a" ${sk('#6b4423')}/>
+      <path d="M80,-16 Q100,-11 120,-16 L120,-11 Q100,-6 80,-11Z" fill="#4a2e14"/>
+      <path d="M57,-21 Q63,-6 100,-8 Q137,-6 143,-21 Q132,-13 100,-14 Q68,-13 57,-21Z" fill="#8a5a2b" ${sk('#6b4423')}/>`;
+    case 'crown': return `<path d="M80,-12 L77,-37 L90,-26 L100,-42 L110,-26 L123,-37 L120,-12 Q100,-8 80,-12Z" fill="#ffd23f" ${sk('#c99504')}/>
+      <circle cx="100" cy="-17" r="2.6" fill="#d83a34"/><circle cx="89" cy="-16" r="2" fill="#2f6fd6"/><circle cx="111" cy="-16" r="2" fill="#2f6fd6"/>
+      <circle cx="77" cy="-38" r="2.2" fill="#fff3b0"/><circle cx="100" cy="-43" r="2.2" fill="#fff3b0"/><circle cx="123" cy="-38" r="2.2" fill="#fff3b0"/>`;
+    case 'santa': return `<path d="M79,-12 Q78,-40 106,-45 Q128,-44 134,-28 Q120,-36 121,-12Z" fill="#d83a34" ${sk('#a82a25')}/>
+      <path d="M77,-16 Q100,-9 123,-16 L123,-8 Q100,-1 77,-8Z" fill="#fff" ${sk('#d9dae3')}/>
+      <circle cx="134" cy="-27" r="6.5" fill="#fff" ${sk('#d9dae3')}/>`;
+    case 'witch': return `<path d="M82,-14 Q93,-32 96,-54 Q99,-62 112,-66 Q104,-54 108,-42 Q116,-28 118,-14Z" fill="#2a2233" ${sk('#14101a')}/>
+      <path d="M83,-18 Q100,-12 117,-18 L118,-12 Q100,-6 82,-12Z" fill="#7b4fd0"/><rect x="95" y="-17" width="9" height="7" rx="1.5" fill="none" stroke="#ffd23f" stroke-width="1.8"/>
+      <path d="M68,-10 Q100,-1 132,-10 Q122,-18 100,-17 Q78,-18 68,-10Z" fill="#2a2233" ${sk('#14101a')}/>`;
+    case 'party': return `<clipPath id="${id}pc"><path d="M84,-12 L100,-52 L116,-12 Q100,-7 84,-12Z"/></clipPath>
+      <path d="M84,-12 L100,-52 L116,-12 Q100,-7 84,-12Z" fill="#e46aa8"/>
+      <g clip-path="url(#${id}pc)"><path d="M70,-18 L130,-34 L130,-26 L70,-10Z M70,-36 L130,-52 L130,-44 L70,-28Z" fill="#ffd23f"/><path d="M70,-27 L130,-43 L130,-39 L70,-23Z" fill="#2f6fd6"/></g>
+      <path d="M84,-12 L100,-52 L116,-12 Q100,-7 84,-12Z" fill="none" ${sk('#b84583')}/>
+      <circle cx="100" cy="-53" r="4.2" fill="#ffd23f" ${sk('#c99504')}/>`;
+  }
+  return '';
+}
+function faceItemSVG(f) {
+  switch (f) {
+    case 'sunglasses': return `<path d="M83,-3 L117,-3" stroke="#14141a" stroke-width="2"/>
+      <path d="M84,-3 H99 V4 Q99,10 91.5,10 Q84,10 84,4Z M101,-3 H116 V4 Q116,10 108.5,10 Q101,10 101,4Z" fill="#14141a" stroke="#000" stroke-width="1" stroke-linejoin="round"/>
+      <path d="M86,-1 l5,0 M103,-1 l5,0" stroke="#6f7a99" stroke-width="1.6" stroke-linecap="round" opacity=".8"/>`;
+    case 'mustache': return `<path d="M100,6 Q94,2 86,6 Q82,9 86,11 Q92,8 100,10 Q108,8 114,11 Q118,9 114,6 Q106,2 100,6Z" fill="#3a2418" stroke="#1d120b" stroke-width="1" stroke-linejoin="round"/>`;
+    case 'cigarette': return `<g transform="rotate(12 105 11)"><rect x="105" y="9.4" width="19" height="3.8" rx="1.2" fill="#fff" stroke="#cfd2dc" stroke-width=".8"/>
+      <rect x="105" y="9.4" width="5" height="3.8" rx="1.2" fill="#d9a066"/><rect x="121" y="9.4" width="3.6" height="3.8" rx="1" fill="#f28c28"/></g>
+      <path d="M127,8 q-5,-5 0,-9 q5,-4 0,-9" stroke="#b9bcc8" stroke-width="2" fill="none" stroke-linecap="round" opacity=".8"/>`;
+  }
+  return '';
+}
+function handItemSVG(h, k) {
+  switch (h) {
+    case 'dumbbell': return `<rect x="-11" y="-1.8" width="22" height="3.6" fill="#9aa0ad"/>
+      <rect x="-14" y="-8" width="5" height="16" rx="1.6" fill="#3a3d48"/><rect x="9" y="-8" width="5" height="16" rx="1.6" fill="#3a3d48"/>
+      <rect x="-18" y="-6" width="4" height="12" rx="1.4" fill="#555966"/><rect x="14" y="-6" width="4" height="12" rx="1.4" fill="#555966"/>`;
+    case 'kettlebell': return `<path d="M-8,4 Q-9,-12 0,-12 Q9,-12 8,4" stroke="#2b2d36" stroke-width="3.6" fill="none"/>
+      <circle cx="0" cy="12" r="12" fill="#3a3d48" stroke="#22232a" stroke-width="1.2"/><ellipse cx="-4" cy="8" rx="3.5" ry="2.5" fill="#fff" opacity=".18"/>`;
+    case 'shaker': return `<rect x="-6.5" y="-16" width="13" height="5" rx="2" fill="#22232a"/><rect x="-4" y="-19" width="8" height="4" rx="1.5" fill="#22232a"/>
+      <path d="M-7,-11 H7 L8,14 Q8,18 4,18 H-4 Q-8,18 -8,14Z" fill="#e8f1f7" stroke="#aebbc8" stroke-width="1"/>
+      <path d="M-7.6,2 H7.8 L8,14 Q8,18 4,18 H-4 Q-8,18 -8,14Z" fill="#8a5a3a" opacity=".85"/><path d="M-5,-8 v5" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>`;
+    case 'wine': return `<path d="M-9,-22 H9 Q10,-8 0,-6 Q-10,-8 -9,-22Z" fill="#dfe9f5" opacity=".75" stroke="#aebbc8" stroke-width="1.2"/>
+      <path d="M-8.4,-14 H8.4 Q9,-8 0,-6.5 Q-9,-8 -8.4,-14Z" fill="#f2df7a"/>
+      <circle cx="-2" cy="-10" r="1" fill="#fff" opacity=".8"/><circle cx="2.5" cy="-12" r="0.8" fill="#fff" opacity=".8"/>
+      <path d="M3,-13 L8,-26" stroke="#e46aa8" stroke-width="1.8" stroke-linecap="round"/>
+      <path d="M0,-6 V12" stroke="#aebbc8" stroke-width="2.2"/><ellipse cx="0" cy="13" rx="8" ry="2.4" fill="#dfe9f5" stroke="#aebbc8" stroke-width="1"/>`;
+  }
+  return '';
+}
+
 export function fighterSVG(stage = 0, { powerUp = false, cls = '', intro = false, look = null } = {}) {
   const L = look ? normLook(look) : getLook();
   const C = palette(L);
@@ -124,6 +187,25 @@ export function fighterSVG(stage = 0, { powerUp = false, cls = '', intro = false
       <circle cx="113" cy="${hy - 20}" r="3.2" fill="${C.accent}"/>`;
   }
 
+  // Mit Hut (außer Stirnband): Haare nur als Pony/Strähnen unter dem Hut
+  const hat = L.items.hat;
+  if (hat && hat !== 'headband') {
+    const bang = fem ? '' : `<path d="M88,${hy - 12} L92,${hy - 1} L98,${hy - 13} L101,${hy - 3} L106,${hy - 14} L112,${hy - 2} L113,${hy - 13} Z" fill="${hairCol}"/>`;
+    const side = fem
+      ? `<path d="M80,${hy - 6} Q75,${hy + 16} 80,${hy + 31} L84,${hy + 14} Q83,${hy + 4} 84,${hy - 4} Z M120,${hy - 6} Q125,${hy + 16} 120,${hy + 31} L116,${hy + 14} Q117,${hy + 4} 116,${hy - 4} Z M84,${hy - 14} Q100,${hy - 6} 116,${hy - 14} L112,${hy - 8} L104,${hy - 11} L96,${hy - 11} L88,${hy - 8}Z" fill="${hairCol}"/>`
+      : `<path d="M80,${hy - 10} L79,${hy + 5} L85,${hy - 3} Z M120,${hy - 10} L121,${hy + 5} L115,${hy - 3} Z" fill="${hairCol}"/>`;
+    hairFront = bang + side;
+  }
+  const hatG = hat ? `<g transform="translate(0 ${hy})">${hatSVG(hat, C, id)}</g>` : '';
+  const faceG = L.items.face ? `<g transform="translate(0 ${hy})">${faceItemSVG(L.items.face)}</g>` : '';
+  let handG = '';
+  if (L.items.hand) {
+    const hfx = cx + (sw + (tired ? 4 : 10) + 5 * m), hfy = shY + (tired ? 78 : 72) + 3;
+    const hr = at * 0.95 + 2, k = 0.95 + 0.6 * m;
+    handG = `<g class="f-item" transform="translate(${hfx} ${hfy}) scale(${k})">${handItemSVG(L.items.hand)}</g>
+      <circle cx="${hfx}" cy="${hfy}" r="${hr * 0.9}" fill="${SKIN}"/><path d="M${hfx - hr * 0.5},${hfy - hr * 0.2} h${hr} M${hfx - hr * 0.5},${hfy + hr * 0.2} h${hr}" stroke="${SKIN_SHADE}" stroke-width="1.2" opacity=".8"/>`;
+  }
+
   // ---- Gesicht ----
   const lash = fem ? `<path d="M86.5,${hy - 1} l-3,-2.4 M113.5,${hy - 1} l3,-2.4" stroke="${INK}" stroke-width="1.6" stroke-linecap="round"/>` : '';
   const ery = fem ? 3.7 : 3.2;
@@ -183,12 +265,14 @@ export function fighterSVG(stage = 0, { powerUp = false, cls = '', intro = false
       <path d="${torso}" fill="${torsoFill}"/>
       ${chest}${pecs}${tears}
       ${belt}
+      ${handG}
       <g class="f-head" style="transform-origin:100px ${hy + 22}px">
         ${hairBack}
         <circle cx="${fem ? 81 : 80}" cy="${hy + 3}" r="${fem ? 4.5 : 5}" fill="${SKIN}"/><circle cx="${fem ? 119 : 120}" cy="${hy + 3}" r="${fem ? 4.5 : 5}" fill="${SKIN}"/>
         <ellipse cx="100" cy="${hy + 2}" rx="${hrx}" ry="${hry}" fill="${SKIN}"/>
         ${hairFront}
         ${intro ? introFace : `${eyes}${mouth}${sweat}`}
+        ${faceG}${hatG}
       </g>
     </g>
     ${bolts}${particles}
@@ -212,5 +296,6 @@ export function fighterFx(stage = 0, { enter = false, powerUp = false, look = nu
 
 // Nur der Kopf (für Avatare in Listen)
 export function fighterHead(stage = 0, look = null) {
-  return fighterSVG(stage, { look, cls: 'head-only' }).replace('viewBox="0 0 200 260"', 'viewBox="50 0 100 100"');
+  const L = normLook(look || getLook());
+  return fighterSVG(stage, { look: { ...L, items: { ...L.items, hand: null } }, cls: 'head-only' }).replace('viewBox="0 0 200 260"', 'viewBox="50 0 100 100"');
 }

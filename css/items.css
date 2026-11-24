@@ -1,0 +1,11 @@
+/* Avatar-Objekte im Editor */
+.av-slot { font-size: 12px; font-weight: 700; color: var(--text-2); margin: 10px 2px 6px; }
+.av-grid.av-items { grid-template-columns: repeat(3, 1fr); }
+.av-opt { position: relative; }
+.av-opt .av-none { height: 72px; display: grid; place-items: center; font-size: 28px; color: var(--text-3, var(--text-2)); }
+.av-handprev { height: 72px; width: 100%; overflow: hidden; display: grid; place-items: center; }
+.av-handprev svg { width: 100%; height: 100%; }
+.av-opt.locked { opacity: .55; }
+.av-opt.locked svg:first-child, .av-opt.locked .av-handprev svg { filter: grayscale(1); }
+.av-opt .av-lock { position: absolute; top: 6px; right: 6px; width: 13px; height: 13px; color: var(--text-2); }
+.av-opt .av-hint { font-style: normal; font-size: 10px; line-height: 1.2; color: var(--text-2); text-align: center; padding: 0 2px; }
