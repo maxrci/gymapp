@@ -100,9 +100,9 @@ export function openTickets() {
         <div class="chips scroll">${[['', 'Alle'], ...TICKET_TYPES.map(([k, l]) => [k, l])].map(([k, l]) => `<button class="chip ${f.type === k ? 'on' : ''}" data-ft="${k}">${esc(l)}</button>`).join('')}
           <span class="chip-sep"></span>${[['active', 'Offen'], ['closed', 'Erledigt'], ['all', 'Alle']].map(([k, l]) => `<button class="chip ${f.status === k ? 'on' : ''}" data-fs="${k}">${l}</button>`).join('')}</div>
         ${!data ? '<div class="chart-empty">Lade…</div>' : data.error ? `<div class="chart-empty">${esc(data.error)}</div>` : list.length ? list.map((t) => `<button class="card tk-row" data-open="${esc(t.id)}">
-          <span class="tk-ic ${t.type}">${icon(typeOf(t.type)[2])}</span>
+          <span class="tk-ic ${esc(t.type)}">${icon(typeOf(t.type)[2])}</span>
           <span class="tk-main"><b>${esc(t.title)}</b><small>${esc(t.author || '')} · ${esc(fmtRelDay(t.created))}${t.comments?.length ? ` · ${t.comments.length} Kommentar${t.comments.length > 1 ? 'e' : ''}` : ''}</small></span>
-          <span class="tk-side"><span class="tk-st ${t.status}">${statusOf(t.status)[1]}</span>${loggedIn() ? `<small>${icon('heart', 'xs')} ${t.votes || 0}</small>` : ''}</span></button>`).join('')
+          <span class="tk-side"><span class="tk-st ${esc(t.status)}">${statusOf(t.status)[1]}</span>${loggedIn() ? `<small>${icon('heart', 'xs')} ${t.votes || 0}</small>` : ''}</span></button>`).join('')
           : `<div class="chart-empty">${f.status === 'active' ? 'Keine offenen Tickets' : 'Keine Tickets'}</div>`}
       </div>`;
   };
@@ -129,9 +129,9 @@ function openTicket(t, admin, reload) {
     <div class="panel-head"><button class="icon-btn" data-close aria-label="Schließen">${icon('x')}</button><div class="panel-title">${typeOf(t.type)[1]}</div>
       ${canEdit ? `<button class="icon-btn" data-menu aria-label="Optionen">${icon('more')}</button>` : '<span style="width:40px"></span>'}</div>
     <div class="panel-body">
-      <div class="tk-head"><span class="tk-ic ${t.type}">${icon(typeOf(t.type)[2])}</span><div><h3>${esc(t.title)}</h3>
+      <div class="tk-head"><span class="tk-ic ${esc(t.type)}">${icon(typeOf(t.type)[2])}</span><div><h3>${esc(t.title)}</h3>
         <small>${esc(t.author || '')} · ${esc(fmtDate(t.created, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }))}</small></div>
-        <span class="tk-st ${t.status}">${statusOf(t.status)[1]}</span></div>
+        <span class="tk-st ${esc(t.status)}">${statusOf(t.status)[1]}</span></div>
       ${t.body ? `<div class="card tk-body">${esc(t.body).replace(/\n/g, '<br>')}</div>` : ''}
       ${t.device ? `<p class="footnote">${esc(t.device)}</p>` : ''}
       ${loggedIn() ? `<button class="btn ${t.voted ? 'primary' : 'ghost'} block" data-vote>${icon('heart', 'xs')} Ich auch · ${t.votes || 0}</button>` : `
