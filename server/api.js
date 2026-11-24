@@ -323,28 +323,32 @@ export function makeApi(D, cfg) {
   });
 
   // ---- Garmin (persönlicher API-Schlüssel aus Garmin Connect) ----
-  on('GET', '/api/garmin', 'user', ({ me }) => garmin.status(D, me.id));
-  on('POST', '/api/garmin/config', 'user', async ({ me, body }) => {
-    if (rateLimited(`garmin:${me.id}`, 20)) fail(429, 'Bitte kurz warten.');
-    noteFail(`garmin:${me.id}`);
-    try { await garmin.saveConfig(D, me.id, body || {}); } catch (e) { fail(e.status || 400, e.message); }
-    const r = await garmin.syncUser(D, me.id).catch((e) => ({ added: 0, error: e.message }));
-    return { ...garmin.status(D, me.id), added: r.added, syncError: r.error || '' };
-  });
-  on('POST', '/api/garmin/sync', 'user', async ({ me }) => {
-    if (rateLimited(`garmin:${me.id}`, 20)) fail(429, 'Bitte kurz warten.');
-    noteFail(`garmin:${me.id}`);
-    try { return await garmin.syncUser(D, me.id); } catch (e) { fail(e.status || 502, e.message); }
-  });
-  on('POST', '/api/garmin/backfill', 'user', async ({ me, body }) => {
-    if (rateLimited(`garmin:${me.id}`, 20)) fail(429, 'Bitte kurz warten.');
-    noteFail(`garmin:${me.id}`);
-    try { garmin.setImportFrom(D, me.id, body?.from); return await garmin.syncUser(D, me.id); } catch (e) { fail(e.status || 502, e.message); }
-  });
-  on('DELETE', '/api/garmin', 'user', ({ me, url }) => {
-    garmin.disconnect(D, me.id, url.searchParams.get('remove') === '1');
-    return { ok: true };
-  });
+  // Vorerst aus: die Bedingungen der Garmin Personal API verbieten, den Schlüssel an andere (den Gruppen-Server) weiterzugeben.
+  // Code bleibt für später; einschalten nur mit GARMIN_ENABLED=1.
+  if (process.env.GARMIN_ENABLED === '1') {
+    on('GET', '/api/garmin', 'user', ({ me }) => garmin.status(D, me.id));
+    on('POST', '/api/garmin/config', 'user', async ({ me, body }) => {
+      if (rateLimited(`garmin:${me.id}`, 20)) fail(429, 'Bitte kurz warten.');
+      noteFail(`garmin:${me.id}`);
+      try { await garmin.saveConfig(D, me.id, body || {}); } catch (e) { fail(e.status || 400, e.message); }
+      const r = await garmin.syncUser(D, me.id).catch((e) => ({ added: 0, error: e.message }));
+      return { ...garmin.status(D, me.id), added: r.added, syncError: r.error || '' };
+    });
+    on('POST', '/api/garmin/sync', 'user', async ({ me }) => {
+      if (rateLimited(`garmin:${me.id}`, 20)) fail(429, 'Bitte kurz warten.');
+      noteFail(`garmin:${me.id}`);
+      try { return await garmin.syncUser(D, me.id); } catch (e) { fail(e.status || 502, e.message); }
+    });
+    on('POST', '/api/garmin/backfill', 'user', async ({ me, body }) => {
+      if (rateLimited(`garmin:${me.id}`, 20)) fail(429, 'Bitte kurz warten.');
+      noteFail(`garmin:${me.id}`);
+      try { garmin.setImportFrom(D, me.id, body?.from); return await garmin.syncUser(D, me.id); } catch (e) { fail(e.status || 502, e.message); }
+    });
+    on('DELETE', '/api/garmin', 'user', ({ me, url }) => {
+      garmin.disconnect(D, me.id, url.searchParams.get('remove') === '1');
+      return { ok: true };
+    });
+  }
 
   // ---- Admin ----
   on('GET', '/api/admin/users', 'admin', () => {

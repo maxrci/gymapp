@@ -18,7 +18,6 @@ import { showOnboarding } from '../onboarding.js';
 import { testPrSound } from '../fx.js';
 import { openCoachSetup } from '../coach/setup.js';
 import { openStrava, stravaText } from '../strava.js';
-import { openGarmin, garminText } from '../garmin.js';
 
 let persisted = null;
 
@@ -50,7 +49,7 @@ export function profileView() {
     </section>
 
     ${groupSection(row)}
-    ${loggedIn() ? `<div class="list-label">Verbindungen</div><div class="set-group">${row('strava', 'bolt', 'Strava', esc(stravaText()))}${row('garmin', 'watch', 'Garmin', esc(garminText()))}</div>` : ''}
+    ${loggedIn() ? `<div class="list-label">Verbindungen</div><div class="set-group">${row('strava', 'bolt', 'Strava', esc(stravaText()))}</div>` : ''}
 
     ${backupWarn && !loggedIn() ? `<div class="card warn-card">${icon('info')}<div><b>Backup empfohlen</b><small>${s.lastBackup ? `Letztes Backup ${esc(fmtRelDay(s.lastBackup))}` : 'Noch kein Backup erstellt'}. Deine Daten liegen nur auf diesem Gerät.</small></div><button class="btn primary sm" data-act="backup">Sichern</button></div>` : ''}
 
@@ -136,7 +135,6 @@ export function profileView() {
       bw: () => openBodyweight(),
       tickets: () => openTickets(),
       strava: () => openStrava(),
-      garmin: () => openGarmin(),
       onboarding: () => showOnboarding(),
       soundtest: () => {
         if (!testPrSound()) return toast('Audio wird auf diesem Gerät nicht unterstützt');

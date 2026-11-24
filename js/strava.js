@@ -3,7 +3,7 @@
 import { icon, overlay, toast, sheet } from './ui.js';
 import { esc, fmtRelDay, fmtDate, num } from './utils.js';
 import { api, loggedIn, syncNow } from './sync.js';
-import { FROM, fromTs, olderChoices, garminSync } from './garmin.js';
+import { FROM, fromTs, olderChoices } from './garmin.js';
 
 const LS = 'gymlog-strava';
 const cached = () => { try { return JSON.parse(localStorage.getItem(LS) || 'null'); } catch { return null; } };
@@ -27,14 +27,14 @@ export async function stravaSync(force = false) {
     return null;
   }
 }
-// Strava und Garmin beim Öffnen der App und bei jeder Rückkehr abgleichen (höchstens alle 10 Minuten)
+// Strava beim Öffnen der App und bei jeder Rückkehr abgleichen (höchstens alle 10 Minuten)
+// (Garmin ist vorerst deaktiviert: die Bedingungen der Garmin Personal API verbieten die Weitergabe des Schlüssels)
 let inited = false;
 export function initStrava() {
   if (!loggedIn() || inited) return;
   inited = true;
-  const both = () => { stravaSync(); garminSync(); };
-  setTimeout(both, 4000);
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') both(); });
+  setTimeout(() => stravaSync(), 4000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') stravaSync(); });
 }
 
 export async function openStrava() {

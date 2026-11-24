@@ -119,8 +119,10 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   setTimeout(() => stravaSyncAll(D), 60000).unref();
   setInterval(() => stravaSyncAll(D), 2 * 3600e3).unref();
   // Garmin genauso (persönliche API liefert nichts von selbst, daher regelmäßig nachfragen)
-  setTimeout(() => garminSyncAll(D), 90000).unref();
-  setInterval(() => garminSyncAll(D), 2 * 3600e3).unref();
+  if (process.env.GARMIN_ENABLED === '1') { // vorerst aus (siehe api.js)
+    setTimeout(() => garminSyncAll(D), 90000).unref();
+    setInterval(() => garminSyncAll(D), 2 * 3600e3).unref();
+  }
   // letzter Schutz: unerwartete Fehler protokollieren statt den Dienst zu beenden
   process.on('uncaughtException', (e) => console.error('Unerwarteter Fehler:', e));
   process.on('unhandledRejection', (e) => console.error('Unbehandelter Fehler:', e));

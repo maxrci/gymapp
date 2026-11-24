@@ -67,10 +67,10 @@ function slides() {
     },
     {
       key: 'strava', cls: 'strava',
-      fig: () => `<div class="onb-strava"><span class="o-gm">${icon('watch')}</span><span class="o-st">${icon('bolt')}</span><i>${icon('right')}</i><span class="o-gym">${icon('dumbbell')}</span></div>`,
-      title: 'Garmin & Strava verbinden',
-      text: 'Läufe, Radtouren & Co. von deiner Garmin-Uhr oder aus Strava landen automatisch in Gym – mit Distanz und Zeit, und sie zählen auch in der Arena.',
-      bullets: [['watch', '<b>Garmin:</b> In Garmin Connect unter Einstellungen → Personal API einen Schlüssel erstellen und in Gym einfügen – fertig'], ['bolt', '<b>Strava:</b> Bei Strava eine eigene API-App anlegen, Client-ID und Secret eintragen, einmal anmelden'], ['edit', 'Beides unter Profil → Verbindungen – die App führt dich durch jeden Schritt'], ['info', 'Braucht eine Gruppen-Anmeldung. Strava-Aktivitäten zählen in der Arena nur als EP – sehen kann sie nur du.']],
+      fig: () => `<div class="onb-strava"><span class="o-st">${icon('bolt')}</span><i>${icon('right')}</i><span class="o-gym">${icon('dumbbell')}</span></div>`,
+      title: 'Strava verbinden',
+      text: 'Läufe, Radtouren & Co., die du mit Strava aufzeichnest, landen automatisch in Gym – mit Distanz und Zeit. In der Arena zählen sie als EP.',
+      bullets: [['key', '<b>1.</b> Bei Strava unter Einstellungen → API eine eigene App anlegen (dauert 2 Minuten)'], ['edit', '<b>2.</b> In Gym unter Profil → Verbindungen → Strava die Client-ID und das Secret eintragen'], ['check', '<b>3.</b> Einmal bei Strava anmelden – fertig, neue Aktivitäten kommen von selbst'], ['info', 'Braucht eine Gruppen-Anmeldung. Die Aktivitäten selbst siehst nur du – in der Arena erscheinen nur deine EP.']],
     },
   ];
 }
