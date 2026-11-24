@@ -216,3 +216,14 @@ export function freqCardio(g, gymPerWeek = 0) {
   if (gymPerWeek && (total > 9 || (lvl === 'beginner' && total > 6))) notes.push({ text: `Zusammen mit dem Krafttraining sind das ${total} Einheiten pro Woche – das ist viel.`, proposals: [{ label: `${Math.max(1, n - 1)} Cardio-Einheiten pro Woche`, patch: { perWeek: Math.max(1, n - 1) } }] });
   return notes;
 }
+
+// Kraft + Cardio zusammen: Hinweise zur Abstimmung (ohne Zwang)
+export function comboNotes(gw, gc) {
+  const notes = [];
+  const legSport = ['run', 'walk', 'bike', 'skate', 'row'].includes(gc.sport);
+  const legGoal = gw.type === 'orm' && /squat|kniebeuge|beinpresse|kreuzheben|deadlift|hackenschmidt|ausfallschritt|split squat|hip thrust/i.test(gw.exercise || '');
+  const longGoal = gc.sport === 'run' ? gc.distance >= 15 : gc.sport === 'bike' ? gc.distance >= 80 : gc.distance >= 30;
+  if (legSport) notes.push({ text: 'Kraft und Cardio werden zusammen geplant: kein Beintag direkt vor, nach oder am selben Tag wie lange oder harte Cardio-Einheiten. In der Cardio-Zielwoche werden die Beine geschont.', proposals: [] });
+  if (legSport && legGoal && longGoal) notes.push({ text: `Maximalkraft in den Beinen (${gw.exercise}) und ein langes Ausdauerziel bremsen sich gegenseitig etwas. Der Plan nimmt dafür einen Satz Bein-Umfang raus – beides gleichzeitig geht, nur etwas langsamer.`, proposals: [] });
+  return notes;
+}

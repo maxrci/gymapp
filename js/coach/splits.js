@@ -20,9 +20,9 @@ export const SPLITS = {
     { id: 'legs', name: 'Beine', legs: true, slots: [S('squat', 4, 'main'), S('hinge', 3), S('legcurl', 3), S('legext', 2), S('calf', 3)] },
   ] },
   bro3: { label: '3er-Split', short: '3er', days: [
-    { id: 'bt', name: 'Brust & Trizeps', slots: [S('bench', 4, 'main'), S('incline', 3), S('fly', 3), S('triceps', 3), S('triceps', 2)] },
-    { id: 'rb', name: 'Rücken & Bizeps', slots: [S('vpull', 4, 'main'), S('row', 4), S('rear', 3), S('curl', 3), S('curl', 2)] },
-    { id: 'bs', name: 'Beine & Schultern', legs: true, slots: [S('squat', 4, 'main'), S('legcurl', 3), S('legext', 3), S('ohp', 3), S('lateral', 3), S('calf', 2)] },
+    { id: 'bst', name: 'Brust, Schultern & Trizeps', slots: [S('bench', 4, 'main'), S('incline', 3), S('ohp', 3), S('lateral', 3), S('fly', 2), S('triceps', 3)] },
+    { id: 'rb', name: 'Rücken & Bizeps', slots: [S('vpull', 4, 'main'), S('row', 4), S('rear', 3), S('curl', 3), S('curl', 2), S('abs', 2)] },
+    { id: 'bb', name: 'Beine & Bauch', legs: true, slots: [S('squat', 4, 'main'), S('hinge', 3), S('legcurl', 3), S('legext', 3), S('calf', 3), S('abs', 2)] },
   ] },
   bro5: { label: 'Bro-Split', short: 'Bro', days: [
     { id: 'chest', name: 'Brust', slots: [S('bench', 4, 'main'), S('incline', 4), S('fly', 3), S('bench', 3), S('abs', 2)] },
@@ -38,7 +38,7 @@ export const SPLIT_INFO = {
   full: 'Jedes Mal der ganze Körper – ideal bei 1–3 Workouts.',
   ou: 'Abwechselnd Ober- und Unterkörper – ideal bei 4 Workouts.',
   ppl: 'Drücken, Ziehen, Beine – ideal bei 3 oder 6 Workouts.',
-  bro3: 'Brust/Trizeps, Rücken/Bizeps, Beine/Schultern.',
+  bro3: 'Brust/Schultern/Trizeps, Rücken/Bizeps, Beine/Bauch – mit Fliegenden und Extra-Armvolumen.',
   bro5: 'Jeden Tag eine Muskelgruppe – ideal bei 5 Workouts.',
 };
 

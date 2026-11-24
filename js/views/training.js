@@ -29,7 +29,8 @@ function weekNumbers() {
   return { cardio: Math.round(cardio), mob: Math.round(mob), gym };
 }
 import { openCardioSetup, openMobilitySetup, hasGuided, resumeGuided } from '../guided.js';
-import { coachOn, SPORTS } from '../coach/core.js';
+import { coachOn, SPORTS, goalW, goalC } from '../coach/core.js';
+import { openCoachSetup } from '../coach/setup.js';
 import { weekPlan, nextSession } from '../coach/plan.js';
 import { startPlanned } from './plan.js';
 import { WEEKDAYS } from '../utils.js';
@@ -87,6 +88,7 @@ function planCard() {
     <div class="coach-head"><span class="ai-badge">AI</span><b>Dein Plan</b><span class="demo-tag sm">DEMO</span></div>
     <div class="coach-best"><div><small>${nx ? `Als Nächstes · ${esc(WEEKDAYS[nx.day] || '')}` : `${plan.doneCount}/${plan.total} erledigt`}</small><b>${esc(t)}</b><small>${nx ? esc(nx.kind === 'gym' ? nx.exercises.map((e) => e.name).slice(0, 4).join(' · ') : nx.sub) : 'Alles Weitere ist Bonus'}</small></div></div>
     <div class="row-btns">${nx ? `<button class="btn primary" data-act="plan-go" data-sid="${esc(nx.id)}">${icon('play', 'xs')} Starten</button>` : ''}<a class="btn ghost" href="#/plan">Ganze Woche</a></div>
+    <button class="link-btn sm plan-edit" data-act="coach-goals">${icon('edit', 'xs')} Ziele & Einstellungen ändern</button>
   </section>`;
 }
 
@@ -153,6 +155,14 @@ export function trainingView() {
       mobility: () => openMobilitySetup(),
       resume: () => resumeGuided(),
       'plan-go': (el) => startPlanned(nextSession()),
+      'coach-goals': async () => {
+        const opts = [];
+        if (state.settings.aiWorkout) opts.push({ label: goalW() ? 'Workout-Ziel ändern' : 'Workout-Ziel festlegen', value: 'workout', icon: 'dumbbell' });
+        if (state.settings.aiCardio) opts.push({ label: goalC() ? 'Cardio-Ziel ändern' : 'Cardio-Ziel festlegen', value: 'cardio', icon: 'bolt' });
+        opts.push({ label: 'Körperdaten', value: 'body', icon: 'user' });
+        const v = await sheet({ title: 'AI-Coach', options: opts });
+        if (v) openCoachSetup(v);
+      },
       'coach-start': (el) => {
         const name = el.dataset.name;
         const r = state.routines.find((x) => x.name === name);

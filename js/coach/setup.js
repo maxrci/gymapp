@@ -10,7 +10,7 @@ import {
   fmtHms, deadlineIn, fmtDeadline, weeksBetween,
 } from './core.js';
 import { SPLITS, SPLIT_INFO, splitFor } from './splits.js';
-import { assessWorkout, assessCardio, freqWorkout, freqCardio, VERDICTS } from './assess.js';
+import { assessWorkout, assessCardio, freqWorkout, freqCardio, comboNotes, VERDICTS } from './assess.js';
 
 const W_TYPES = [
   ['strength', 'Stärker werden', 'dumbbell'],
@@ -64,11 +64,11 @@ export function openCoachSetup(kind = 'workout', { onDone } = {}) {
     workout: {
       type: ex.type || 'strength', exercise: ex.exercise || ormCandidates()[0], target: ex.target ?? '', current: '',
       perWeek: ex.perWeek || Math.min(6, state.settings.weekGoal || 3), level: ex.level || lvl, split: ex.split || 'auto',
-      weeks: ex.deadline ? Math.min(52, Math.max(4, weeksBetween(Date.now(), ex.deadline))) : 12, date: '',
+      weeks: ex.deadline ? Math.min(52, Math.max(4, weeksBetween(Date.now(), ex.deadline))) : 12, date: ex.deadline > Date.now() + 6 * DAY ? dateVal(ex.deadline) : '',
     },
     cardio: {
       sport: cx.sport || 'run', distance: cx.distance ?? '', timeH: hm(cx.time).h, timeM: hm(cx.time).m, perWeek: cx.perWeek || 3,
-      level: cx.level || lvl, weeks: cx.deadline ? Math.min(52, Math.max(4, weeksBetween(Date.now(), cx.deadline))) : 12, date: '', baseKm: '', baseTimeH: '', baseTimeM: '',
+      level: cx.level || lvl, weeks: cx.deadline ? Math.min(52, Math.max(4, weeksBetween(Date.now(), cx.deadline))) : 12, date: cx.deadline > Date.now() + 6 * DAY ? dateVal(cx.deadline) : '', baseKm: '', baseTimeH: '', baseTimeM: '',
     },
     applied: new Set(),
   };
@@ -79,7 +79,10 @@ export function openCoachSetup(kind = 'workout', { onDone } = {}) {
     D.cardio.baseTimeM = bl ? hm(bl.sec).m : '';
     D.cardio.baseAuto = !!bl;
   };
-  fillBase();
+  if (cx.baseline?.km) {
+    D.cardio.baseKm = String(cx.baseline.km).replace('.', ',');
+    D.cardio.baseTimeH = hm(cx.baseline.sec).h; D.cardio.baseTimeM = hm(cx.baseline.sec).m; D.cardio.baseAuto = true;
+  } else fillBase();
   const o = overlay('', 'coach-setup');
   const title = kind === 'cardio' ? 'AI-Coach Cardio' : kind === 'body' ? 'Körperdaten' : 'AI-Coach Workouts';
 
@@ -184,6 +187,9 @@ export function openCoachSetup(kind = 'workout', { onDone } = {}) {
     const C2 = coachData();
     const a = kind === 'workout' ? assessWorkout(g) : assessCardio(g);
     const notes = kind === 'workout' ? freqWorkout(g, state.settings.aiCardio && C2.cardio ? C2.cardio.perWeek : 0) : freqCardio(g, state.settings.aiWorkout && C2.workout ? C2.workout.perWeek : 0);
+    const gw2 = kind === 'workout' ? g : state.settings.aiWorkout ? C2.workout : null;
+    const gc2 = kind === 'cardio' ? g : state.settings.aiCardio ? C2.cardio : null;
+    if (gw2 && gc2) notes.push(...comboNotes(gw2, gc2));
     const V = VERDICTS[a.verdict];
     const head = kind === 'workout'
       ? (g.type === 'orm' ? `${esc(g.exercise)}: ${fmtKg(g.target)}` : g.type === 'bw' ? `Körpergewicht: ${fmtKg(g.target)}` : g.type === 'muscle' ? 'Muskelaufbau' : 'Stärker werden')
@@ -271,6 +277,9 @@ export function openCoachSetup(kind = 'workout', { onDone } = {}) {
       await saveBody();
       const g = buildGoal();
       g.verdict = D.lastA?.verdict || null;
+      // gleiches Ziel nur angepasst → Trainingsphase läuft weiter (kein Neustart der Periodisierung)
+      const prevG = coachData()[kind];
+      if (prevG && prevG.deadline > Date.now() && (kind === 'workout' ? prevG.type === g.type && prevG.exercise === g.exercise : prevG.sport === g.sport)) g.start = prevG.start;
       await saveCoach({ [kind]: g, moves: {}, skips: {} });
       o.close();
       toast('Dein Plan ist fertig!');

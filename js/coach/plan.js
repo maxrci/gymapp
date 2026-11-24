@@ -126,10 +126,16 @@ export function prescribe(name, { sets, reps, rir, role }, ctx) {
 
 // ---------- Gym-Einheiten einer Woche ----------
 export const slotKey = (split, dayId, i) => `${split}:${dayId}:${i}`;
+export const dayKey = (split, dayId) => `${split}:${dayId}`;
+export const LEG_FAMS = ['squat', 'hinge', 'lunge', 'legcurl', 'legext', 'glute'];
+const LEG_SPORTS = ['run', 'walk', 'bike', 'skate', 'row'];
 
 function buildGymSession(g, split, day, ph, ctx) {
-  const swaps = coachData().swaps || {};
+  const C = coachData();
+  const swaps = C.swaps || {};
+  const removed = C.removed || {};
   const used = new Set();
+  const cl = ctx.cardioLoad;
   const goalFam = g.type === 'orm' ? familyOf(g.exercise)?.id : null;
   let goalPlaced = false;
   const exercises = [];
@@ -137,6 +143,7 @@ function buildGymSession(g, split, day, ph, ctx) {
     const key = slotKey(split, day.id, i);
     let name, isGoal = false;
     if (goalFam && sl.fam === goalFam && !goalPlaced) { name = g.exercise; isGoal = true; goalPlaced = true; }
+    else if (removed[key]) return;
     else name = swaps[key] && !used.has(swaps[key]) ? swaps[key] : pickFromFamily(sl.fam, used);
     used.add(name);
     const role = isGoal ? 'main' : sl.role;
@@ -144,6 +151,11 @@ function buildGymSession(g, split, day, ph, ctx) {
     let sets = Math.max(2, sl.sets + sc.setsDelta);
     let reps = sc.reps, rir = sc.rir;
     let reason = `${ph.label} · ${rir} Wdh. Reserve`;
+    // Abstimmung mit dem Cardio-Plan: Beine nicht doppelt belasten
+    if (cl && LEG_FAMS.includes(sl.fam)) {
+      if (cl.phase === 'goal' || cl.phase === 'taper') { sets = Math.max(2, sets - 1); rir += 2; reason = `${cl.phase === 'goal' ? 'Cardio-Zielwoche' : 'Cardio-Formaufbau'}: Beine schonen`; }
+      else if (cl.high) { sets = Math.max(2, sets - 1); reason += ' · 1 Satz weniger (Cardio-Training)'; }
+    }
     if (isGoal && ph.kind === 'peak') { sets = 4; reps = 2; rir = 1; reason = 'Spitze: schwere Doppel'; }
     const p = prescribe(name, { sets, reps, rir, role }, { ...ctx, reason });
     if (isGoal && ph.kind === 'test') {
@@ -160,13 +172,22 @@ function buildGymSession(g, split, day, ph, ctx) {
     }
     exercises.push({ ...p, slot: key, fam: sl.fam, famLabel: FAM[sl.fam]?.label || '', goal: isGoal, role });
   });
+  // eigene Übungen, die du zu dieser Einheit hinzugefügt hast
+  (C.added?.[dayKey(split, day.id)] || []).forEach((name, i) => {
+    if (used.has(name)) return;
+    used.add(name);
+    const sc = scheme(g, 'acc', ph);
+    const p = prescribe(name, { sets: Math.max(2, 3 + sc.setsDelta), reps: sc.reps, rir: sc.rir, role: 'acc' }, { ...ctx, reason: `${ph.label} · ${sc.rir} Wdh. Reserve` });
+    exercises.push({ ...p, slot: `${dayKey(split, day.id)}:+${i}`, added: true, fam: familyOf(name)?.id || null, famLabel: '', goal: false, role: 'acc' });
+  });
+  const removedCount = day.slots.filter((_, i) => removed[slotKey(split, day.id, i)]).length;
   // 1RM-Ziel für eine Übung ohne passenden Slot: vorne einbauen
   if (g.type === 'orm' && !goalPlaced && ctx.addGoal) {
     const sc = scheme(g, 'main', ph);
     const p = prescribe(g.exercise, { sets: 4 + sc.setsDelta, reps: sc.reps, rir: sc.rir, role: 'main' }, { ...ctx, reason: `${ph.label} · Zielübung` });
     exercises.unshift({ ...p, slot: null, fam: goalFam, famLabel: '', goal: true, role: 'main' });
   }
-  return { kind: 'gym', dayId: day.id, title: day.name, legs: !!day.legs, exercises, sub: `${exercises.length} Übungen` };
+  return { kind: 'gym', dayId: day.id, split, title: day.name, legs: !!day.legs, exercises, removedCount, sub: `${exercises.length} Übungen` };
 }
 
 function gymSessions(g, week, ctx) {
@@ -257,7 +278,7 @@ function cardioSessions(g, week, ctx) {
     const km = (sec / 3600) * vNow;
     return mk(t, t === 'interval' ? 'Intervalle' : 'Tempo', km, vNow, `${prog.title}: ${prog.desc}`, { zone: t === 'interval' ? 4 : 3, program: prog.id });
   };
-  const noQuality = brk.returning || ph.kind === 'deload' || ph.kind === 'goal';
+  const noQuality = brk.returning || ph.kind === 'deload' || ph.kind === 'goal' || ctx.gymTest;
   const q = () => (noQuality ? easy(0.45) : quality());
   let list;
   if (ph.kind === 'goal') {
@@ -281,6 +302,108 @@ function spread(k, avail) {
   return out;
 }
 
+// Belastungsart: 'legs' (Beintag), 'upper' (Oberkörper), 'cHard' (lange/harte Ausdauer), 'cEasy' (locker)
+function tagOf(s, gc) {
+  if (s.kind === 'gym') return s.legs ? 'legs' : 'upper';
+  const hard = ['long', 'interval', 'tempo', 'goal'].includes(s.type);
+  return hard && LEG_SPORTS.includes(s.sport) ? 'cHard' : 'cEasy';
+}
+function tagOfWorkout(w, gc, longKmTarget = 10) {
+  const st = idx().wStats.get(w.id);
+  const m = st?.muscles || {};
+  const legSets = (m.Quadrizeps || 0) + (m.Beinbeuger || 0) + (m['Gesäß'] || 0);
+  if (legSets >= 5) return 'legs';
+  for (const sport of gc ? [gc.sport] : ['run', 'bike']) {
+    const c = cardioOf(w, sport);
+    if (c && LEG_SPORTS.includes(sport) && (c.km >= Math.max(8, longKmTarget * 0.6) || c.sec >= 55 * 60)) return 'cHard';
+    if (c) return 'cEasy';
+  }
+  return st?.volume > 0 ? 'upper' : 'cEasy';
+}
+const HARD = (t) => t === 'legs' || t === 'cHard';
+function pairCost(a, b) {
+  const k = [a, b].sort().join('+');
+  return {
+    'cHard+legs': 9, 'legs+legs': 10, 'cHard+cHard': 10, 'cEasy+legs': 4, 'cEasy+upper': 2.2, 'cHard+upper': 3.5,
+    'upper+upper': 4, 'cEasy+cEasy': 4, 'cEasy+cHard': 3.5,
+  }[k] ?? 3;
+}
+function dayCost(days) {
+  let c = 0;
+  for (let d = 0; d < 7; d++) {
+    const t = days[d + 1];
+    for (let i = 0; i < t.length; i++) for (let j = i + 1; j < t.length; j++) c += pairCost(t[i], t[j]);
+    if (t.length >= 3) c += 6;
+    const a = days[d];
+    if (!a.length || !t.length) continue;
+    if (a.includes('legs') && t.includes('cHard')) c += 6;   // müde Beine vor langer/harter Einheit
+    if (a.includes('cHard') && t.includes('legs')) c += 4;   // Beintag direkt nach langer/harter Einheit
+    if (a.includes('cHard') && t.includes('cHard')) c += 3;
+    if (a.includes('legs') && t.includes('legs')) c += 5;
+    if (HARD(a[0]) && HARD(t[0]) && !(a.includes('legs') || t.includes('legs'))) c += 0.5;
+    c += 0.3; // lieber Abstand lassen, wenn Tage frei sind
+  }
+  return c;
+}
+// Einheiten so auf die Tage legen, dass Kraft und Cardio zusammenpassen (Beine, Erholung, Abstand)
+function schedule(free, res, { week, todayIdx, gc }) {
+  const allowed = [];
+  for (let d = Math.max(0, todayIdx); d < 7; d++) allowed.push(d);
+  const longT = res.cardio?.long || 10;
+  // feste Belastung: Erledigtes, Verschobenes, Vortag (Sonntag davor)
+  const fixed = Array.from({ length: 8 }, () => []);
+  const prev = idx().asc.filter((w) => w.start >= addDays(week, -1) && w.start < week);
+  for (const w of prev) fixed[0].push(tagOfWorkout(w, gc, longT));
+  for (const s of res.sessions) {
+    if (s.status === 'done') fixed[s.day + 1].push(tagOf(s, gc));
+    else if (s.status === 'open' && s.moved) fixed[s.day + 1].push(tagOf(s, gc));
+  }
+  for (const e of res.extras) fixed[e.day + 1].push(tagOfWorkout(e.w, gc, longT));
+  const tags = free.map((s) => tagOf(s, gc));
+  const cost = () => {
+    const days = fixed.map((x) => [...x]);
+    free.forEach((s, i) => days[s.day + 1].push(tags[i]));
+    let c = dayCost(days);
+    free.forEach((s) => { if ((s.type === 'long' || s.type === 'goal') && s.day < 5 && allowed.some((d) => d >= 5)) c += 0.4; });
+    free.forEach((s, i) => { c += s.day * 0.01 * (HARD(tags[i]) ? 0 : 1); }); // bei Gleichstand: früher
+    // Reihenfolge des Splits möglichst beibehalten (A vor B)
+    const gyms = free.filter((s) => s.kind === 'gym');
+    for (let i = 0; i < gyms.length; i++) for (let j = i + 1; j < gyms.length; j++) if (gyms[j].day < gyms[i].day) c += 0.25;
+    return c;
+  };
+  // Start: gleichmäßig verteilt, Gym und Cardio abwechselnd, lange Einheit zuletzt
+  const gymQ = free.filter((s) => s.kind === 'gym');
+  const cQ = free.filter((s) => s.kind === 'cardio' && s.type !== 'long' && s.type !== 'goal');
+  const tail = free.filter((s) => s.type === 'long' || s.type === 'goal');
+  const order = [];
+  while (gymQ.length || cQ.length) { if (gymQ.length) order.push(gymQ.shift()); if (cQ.length) order.push(cQ.shift()); }
+  order.push(...tail);
+  const emptyDays = allowed.filter((d) => !fixed[d + 1].length);
+  const base = emptyDays.length >= order.length ? emptyDays : allowed;
+  order.forEach((s, j) => { s.day = base[Math.floor((j * base.length) / order.length) % base.length]; });
+  // verbessern: einzelne Einheiten verschieben und Paare tauschen, solange es besser wird
+  let best = cost();
+  for (let it = 0; it < 40; it++) {
+    let improved = false;
+    for (const s of free) {
+      for (const d of allowed) {
+        if (d === s.day) continue;
+        const old = s.day; s.day = d;
+        const c = cost();
+        if (c < best - 1e-6) { best = c; improved = true; } else s.day = old;
+      }
+    }
+    for (let i = 0; i < free.length; i++) for (let j = i + 1; j < free.length; j++) {
+      const a = free[i], b = free[j];
+      if (a.day === b.day) continue;
+      [a.day, b.day] = [b.day, a.day];
+      const c = cost();
+      if (c < best - 1e-6) { best = c; improved = true; } else [a.day, b.day] = [b.day, a.day];
+    }
+    if (!improved) break;
+  }
+}
+
 export function weekPlan(week = startOfWeek(Date.now())) {
   const gw = goalW(), gc = goalC();
   const now = Date.now();
@@ -289,8 +412,18 @@ export function weekPlan(week = startOfWeek(Date.now())) {
   const ctx = { brk };
   const C = coachData();
   const res = { week, sessions: [], extras: [], days: Array.from({ length: 7 }, () => []), notes: [], gym: null, cardio: null };
-  if (gw && week >= startOfWeek(gw.start)) { res.gym = gymSessions(gw, week, ctx); res.sessions.push(...res.gym.list); }
-  if (gc && week >= startOfWeek(gc.start)) { res.cardio = cardioSessions(gc, week, ctx); res.sessions.push(...res.cardio.list); }
+  const gOn = gw && week >= startOfWeek(gw.start), cOn = gc && week >= startOfWeek(gc.start);
+  // beide Pläne kennen sich: Bein-Umfang bei viel Ausdauer, keine harten Cardio-Einheiten in der Kraft-Testwoche
+  if (gOn && cOn && LEG_SPORTS.includes(gc.sport)) {
+    const cph = cardioPhase(gc, week);
+    const longGoal = gc.sport === 'run' ? gc.distance >= 15 : gc.sport === 'bike' ? gc.distance >= 80 : gc.distance >= 30;
+    ctx.cardioLoad = { phase: cph.kind, high: gc.perWeek >= 3 || longGoal };
+    const gph = gymPhase(gw, week);
+    ctx.gymTest = gph.kind === 'test' && LEG_FAMS.includes(familyOf(gw.exercise || '')?.id);
+    res.combined = true;
+  }
+  if (gOn) { res.gym = gymSessions(gw, week, ctx); res.sessions.push(...res.gym.list); }
+  if (cOn) { res.cardio = cardioSessions(gc, week, ctx); res.sessions.push(...res.cardio.list); }
   if (!res.sessions.length) return res;
   if (brk.returning && week >= thisWeek) res.notes.push(`Willkommen zurück! Nach ${Math.round(brk.days)} Tagen Pause startet der Plan etwas leichter – gleich viel oder weniger Gewicht als zuletzt, weniger Umfang.`);
 
@@ -328,7 +461,6 @@ export function weekPlan(week = startOfWeek(Date.now())) {
   const skips = C.skips || {};
   const moves = C.moves || {};
   const todayIdx = week === thisWeek ? weekday(now) : week > thisWeek ? 0 : 7;
-  const busy = new Set([...res.sessions.filter((s) => s.done).map((s) => s.day), ...res.extras.map((e) => e.day)]);
   for (const s of res.sessions) {
     if (s.done) { s.status = 'done'; continue; }
     if (skips[s.id]) { s.status = 'skipped'; s.day = moves[s.id] ?? null; continue; }
@@ -336,35 +468,9 @@ export function weekPlan(week = startOfWeek(Date.now())) {
     s.status = 'open';
   }
   const pending = res.sessions.filter((s) => s.status === 'open');
-  for (const s of pending) if (moves[s.id] != null && moves[s.id] >= todayIdx) { s.day = moves[s.id]; s.moved = true; busy.add(s.day); }
+  for (const s of pending) if (moves[s.id] != null && moves[s.id] >= todayIdx) { s.day = moves[s.id]; s.moved = true; }
   const free = pending.filter((s) => !s.moved);
-  // Reihenfolge: Gym und Cardio abwechseln, lange Einheit/Ziel zuletzt
-  const gymQ = free.filter((s) => s.kind === 'gym');
-  const cQ = free.filter((s) => s.kind === 'cardio' && s.type !== 'long' && s.type !== 'goal');
-  const tail = free.filter((s) => s.type === 'long' || s.type === 'goal');
-  const order = [];
-  while (gymQ.length || cQ.length) { if (gymQ.length) order.push(gymQ.shift()); if (cQ.length) order.push(cQ.shift()); }
-  order.push(...tail);
-  let avail = [];
-  for (let d = Math.min(todayIdx, 7); d < 7; d++) if (!busy.has(d)) avail.push(d);
-  if (!avail.length && todayIdx < 7) avail = [Math.max(todayIdx, 0)];
-  if (order.length <= avail.length) {
-    spread(order.length, avail).forEach((d, i) => { order[i].day = d; });
-  } else {
-    // mehr Einheiten als Tage: Gym + Cardio teilen sich einen Tag
-    avail.forEach((d, i) => { order[i].day = d; });
-    order.slice(avail.length).forEach((s, i) => {
-      const other = order.slice(0, avail.length).filter((o) => o.kind !== s.kind && !order.slice(avail.length, avail.length + i).some((x) => x.day === o.day));
-      s.day = (other[0] || order[i % avail.length]).day;
-    });
-  }
-  // kein schwerer Beintag direkt vor der langen Einheit
-  const longS = res.sessions.find((s) => (s.type === 'long' || s.type === 'goal') && s.status === 'open');
-  if (longS) {
-    const legDay = free.find((s) => s.kind === 'gym' && s.legs && s.day === longS.day - 1);
-    const swap = legDay && free.find((s) => s.kind === 'gym' && !s.legs && s.day !== longS.day - 1);
-    if (swap) [legDay.day, swap.day] = [swap.day, legDay.day];
-  }
+  if (free.length && todayIdx < 7) schedule(free, res, { week, todayIdx, gc });
   for (const s of res.sessions) if (s.day != null) res.days[s.day].push(s);
   for (const e of res.extras) res.days[e.day].push({ extra: true, w: e.w });
   res.days.forEach((d) => d.sort((a, b) => (a.kind === 'gym' ? 0 : 1) - (b.kind === 'gym' ? 0 : 1)));

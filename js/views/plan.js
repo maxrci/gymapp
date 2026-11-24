@@ -1,6 +1,7 @@
 // Trainingsplan des AI-Coaches: Ziele, Einordnung, Woche mit geplanten Einheiten (tauschen, verschieben, auslassen)
 
-import { state } from '../store.js';
+import { state, exerciseMeta } from '../store.js';
+import { pickExercises } from '../picker.js';
 import { pageHead, emptyState } from '../components.js';
 import { icon, sheet, toast } from '../ui.js';
 import { esc, num, fmtDate, addDays, startOfWeek, weekday, WEEKDAYS, DAY, fmtKg } from '../utils.js';
@@ -9,7 +10,7 @@ import { startGuidedCardio } from '../guided.js';
 import {
   coachData, saveCoach, workoutCoachOn, cardioCoachOn, goalW, goalC, SPORTS, LEVELS, fmtDeadline, fmtHms, bodyComplete,
 } from '../coach/core.js';
-import { weekPlan } from '../coach/plan.js';
+import { weekPlan, dayKey } from '../coach/plan.js';
 import { SPLITS, activeSplit } from '../coach/splits.js';
 import { alternatives } from '../coach/similar.js';
 import { VERDICTS } from '../coach/assess.js';
@@ -44,7 +45,8 @@ function goalCard(kind) {
   return `<section class="card goal-card ${kind}">
     <div class="gc-top"><span class="gc-ic">${icon(kind === 'workout' ? 'dumbbell' : 'bolt')}</span>
       <div class="gc-t"><b>${title}</b><small>${meta} · bis ${esc(fmtDeadline(g.deadline))}</small></div>
-      <button class="icon-btn" data-act="goal-menu" data-kind="${kind}" aria-label="Ziel bearbeiten">${icon('more')}</button></div>
+      <button class="btn ghost sm" data-act="setup" data-kind="${kind}">${icon('edit', 'xs')} Ändern</button>
+      <button class="icon-btn" data-act="goal-menu" data-kind="${kind}" aria-label="Weitere Optionen">${icon('more')}</button></div>
     <div class="bar"><i style="width:${Math.round(p.pct * 100)}%"></i></div>
     <div class="gc-foot"><small>${esc(p.text)}</small>${g.verdict ? `<span class="csv-pill sm ${V.cls}">${esc(V.label)}</span>` : ''}</div>
   </section>`;
@@ -60,6 +62,13 @@ function reviewCards() {
       <button class="btn ghost sm" data-act="review-dismiss" data-key="${esc(r.key)}">${r.type === 'reached' ? 'Später' : 'Bei meinem Ziel bleiben'}</button>
     </div>
   </section>`).join('');
+}
+
+// Muskelgruppen einer Einheit (statt abgeschnittener Übungsnamen)
+export function musclesOf(s) {
+  const m = [];
+  for (const e of s.exercises || []) { const p = exerciseMeta(e.name).primary; if (p && !m.includes(p) && p !== 'Sonstiges') m.push(p); }
+  return m.slice(0, 5).join(' · ');
 }
 
 function statusTag(s) {
@@ -81,8 +90,9 @@ function sessionCard(s, { canAct, isNext }) {
     } else if (s.kind === 'gym') {
       body = `<div class="ps-ex">${s.exercises.map((e, i) => `<div class="pse">
           <div class="pse-t"><b>${esc(e.name)}</b>${e.goal ? '<em class="pse-goal">Ziel</em>' : ''}<small>${esc(e.label)}</small>${e.reason && e.reason !== 'Nach Plan' ? `<small class="muted">${esc(e.reason)}</small>` : ''}</div>
-          ${act && e.slot && !e.goal ? `<button class="pse-swap" data-act="swap" data-sid="${esc(s.id)}" data-i="${i}" aria-label="Übung tauschen">${icon('swap', 'xs')}</button>` : ''}
-        </div>`).join('')}</div>`;
+          ${act && e.slot && !e.goal ? `<button class="pse-swap" data-act="swap" data-sid="${esc(s.id)}" data-i="${i}" aria-label="Übung tauschen oder entfernen">${icon('swap', 'xs')}</button>` : ''}
+        </div>`).join('')}
+        ${act ? `<div class="pse-more"><button class="link-btn sm" data-act="add-ex" data-sid="${esc(s.id)}">${icon('plus', 'xs')} Übung hinzufügen</button>${s.removedCount ? `<button class="link-btn sm" data-act="restore-ex" data-sid="${esc(s.id)}">${icon('repeat', 'xs')} ${s.removedCount} entfernte zurückholen</button>` : ''}</div>` : ''}</div>`;
     } else {
       body = `<p class="ps-desc">${esc(s.desc)}</p>`;
     }
@@ -101,7 +111,7 @@ function sessionCard(s, { canAct, isNext }) {
   return `<div class="ps ${s.kind} ${s.status} ${open ? 'open' : ''}">
     <button class="ps-head" data-act="toggle" data-sid="${esc(s.id)}" data-next="${isNext ? 1 : 0}">
       <span class="ps-ic">${icon(s.kind === 'gym' ? 'dumbbell' : 'bolt', 'xs')}</span>
-      <div><b>${esc(s.kind === 'cardio' ? `${SPORTS[s.sport].label} · ${s.title}` : s.title)}</b><small>${esc(s.kind === 'gym' ? s.exercises.map((e) => e.name.replace(/\s*\(.*\)$/, '')).join(' · ') : s.sub)}</small></div>
+      <div><b>${esc(s.kind === 'cardio' ? `${SPORTS[s.sport].label} · ${s.title}` : s.title)}</b><small>${esc(s.kind === 'gym' ? `${s.exercises.length} Übungen · ${musclesOf(s)}` : s.sub)}</small></div>
       ${statusTag(s)}${icon(open ? 'up' : 'down', 'muted')}
     </button>${body}
   </div>`;
@@ -145,6 +155,7 @@ export function planView() {
         <div><b>${weekOff === 0 ? 'Diese Woche' : weekOff === 1 ? 'Nächste Woche' : `Woche ab ${esc(fmtDate(week, { day: 'numeric', month: 'short' }))}`}</b><small>${esc(phase)}</small></div>
         <button class="icon-btn" data-act="wk" data-d="1" ${weekOff >= 1 ? 'disabled' : ''}>${icon('right')}</button>
       </div>
+      ${plan.combined ? `<p class="combo-note">${icon('repeat', 'xs')} Kraft & Cardio sind aufeinander abgestimmt: kein Beintag direkt vor, nach oder am Tag einer langen bzw. harten Einheit${plan.gym?.list.some((g) => g.exercises.some((e) => /Cardio/.test(e.reason || ''))) ? ', etwas weniger Bein-Umfang wegen des Ausdauertrainings' : ''}.</p>` : ''}
       ${plan.notes.map((n) => `<div class="card cs-note">${icon('info', 'xs')}<div><p>${esc(n)}</p></div></div>`).join('')}
       <div class="plan-days">${days}</div>
       ${missed.length ? `<div class="list-label">Nicht eingeplant</div>${missed.map((s) => sessionCard(s, { canAct, isNext: false })).join('')}` : ''}
@@ -210,13 +221,45 @@ export function planView() {
           ...alt.same.slice(0, 7).map((n) => ({ label: n, value: n })),
           ...alt.muscle.slice(0, 4).map((n) => ({ label: `${n} · gleicher Muskel`, value: n })),
         ];
-        if (swaps[e.slot]) opts.push({ label: 'Coach-Vorschlag wiederherstellen', value: '__reset', icon: 'repeat' });
+        if (swaps[e.slot] && !e.added) opts.push({ label: 'Coach-Vorschlag wiederherstellen', value: '__reset', icon: 'repeat' });
+        opts.push({ label: 'Aus dieser Einheit entfernen', value: '__remove', icon: 'trash', danger: true });
         const v = await sheet({ title: `${e.name} tauschen`, message: 'Gilt ab jetzt für diese Einheit – auch in den nächsten Wochen.', options: opts });
         if (!v) return;
+        const C = coachData();
+        if (e.added) {
+          const k = dayKey(s.split, s.dayId);
+          const list = [...(C.added?.[k] || [])];
+          const at = list.indexOf(e.name);
+          if (at < 0) return;
+          if (v === '__remove') list.splice(at, 1); else list[at] = v;
+          await saveCoach({ added: { ...(C.added || {}), [k]: list } });
+          return toast(v === '__remove' ? 'Entfernt' : `Getauscht: ${v}`);
+        }
+        if (v === '__remove') {
+          await saveCoach({ removed: { ...(C.removed || {}), [e.slot]: true } });
+          return toast('Entfernt – über „zurückholen“ wieder da');
+        }
         const ns = { ...swaps };
         if (v === '__reset') delete ns[e.slot]; else ns[e.slot] = v;
         await saveCoach({ swaps: ns });
         toast(v === '__reset' ? 'Zurückgesetzt' : `Getauscht: ${v}`);
+      },
+      'add-ex': async (el) => {
+        const s = find(el);
+        const names = await pickExercises({ multi: true, title: `Zu „${s.title}“ hinzufügen` });
+        if (!names?.length) return;
+        const C = coachData();
+        const k = dayKey(s.split, s.dayId);
+        const list = [...new Set([...(C.added?.[k] || []), ...names])];
+        await saveCoach({ added: { ...(C.added || {}), [k]: list } });
+        toast(names.length > 1 ? `${names.length} Übungen hinzugefügt` : `${names[0]} hinzugefügt`);
+      },
+      'restore-ex': async (el) => {
+        const s = find(el);
+        const r = { ...(coachData().removed || {}) };
+        for (const k of Object.keys(r)) if (k.startsWith(`${dayKey(s.split, s.dayId)}:`)) delete r[k];
+        await saveCoach({ removed: r });
+        toast('Übungen zurückgeholt');
       },
       sick: async () => {
         const v = await sheet({ title: 'Wie lange warst du raus?', message: 'Der Coach plant danach leichter: gleich viel oder weniger Gewicht als zuletzt und weniger Umfang.', options: [
