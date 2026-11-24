@@ -11,6 +11,7 @@ import { stageFor } from './gamification.js';
 import { icon, overlay, formDialog, confirmDialog, toast, sheet } from './ui.js';
 import { tick as tickSound, phaseStart, finishFanfare, speak, unlockAudio } from './fx.js';
 import { esc, fmtClock, num, uid } from './utils.js';
+import { openCardioBuilder, customUnits, deleteUnit, blocksToPhases } from './cardioBuilder.js';
 
 const KEY = 'gymlog-guided';
 const BREATH = 10; // Sekunden pro Atemzyklus: 4 ein, 6 aus
@@ -33,11 +34,22 @@ export function openCardioSetup() {
   const st = stage();
   const draw = () => {
     const progs = CARDIO.filter((p) => !p.devices || p.devices.includes(device));
+    const mine = customUnits();
     o.innerHTML = `
       <div class="panel-head"><button class="icon-btn" data-close>${icon('x')}</button><div class="panel-title">Cardio</div><button class="link-btn" data-calib>Gerät</button></div>
       <div class="panel-body">
         <div class="device-grid">${Object.entries(DEVICES).map(([k, d]) => `<button class="device ${k === device ? 'on' : ''}" data-dev="${k}">${poseSVG(d.pose, { stage: st, t: 0.25 })}<span>${esc(d.label)}</span></button>`).join('')}</div>
         <p class="footnote">Grundtempo: ${esc(baseText(device))} – über „Gerät“ anpassen.</p>
+        <div class="section-row"><h2 class="section-title">Meine Einheiten</h2><button class="link-btn" data-build>${icon('plus', 'xs')} Eigene bauen</button></div>
+        ${mine.length ? mine.map((u) => {
+          const ph = blocksToPhases(u.blocks);
+          return `<div class="card prog-card mine">
+            <div class="prog-head"><b>${esc(u.title)}</b><span>${Math.round(programDuration(ph) / 60)} min · ${esc(DEVICES[u.device].label)}</span></div>
+            <div class="prog-strip">${ph.map((x) => `<i class="z${x.zone}" style="flex:${x.dur}"></i>`).join('')}</div>
+            <div class="row-btns"><button class="btn primary" data-ustart="${esc(u.id)}">${icon('play', 'xs')} Starten</button><button class="btn ghost" data-uedit="${esc(u.id)}">${icon('edit', 'xs')} Bearbeiten</button><button class="icon-btn" data-udel="${esc(u.id)}" aria-label="Löschen">${icon('trash', 'xs')}</button></div>
+          </div>`;
+        }).join('') : `<button class="card build-card" data-build>${icon('layers')}<div><b>Eigene Einheit bauen</b><small>Aufwärmen, Blöcke, Intervalle und Auslaufen frei zusammenstellen – Dauer und Zone pro Abschnitt</small></div>${icon('right', 'muted')}</button>`}
+        <h2 class="section-title">Programme</h2>
         ${progs.map((p) => {
           const v = opts[p.id] ?? p.def;
           const ph = p.build(v);
@@ -46,11 +58,12 @@ export function openCardioSetup() {
             <div class="prog-strip">${ph.map((x) => `<i class="z${x.zone}" style="flex:${x.dur}"></i>`).join('')}</div>
             <p>${esc(p.desc)}</p>
             ${p.options ? `<div class="chips">${p.options.map((v2) => `<button class="chip ${v2 === v ? 'on' : ''}" data-opt="${p.id}:${v2}">${v2} ${p.optLabel || 'min'}</button>`).join('')}</div>` : ''}
-            <button class="btn primary block" data-start="${p.id}">${icon('play', 'xs')} Starten</button>
+            <div class="row-btns"><button class="btn primary" data-start="${p.id}">${icon('play', 'xs')} Starten</button><button class="btn ghost" data-adapt="${p.id}">${icon('edit', 'xs')} Anpassen</button></div>
           </div>`;
         }).join('')}
       </div>`;
   };
+  const startUnit = (u, phases) => { saveSettings({ lastDevice: u.device }); start({ kind: 'cardio', programId: `custom:${u.id}`, device: u.device, title: u.title, phases }); };
   draw();
   o.addEventListener('click', async (e) => {
     if (e.target.closest('[data-close]')) return o.close();
@@ -59,6 +72,20 @@ export function openCardioSetup() {
     const op = e.target.closest('[data-opt]');
     if (op) { const [id, v] = op.dataset.opt.split(':'); opts[id] = +v; draw(); return; }
     if (e.target.closest('[data-calib]')) { await calibrate(device); draw(); return; }
+    if (e.target.closest('[data-build]')) { openCardioBuilder({ device, onSave: draw, onStart: (u, ph) => { o.close(); startUnit(u, ph); } }); return; }
+    const ad = e.target.closest('[data-adapt]');
+    if (ad) {
+      const p = CARDIO.find((x) => x.id === ad.dataset.adapt);
+      const v = opts[p.id] ?? p.def;
+      openCardioBuilder({ device, template: { title: `${p.title} (angepasst)`, phases: p.build(v) }, onSave: draw, onStart: (u, ph) => { o.close(); startUnit(u, ph); } });
+      return;
+    }
+    const us = e.target.closest('[data-ustart]');
+    if (us) { const u = customUnits().find((x) => x.id === us.dataset.ustart); if (u) { o.close(); startUnit(u, blocksToPhases(u.blocks)); } return; }
+    const ue = e.target.closest('[data-uedit]');
+    if (ue) { const u = customUnits().find((x) => x.id === ue.dataset.uedit); if (u) openCardioBuilder({ unit: u, onSave: draw, onStart: (uu, ph) => { o.close(); startUnit(uu, ph); } }); return; }
+    const ud = e.target.closest('[data-udel]');
+    if (ud) { if (await confirmDialog('Diese Einheit löschen?', 'Löschen', true)) { await deleteUnit(ud.dataset.udel); draw(); } return; }
     const stb = e.target.closest('[data-start]');
     if (stb) {
       const p = CARDIO.find((x) => x.id === stb.dataset.start);

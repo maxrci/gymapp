@@ -1697,3 +1697,33 @@ a.tr:active { background: var(--surface-2); }
 .err-card b { display: flex; align-items: center; gap: 6px; }
 .err-card pre { white-space: pre-wrap; word-break: break-word; font-size: 12px; color: var(--text-2); background: var(--surface-2); padding: 8px 10px; border-radius: 10px; margin: 10px 0; }
 .ps-tag.alt { background: rgba(255, 140, 60, .14); color: #ff8c3c; }
+
+/* ---------- Cardio-Baukasten ---------- */
+.prog-card .row-btns { display: flex; gap: 8px; align-items: center; }
+.prog-card .row-btns .icon-btn { flex: none; }
+.build-card { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; }
+.build-card > .ic:first-child { color: var(--accent); flex: none; }
+.build-card div { flex: 1; min-width: 0; }
+.build-card small { display: block; color: var(--muted); font-size: 12.5px; }
+.cb-dev { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; }
+.cb-sum { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 10px; margin-bottom: 10px; }
+.cb-sum .prog-strip { grid-column: 1 / -1; margin: 0; height: 14px; }
+.cb-sum b { font-size: 20px; }
+.cb-sum small { color: var(--muted); text-align: right; }
+.cb-block { padding: 12px 14px; }
+.cb-block.intervals { border-left: 4px solid #eb6834; }
+.cb-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.cb-head b { display: flex; align-items: center; gap: 6px; font-size: 15px; }
+.cb-head span { display: flex; gap: 2px; }
+.icon-btn.sm { width: 32px; height: 32px; }
+.cb-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 8px 0 4px; }
+.cb-row > span { color: var(--text-2); font-size: 13.5px; }
+.cb-step { display: flex; align-items: center; gap: 4px; }
+.cb-step button { width: 38px; height: 34px; border-radius: 10px; background: var(--surface-2); font-size: 20px; font-weight: 700; color: var(--accent); }
+.cb-step b { min-width: 74px; text-align: center; font-variant-numeric: tabular-nums; font-size: 16px; }
+.cb-zones { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
+.cb-z { width: 34px; height: 30px; border-radius: 9px; font-weight: 800; background: color-mix(in srgb, var(--zc) 18%, transparent); color: var(--zc); border: 2px solid transparent; }
+.cb-z.on { background: var(--zc); color: #fff; }
+.cb-zones small { color: var(--muted); font-size: 12px; margin-left: 4px; }
+.cb-note { display: block; color: var(--muted); font-size: 12px; margin-top: 4px; }
+.cb-add { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 16px; }
