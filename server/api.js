@@ -2,7 +2,7 @@
 
 import {
   authenticate, redeem, createInvite, rateLimited, noteFail, newId, INVITE_DAYS,
-  login, normUser, hashPassword, newPassword,
+  login, normUser, hashPassword, newPassword, newToken, newDevice, sha,
 } from './auth.js';
 import { groupData, memberWorkouts, bump, visOf } from './group.js';
 import { cleanSummary } from './summary.js';
@@ -12,6 +12,24 @@ import { CHALLENGE_TYPES, VISIBILITY } from '../js/compete.js';
 
 const parse = (s, d) => { try { return JSON.parse(s); } catch { return d; } };
 const KINDS = new Set(['workout', 'routine']);
+const MAX_PREFS = 600000;
+const TRANSFER_TTL = 10 * 60000;
+const BAD_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+// Einstellungen: beliebige JSON-Struktur, aber ohne gefährliche Schlüssel und begrenzt in Tiefe/Länge
+function cleanPrefs(v, depth = 0) {
+  if (depth > 12) return null;
+  if (v == null || typeof v === 'boolean') return v ?? null;
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  if (typeof v === 'string') return v.slice(0, 5000);
+  if (Array.isArray(v)) return v.slice(0, 5000).map((x) => cleanPrefs(x, depth + 1));
+  if (typeof v === 'object') {
+    const o = {};
+    for (const [k, x] of Object.entries(v).slice(0, 2000)) if (!BAD_KEYS.has(k) && k.length <= 120) o[k] = cleanPrefs(x, depth + 1);
+    return o;
+  }
+  return null;
+}
+
 const str = (v, max = 200) => String(v ?? '').trim().slice(0, max);
 
 class HttpError extends Error { constructor(status, msg) { super(msg); this.status = status; } }
@@ -30,7 +48,25 @@ const loginLink = (req, cfg, username) => {
   return `${app}/#/login?${new URLSearchParams({ ...(app !== server ? { server } : {}), user: username || '' })}`;
 };
 // Hinter Caddy/Cloudflare kommt die echte Adresse im X-Forwarded-For-Header
-const clientIp = (req) => (process.env.TRUST_PROXY !== '0' && String(req.headers['x-forwarded-for'] || '').split(',')[0].trim()) || req.socket.remoteAddress || '?';
+// Absender-IP: X-Forwarded-For nur glauben, wenn die Anfrage vom eigenen Proxy (Tailscale, lokal) kommt,
+// und dann den letzten Eintrag nehmen – den hat der Proxy angehängt; frühere Einträge kann jeder fälschen.
+const LOCAL = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
+export const clientIp = (req) => {
+  const peer = req.socket?.remoteAddress || '?';
+  if (process.env.TRUST_PROXY === '0' || !LOCAL.has(peer)) return peer;
+  const xff = String(req.headers['x-forwarded-for'] || '').split(',').map((s) => s.trim()).filter(Boolean);
+  return xff[xff.length - 1] || peer;
+};
+// Allgemeine Bremse gegen Massenanfragen (Skripte, Bots, KI-Agenten): feste Zeitfenster pro Schlüssel
+const hits = new Map();
+function tooMany(key, max, windowMs) {
+  const now = Date.now();
+  let h = hits.get(key);
+  if (!h || now - h.t > windowMs) { h = { t: now, n: 0 }; hits.set(key, h); }
+  h.n++;
+  if (hits.size > 50000) for (const [k, v] of hits) if (now - v.t > 600000) hits.delete(k);
+  return h.n > max;
+}
 
 function cleanProfile(p) {
   const out = {};
@@ -59,25 +95,56 @@ export function makeApi(D, cfg) {
   };
 
   // ---- Öffentlich ----
-  on('GET', '/api/info', null, () => ({ app: 'gymlog', group: cfg.groupName, version: cfg.version }));
+  on('GET', '/api/info', null, () => ({ app: 'gymlog', group: cfg.groupName, version: cfg.version, private: !!cfg.privateApp }));
+  // Anmelde-Cookie (nur für die App-Dateien; die API selbst prüft weiter den Token im Header)
+  const secure = (req) => /^https:/i.test(cfg.publicUrl || '') || req.headers['x-forwarded-proto'] === 'https';
+  const setSession = (ctx, token) => ctx.cookie(`gym_s=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=34560000${secure(ctx.req) ? '; Secure' : ''}`);
+  const clearSession = (ctx) => ctx.cookie(`gym_s=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure(ctx.req) ? '; Secure' : ''}`);
+  // Umzug auf ein neues Gerät/eine neue Adresse ohne Passwort: angemeldetes Gerät holt einen Einmal-Code (10 Min.)
+  on('POST', '/api/transfer', 'user', ({ me }) => {
+    const code = newToken();
+    D.run('DELETE FROM transfers WHERE created < ? OR user_id = ?', Date.now() - TRANSFER_TTL, me.id);
+    D.run('INSERT INTO transfers (code_hash, user_id, created) VALUES (?, ?, ?)', sha(code), me.id, Date.now());
+    return { code, expires: Date.now() + TRANSFER_TTL };
+  });
+  on('POST', '/api/transfer/redeem', null, (ctx) => {
+    const ip = clientIp(ctx.req);
+    if (rateLimited(ip, 20)) fail(429, 'Zu viele Versuche. Bitte in 15 Minuten erneut probieren.');
+    const h = sha(String(ctx.body.code || ''));
+    const t = D.get('SELECT * FROM transfers WHERE code_hash = ?', h);
+    if (t) D.run('DELETE FROM transfers WHERE code_hash = ?', h); // nur einmal benutzbar
+    const user = t && t.created > Date.now() - TRANSFER_TTL && D.get('SELECT * FROM users WHERE id = ? AND disabled = 0', t.user_id);
+    if (!user) { noteFail(ip); fail(400, 'Der Umzugs-Link ist abgelaufen. Bitte in der alten App nochmal auf „Umziehen“ tippen – oder hier normal anmelden.'); }
+    const token = newDevice(D, user.id, ctx.body.device);
+    setSession(ctx, token);
+    bump();
+    return { token, user: userOut(user), group: cfg.groupName, profile: parse(user.profile, {}), profileUpdated: user.profile_updated };
+  });
+  // Bereits angemeldete Geräte (Token im Speicher) holen sich das Cookie nach
+  on('POST', '/api/session', 'user', (ctx) => { setSession(ctx, /^Bearer (.+)$/.exec(ctx.req.headers.authorization)[1]); return { ok: true }; });
 
-  on('POST', '/api/redeem', null, ({ body, req }) => {
+  on('POST', '/api/redeem', null, (ctx) => {
+    const { body, req } = ctx;
     const ip = clientIp(req);
     if (rateLimited(ip)) fail(429, 'Zu viele Versuche. Bitte in 15 Minuten erneut probieren.');
     const r = redeem(D, body.code, body.device);
     if (!r) { noteFail(ip); fail(400, 'Der Schlüssel ist ungültig, abgelaufen oder wurde schon benutzt.'); }
     bump();
+    setSession(ctx, r.token);
     return { token: r.token, user: userOut(r.user), group: cfg.groupName, profile: parse(r.user.profile, {}), profileUpdated: r.user.profile_updated };
   });
 
-  on('POST', '/api/login', null, ({ body, req }) => {
+  on('POST', '/api/login', null, (ctx) => {
+    const { body, req } = ctx;
     const ip = clientIp(req);
     const user = normUser(body.username);
     // pro IP großzügiger (Freunde im selben WLAN teilen sich eine IP), pro Benutzername streng
-    if (rateLimited(ip, 30) || rateLimited(`u:${user}`, 10)) fail(429, 'Zu viele Fehlversuche. Bitte in 15 Minuten erneut probieren.');
+    if (rateLimited(ip, 30) || rateLimited(`u:${user}`, 10) || rateLimited('all-logins', 300)) fail(429, 'Zu viele Fehlversuche. Bitte in 15 Minuten erneut probieren.');
+    if (typeof body.password !== 'string' || body.password.length > 200) fail(400, 'Benutzername oder Passwort falsch.');
     const r = login(D, user, body.password, body.device);
-    if (!r) { noteFail(ip); noteFail(`u:${user}`); fail(400, 'Benutzername oder Passwort falsch.'); }
+    if (!r) { noteFail(ip); noteFail(`u:${user}`); noteFail('all-logins'); fail(400, 'Benutzername oder Passwort falsch.'); }
     bump();
+    setSession(ctx, r.token);
     return { token: r.token, user: userOut(r.user), group: cfg.groupName, profile: parse(r.user.profile, {}), profileUpdated: r.user.profile_updated };
   });
 
@@ -91,7 +158,7 @@ export function makeApi(D, cfg) {
     return { user: userOut({ ...me, name: name || me.name }) };
   });
 
-  on('POST', '/api/logout', 'user', ({ device }) => { D.run('DELETE FROM devices WHERE id = ?', device.id); return { ok: true }; });
+  on('POST', '/api/logout', 'user', (ctx) => { D.run('DELETE FROM devices WHERE id = ?', ctx.device.id); clearSession(ctx); return { ok: true }; });
 
   // ---- Sync ----
   on('POST', '/api/sync', 'user', ({ me, body }) => {
@@ -125,6 +192,12 @@ export function makeApi(D, cfg) {
           ON CONFLICT(user_id, kind, id) DO UPDATE SET data = excluded.data, summary = excluded.summary, start = excluded.start, deleted = excluded.deleted, seq = excluded.seq`,
         me.id, it.kind, id, data ? JSON.stringify(data) : null, summary ? JSON.stringify(summary) : null, start, it.deleted ? 1 : 0, seq);
       }
+      // Einstellungen + eigene Übungen (nur die eigenen, nie für andere sichtbar)
+      const pu = Number(body.prefs?.updated);
+      if (body.prefs && pu > (me.prefs_updated || 0) && pu < Date.now() + 864e5) {
+        const json = JSON.stringify(cleanPrefs(body.prefs.data));
+        if (json.length <= MAX_PREFS) D.run('UPDATE users SET prefs = ?, prefs_updated = ? WHERE id = ?', json, pu, me.id);
+      }
       if (body.profile && Number(body.profile.updated) > me.profile_updated) {
         const merged = { ...parse(me.profile, {}), ...cleanProfile(body.profile.data || {}) };
         D.run('UPDATE users SET profile = ?, profile_updated = ? WHERE id = ?', JSON.stringify(merged), Number(body.profile.updated), me.id);
@@ -144,11 +217,30 @@ export function makeApi(D, cfg) {
       const r = D.get("SELECT kind, id, data FROM items WHERE user_id = ? AND kind = 'workout' AND id = ?", me.id, id);
       if (r && !out.some((o) => o.id === id)) out.push({ kind: r.kind, id: r.id, deleted: false, data: parse(r.data, null) });
     }
-    const u = D.get('SELECT name, role, profile, profile_updated FROM users WHERE id = ?', me.id);
+    const u = D.get('SELECT name, role, profile, profile_updated, prefs, prefs_updated FROM users WHERE id = ?', me.id);
+    // Einstellungen nur schicken, wenn das Gerät einen älteren Stand hat
+    const prefsNew = u.prefs_updated > (Number(body.prefsSeen) || 0) && u.prefs;
     return {
       cursor: next, more: rows.length === 1000, items: out, dupes,
       user: userOut({ ...me, ...u }), profile: parse(u.profile, {}), profileUpdated: u.profile_updated,
+      prefsUpdated: u.prefs_updated, ...(prefsNew ? { prefs: parse(u.prefs, null) } : {}),
     };
+  });
+
+  // ---- Einstellbare Werte (Punkte, Erfolge, Events …), vom Admin im Dashboard gepflegt ----
+  const CONFIG_KEYS = new Set(['points', 'achievements', 'events', 'unlockables', 'exercises', 'features']);
+  on('GET', '/api/config', 'user', () => {
+    const out = {};
+    for (const r of D.all('SELECT key, value, updated FROM app_config')) out[r.key] = { value: parse(r.value, null), updated: r.updated };
+    return out;
+  });
+  on('PUT', '/api/admin/config/:key', 'admin', ({ params, body }) => {
+    if (!CONFIG_KEYS.has(params.key)) fail(400, 'Unbekannter Bereich');
+    const json = JSON.stringify(cleanPrefs(body.value));
+    if (json.length > 400000) fail(413, 'Zu groß');
+    D.run('INSERT INTO app_config (key, value, updated) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated = excluded.updated', params.key, json, Date.now());
+    bump();
+    return { ok: true };
   });
 
   // ---- Gruppe ----
@@ -446,13 +538,20 @@ export function makeApi(D, cfg) {
     try {
       const r = routes.find((x) => x.method === req.method && x.re.test(url.pathname));
       if (!r) return send(404, { error: 'Nicht gefunden' });
+      // wer ständig falsche Tokens schickt (Durchprobieren), wird gesperrt
+      if (rateLimited(`auth:${clientIp(req)}`, 50)) return send(429, { error: 'Zu viele Versuche. Bitte später erneut probieren.' });
       const m = r.re.exec(url.pathname);
       let params;
       try { params = Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(m[i + 1])])); } catch { return send(400, { error: 'Ungültige Adresse' }); }
-      let ctx = { req, url, params, body: {} };
+      const cookies = [];
+      let ctx = { req, url, params, body: {}, cookie: (c) => { cookies.push(c); res.setHeader('Set-Cookie', cookies); } };
+      const ip = clientIp(req);
+      if (tooMany(`ip:${ip}`, 600, 60000)) return send(429, { error: 'Zu viele Anfragen. Bitte kurz warten.' });
+      if (!r.auth && tooMany(`pub:${ip}`, 60, 60000)) return send(429, { error: 'Zu viele Anfragen. Bitte kurz warten.' });
       if (r.auth) {
         const a = authenticate(D, req.headers.authorization);
-        if (!a) return send(401, { error: 'Nicht angemeldet' });
+        if (!a) { noteFail(`auth:${ip}`); return send(401, { error: 'Nicht angemeldet' }); }
+        if (tooMany(`dev:${a.device.id}`, 300, 60000)) return send(429, { error: 'Zu viele Anfragen. Bitte kurz warten.' });
         if (r.auth === 'admin' && a.user.role !== 'admin') return send(403, { error: 'Nur für Admins' });
         ctx = { ...ctx, me: a.user, device: a.device };
       }

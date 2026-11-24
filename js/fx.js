@@ -3,6 +3,7 @@
 import { state } from './store.js';
 import { fighterSVG } from './fighter.js';
 import { esc } from './utils.js';
+import { vibrate } from './platform.js';
 
 let ctx = null;
 let primed = false;
@@ -364,7 +365,7 @@ export function prPopup({ exercise, detail, stage = 3 }) {
   // Sounds hängen nur an ihren eigenen Schaltern (Power-up / Kampfschrei), nicht an der Animation
   unlockAudio();
   prSound();
-  navigator.vibrate?.([60, 40, 60, 40, 200]);
+  vibrate([60, 40, 60, 40, 200]);
   if (state.settings.prEffects === false) return;
   document.querySelector('.pr-pop')?.remove();
   clearTimeout(popTimer);

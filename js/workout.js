@@ -6,6 +6,7 @@ import {
 import { idx, previousSession, PR_LABELS } from './stats.js';
 import { TYPES } from './library.js';
 import { pickExercises } from './picker.js';
+import { vibrate, keepAwake, releaseAwake } from './platform.js';
 import { icon, sheet, confirmDialog, formDialog, toast, overlay } from './ui.js';
 import {
   $, esc, uid, num, fmtClock, fmtVolume, fmtKg, fmtDate, fmtDur, parseNum, debounce,
@@ -24,7 +25,6 @@ import { prValue } from './components.js';
 
 let ed = null; // { mode: 'active'|'edit'|'routine', data, isNew }
 let ticker = null;
-let wakeLock = null;
 let onCloseCb = () => {};
 
 const root = () => $('#editor');
@@ -332,7 +332,7 @@ function updateRestBar() {
 }
 function restDone() {
   restDoneSound();
-  navigator.vibrate?.([200, 100, 200]);
+  vibrate([200, 100, 200]);
   toast('Pause vorbei – nächster Satz');
 }
 
@@ -389,10 +389,10 @@ function prDetail(ex, set, prs) {
 
 // ---------- Bildschirm anlassen ----------
 async function acquireWake() {
-  if (!state.settings.keepAwake || !('wakeLock' in navigator)) return;
-  try { wakeLock = await navigator.wakeLock.request('screen'); } catch { /* ignore */ }
+  if (!state.settings.keepAwake) return;
+  await keepAwake();
 }
-function releaseWake() { wakeLock?.release?.(); wakeLock = null; }
+function releaseWake() { releaseAwake(); }
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && ed?.mode === 'active') { acquireWake(); tick(); }
 });

@@ -14,6 +14,7 @@ import { esc, fmtClock, num, uid } from './utils.js';
 import { openCardioBuilder, customUnits, deleteUnit, blocksToPhases } from './cardioBuilder.js';
 import { startWorkout, logPastWorkout } from './workout.js';
 import { pickExercises } from './picker.js';
+import { keepAwake, releaseAwake } from './platform.js';
 
 // Frei eintragen: ohne Programm, z. B. einen Lauf draußen
 const FREE = ['Laufen', 'Radfahren', 'Inliner', 'Schwimmen', 'Rudermaschine', 'Wandern', 'Crosstrainer', 'Laufband'];
@@ -27,7 +28,6 @@ let root = null;
 let timer = null;
 let lastIdx = -1;
 let lastSec = -1;
-let wake = null;
 let anim = null;
 
 const stage = () => stageFor(weekStreaks().current).index;
@@ -248,7 +248,7 @@ function close() {
   clearInterval(timer);
   timer = null;
   anim?.stop();
-  wake?.release?.(); wake = null;
+  releaseAwake();
   root?.classList.remove('open');
   const r = root;
   setTimeout(() => r?.remove(), 250);
@@ -257,7 +257,7 @@ function close() {
 }
 
 async function acquireWake() {
-  try { if ('wakeLock' in navigator) wake = await navigator.wakeLock.request('screen'); } catch { /* ignore */ }
+  await keepAwake();
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && root) { acquireWake(); update(); } });
 

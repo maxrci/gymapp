@@ -8,6 +8,7 @@ import {
   loginPassword, parseServerInput, sameOriginServer, serverUrl,
 } from './sync.js';
 import { VISIBILITY } from './compete.js';
+import { share } from './platform.js';
 
 export const deviceGuess = () => {
   const ua = navigator.userAgent;
@@ -118,7 +119,8 @@ function showAccess(res) {
   o.addEventListener('click', async (e) => {
     if (e.target.closest('[data-close]')) return o.close();
     if (e.target.closest('[data-share]')) {
-      if (navigator.share) { try { await navigator.share({ title: 'Gym-Zugang', text }); } catch { /* abgebrochen */ } } else { await copy(text); }
+      let shared = false; try { shared = await share({ title: 'Gym-Zugang', text }); } catch { shared = true; /* abgebrochen */ }
+      if (!shared) await copy(text);
     }
     if (e.target.closest('[data-copy]')) copy(text);
   });

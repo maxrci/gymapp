@@ -112,6 +112,16 @@ export function openDb(dir) {
       activity_id TEXT NOT NULL,
       PRIMARY KEY (user_id, activity_id)
     );
+    CREATE TABLE IF NOT EXISTS app_config (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS transfers (
+      code_hash TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created INTEGER NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS garmin (
       user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
       api_key TEXT NOT NULL,
@@ -148,6 +158,9 @@ export function openDb(dir) {
   const cols = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
   if (!cols.includes('username')) db.exec('ALTER TABLE users ADD COLUMN username TEXT');
   if (!cols.includes('pw_hash')) db.exec('ALTER TABLE users ADD COLUMN pw_hash TEXT');
+  // Migration (v3.10): Einstellungen + eigene Übungen pro Konto (für Gerätewechsel und den Umzug auf den Pi)
+  if (!cols.includes('prefs')) db.exec('ALTER TABLE users ADD COLUMN prefs TEXT');
+  if (!cols.includes('prefs_updated')) db.exec('ALTER TABLE users ADD COLUMN prefs_updated INTEGER NOT NULL DEFAULT 0');
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS users_username ON users (username) WHERE username IS NOT NULL');
 
   const get = (sql, ...a) => db.prepare(sql).get(...a);

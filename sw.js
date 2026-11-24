@@ -1,5 +1,5 @@
 // Service Worker: App offline verfügbar machen (stale-while-revalidate)
-const CACHE = 'gymlog-v3.9.2';
+const CACHE = 'gymlog-v3.10.0';
 const ASSETS = [
   './',
   'index.html',
@@ -44,6 +44,10 @@ const ASSETS = [
   'js/sanitize.js',
   'js/sync.js',
   'js/strava.js',
+  'js/migrate.js',
+  'js/platform.js',
+  'js/i18n.js',
+  'js/config.js',
   'js/garmin.js',
   'js/store.js',
   'js/theme.js',
@@ -98,12 +102,15 @@ self.addEventListener('fetch', (e) => {
   const req = e.request;
   const u = new URL(req.url);
   if (req.method !== 'GET' || u.origin !== location.origin || u.pathname.includes('/api/')) return;
+  // Login-Seite der privaten App immer frisch vom Server
+  if (/\/login(\.html)?$/.test(u.pathname) || /\/(js\/login\.js|css\/login\.css)$/.test(u.pathname)) return;
   const isNav = req.mode === 'navigate';
   e.respondWith((async () => {
     const cache = await caches.open(CACHE);
     const cached = await cache.match(isNav ? 'index.html' : req, { ignoreSearch: true });
     const network = fetch(req, { cache: 'no-cache' }).then((res) => {
-      if (res && res.ok) cache.put(isNav ? 'index.html' : req, res.clone());
+      // Weiterleitungen (z. B. zur Anmeldung) nie als App speichern
+      if (res && res.ok && !res.redirected) cache.put(isNav ? 'index.html' : req, res.clone());
       return res;
     }).catch(() => null);
     if (cached) { e.waitUntil(network); return cached; }

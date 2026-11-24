@@ -1,5 +1,7 @@
 // Allgemeine Helfer: DOM, Formatierung, Datum, Mathe
 
+import { share } from './platform.js';
+
 export const $ = (s, el = document) => el.querySelector(s);
 export const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 
@@ -154,10 +156,7 @@ export function download(filename, text, type = 'text/plain') {
 export async function shareFile(filename, text, type) {
   try {
     const file = new File([text], filename, { type });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({ files: [file], title: filename });
-      return true;
-    }
+    if (await share({ files: [file], title: filename })) return true;
   } catch (e) {
     if (e.name === 'AbortError') return false;
   }

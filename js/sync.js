@@ -1,7 +1,7 @@
 // Gruppen-Server: Anmeldung per Schlüssel, Offline-first-Sync, Gruppendaten.
 // Ohne Server (z. B. GitHub Pages) bleibt alles lokal – dieses Modul ist dann inaktiv.
 
-import { state, hooks, applyRemote, saveSettings, onChange } from './store.js';
+import { state, hooks, applyRemote, saveSettings, onChange, prefsData, applyPrefs } from './store.js';
 import { idx } from './stats.js';
 import { toast } from './ui.js';
 import { demoApi, demoGroup, setSummarizer } from './demo.js';
@@ -9,7 +9,7 @@ import { cardioKind, MOBILITY_RE } from './compete.js';
 
 const LS = 'gymlog-srv';
 const LS_GROUP = 'gymlog-group';
-const empty = () => ({ server: '', token: null, user: null, group: '', cursor: 0, dirty: { workout: {}, routine: {} }, tomb: [], profHash: '', profUpdated: 0, lastSync: 0 });
+const empty = () => ({ server: '', token: null, user: null, group: '', cursor: 0, dirty: { workout: {}, routine: {} }, tomb: [], profHash: '', profUpdated: 0, prefHash: '', prefsSeen: 0, lastSync: 0 });
 let S = load();
 let tick = 0;
 
@@ -72,6 +72,7 @@ export async function api(method, path, body, base = null) {
   const j = await r.json().catch(() => ({}));
   if (r.status === 401 && S.token && !/^\/api\/(redeem|login)$/.test(path)) {
     localLogout();
+    if (srv.info?.private && !S.server) { location.replace('/login'); return new Promise(() => {}); }
     toast('Dieses Gerät wurde abgemeldet. Bitte einen neuen Schlüssel beim Admin anfragen.', 5000);
   }
   if (!r.ok) throw Object.assign(new Error(j.error || `Fehler ${r.status}`), { status: r.status });
@@ -137,7 +138,26 @@ function localLogout() {
 export async function logout() {
   try { await api('POST', '/api/logout'); } catch { /* offline: trotzdem lokal abmelden */ }
   localLogout();
+  // private App vom eigenen Server: zwischengespeicherte App entfernen und zur Anmeldung
+  if (srv.info?.private && !S.server) {
+    try { for (const k of await caches.keys()) await caches.delete(k); } catch { /* egal */ }
+    try { for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister(); } catch { /* egal */ }
+    location.replace('/login');
+  }
 }
+
+// Private App: Geräte, die schon angemeldet sind (Token), holen sich das Anmelde-Cookie für die App-Dateien
+export async function ensureSession() {
+  if (!S.token || S.server || !srv.info?.private) return;
+  try { await api('POST', '/api/session'); } catch { /* offline: beim nächsten Start */ }
+}
+// Umzug: Einmal-Link zur App auf dem Server (10 Minuten gültig, ohne Passwort)
+export async function transferLink() {
+  const base = S.server || location.origin;
+  const r = await api('POST', '/api/transfer');
+  return `${base}/login#t=${r.code}`;
+}
+export const pendingChanges = () => pendingCount() + (S.prefHash && hash(prefsData()) !== S.prefHash ? 1 : 0);
 
 // ---------- Änderungen merken ----------
 let timer = null;
@@ -198,6 +218,7 @@ export function syncNow() {
       let rounds = 0;
       let more = true;
       while (more && rounds++ < 50) {
+        let again = false;
         const sum = summarizer();
         const batch = [];
         const sent = [];
@@ -215,8 +236,16 @@ export function syncNow() {
         const pd = profileData();
         const h = hash(pd);
         const profile = h !== S.profHash ? { updated: Math.max(Date.now(), S.profUpdated + 1), data: pd } : null;
+        // Einstellungen: neues Gerät holt zuerst den Stand vom Server (prefHash leer), danach werden Änderungen geschickt
+        const ed = prefsData();
+        const eh = hash(ed);
+        const prefs = S.prefHash && eh !== S.prefHash ? { updated: Math.max(Date.now(), S.prefsSeen + 1), data: ed } : null;
 
-        const r = await api('POST', '/api/sync', { cursor: S.cursor, items: batch, profile });
+        const r = await api('POST', '/api/sync', { cursor: S.cursor, items: batch, profile, prefs, prefsSeen: S.prefsSeen });
+        if (prefs) { S.prefHash = eh; S.prefsSeen = Math.max(S.prefsSeen, prefs.updated); }
+        if (r.prefs && r.prefsUpdated > S.prefsSeen) { await applyPrefs(r.prefs); S.prefsSeen = r.prefsUpdated; S.prefHash = hash(prefsData()); }
+        // Server hat noch nichts (erstes Gerät/Umzug aus der alten App): eigenen Stand in der nächsten Runde schicken
+        else if (!S.prefHash) { S.prefHash = r.prefsUpdated ? hash(prefsData()) : 'init'; if (!r.prefsUpdated) again = true; }
 
         for (const [kind, id, v] of sent) if (S.dirty[kind][id] === v) delete S.dirty[kind][id];
         S.tomb = S.tomb.filter((t) => !tombs.includes(t));
@@ -236,7 +265,7 @@ export function syncNow() {
         S.cursor = r.cursor;
         S.user = r.user || S.user;
         save();
-        more = r.more || pendingCount() > 0;
+        more = again || r.more || pendingCount() > 0;
       }
       S.lastSync = Date.now();
       save();
@@ -289,7 +318,7 @@ export function initSync() {
   if (!S.token || inited) return;
   inited = true;
   syncNow().catch(() => {});
-  onChange(() => { if (S.token && hash(profileData()) !== S.profHash) scheduleSync(3000); });
+  onChange(() => { if (S.token && (hash(profileData()) !== S.profHash || (S.prefHash && hash(prefsData()) !== S.prefHash))) scheduleSync(3000); });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') scheduleSync(500); });
   window.addEventListener('online', () => scheduleSync(500));
   setInterval(() => { if (document.visibilityState === 'visible') syncNow().catch(() => {}); }, 5 * 60000);

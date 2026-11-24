@@ -195,6 +195,31 @@ export async function renameExercise(from, to) {
   return changedW.length;
 }
 
+// ---------- Einstellungen + eigene Übungen pro Konto (Server-Abgleich) ----------
+// Nicht übertragen: rein gerätebezogene Werte
+const LOCAL_KEYS = new Set(['arenaDemo']);
+export function prefsData() {
+  const settings = {};
+  for (const [k, v] of Object.entries(state.settings)) if (!LOCAL_KEYS.has(k)) settings[k] = v;
+  return { settings, exMeta: Object.values(state.exMeta) };
+}
+export async function applyPrefs(p) {
+  if (!p || typeof p !== 'object') return;
+  const s = p.settings && typeof p.settings === 'object' && !Array.isArray(p.settings) ? p.settings : null;
+  if (s) {
+    const patch = {};
+    for (const [k, v] of Object.entries(s)) if (!LOCAL_KEYS.has(k) && !['__proto__', 'constructor', 'prototype'].includes(k)) patch[k] = v;
+    state.settings = { ...DEFAULT_SETTINGS, ...patch, ...Object.fromEntries([...LOCAL_KEYS].map((k) => [k, state.settings[k]])) };
+    await db.kvSet('settings', state.settings);
+  }
+  const M = cleanList(p.exMeta, cleanMeta).list;
+  if (M.length) {
+    for (const m of M) state.exMeta[m.name] = m;
+    await db.putMany('exercises', M);
+  }
+  bump();
+}
+
 // ---------- Einstellungen ----------
 export async function saveSettings(patch) {
   state.settings = { ...state.settings, ...patch };

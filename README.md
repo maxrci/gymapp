@@ -63,8 +63,14 @@ eigenen Werten erzeugt werden. Abschaltbar unter Profil → „Arena-Demo mit 2 
 ## Gruppen-Server (Arena, Challenges, Konten)
 
 Im Ordner `server/` liegt zusätzlich ein kleiner Server, den jede Freundesgruppe selbst betreiben kann –
-am einfachsten auf einem Raspberry Pi daheim. Die App kommt weiter von GitHub Pages; der Server speichert nur die
-Daten der Gruppe (SQLite, wenige MB).
+am einfachsten auf einem Raspberry Pi daheim. Der Server liefert die App selbst aus – **privat**: ohne Anmeldung
+gibt es nur die Login-Seite, der App-Code kommt erst nach dem Login (Cookie). Daten der Gruppe in SQLite (wenige MB).
+
+- **Umzug von GitHub Pages**: Die alte App zeigt „Gym zieht um“. Ein Tipp sichert alles (Workouts, Routinen,
+  Einstellungen, eigene Übungen) und öffnet die neue App mit einem Einmal-Link – ohne Passwort.
+- **Privates Repo auf dem Pi**: `bash deploy/private-repo.sh` richtet einen Lese-Schlüssel (Deploy Key) ein.
+- **Schutz**: Bremsen pro IP, Gerät und Benutzername, gefälschte `X-Forwarded-For` werden ignoriert,
+  kleine Anfragen außer beim Abgleich.
 
 - **Konten mit Benutzername und Passwort**, die der Admin festlegt. Keine offene Registrierung.
   Jedes Gerät meldet sich einmal an und bleibt angemeldet.
@@ -83,7 +89,7 @@ sudo nano /etc/gym.env                       # PUBLIC_URL eintragen, dann: sudo 
 bash deploy/cli.sh admin "Dein Name" deinname
 ```
 
-## Auf GitHub Pages veröffentlichen
+## Auf GitHub Pages veröffentlichen (veraltet – die App läuft jetzt privat vom eigenen Server)
 
 > **Wichtig:** `workout_data.csv` steht in der `.gitignore` und wird **nicht** hochgeladen.
 > GitHub Pages ist öffentlich. Deine Trainingsdaten importierst du stattdessen direkt auf dem iPhone.

@@ -22,7 +22,9 @@ import { joinView, loginView } from './views/join.js';
 import { showOnboarding, shouldOnboard } from './onboarding.js';
 import { initUpdates } from './update.js';
 import { initStrava } from './strava.js';
-import { detectServer, initSync, loggedIn, onSync, demoOn } from './sync.js';
+import { detectServer, initSync, loggedIn, onSync, demoOn, ensureSession } from './sync.js';
+import { maybeShowMigration, justMoved, welcomeMoved } from './migrate.js';
+import { refreshConfig } from './config.js';
 
 const TABS = [
   ['home', 'Start', 'home'],
@@ -149,7 +151,13 @@ async function main() {
   await loadAll();
   applyTheme(state.settings.theme || 'dark');
   setLook(state.settings.avatar);
-  onChange(() => setLook(state.settings.avatar));
+  // auch Einstellungen, die vom Server kommen (anderes Gerät, Umzug), sofort anwenden
+  let themeNow = state.settings.theme || 'dark';
+  onChange(() => {
+    setLook(state.settings.avatar);
+    const t = state.settings.theme || 'dark';
+    if (t !== themeNow) { themeNow = t; applyTheme(t); }
+  });
   onChange(debounce(rerender, 30));
   onEditorClose(() => { document.body.classList.remove('editor-open'); renderMinibar(); });
   window.addEventListener('hashchange', () => {
@@ -176,12 +184,12 @@ async function main() {
     if (loggedIn() !== wasIn) { wasIn = loggedIn(); renderTabbar(); initSync(); initStrava(); }
     rerender();
   }, 60));
-  detectServer().then((ok) => { if (ok) { initSync(); renderTabbar(); rerender(); } initStrava(); });
+  detectServer().then((ok) => { if (ok) { ensureSession(); refreshConfig(); initSync(); renderTabbar(); rerender(); welcomeMoved(); } initStrava(); maybeShowMigration(); });
 
   render({ keepScroll: false });
   document.body.classList.add('ready');
   // Beim ersten Öffnen: Onboarding statt Start-Animation (nicht bei Anmelde-Links)
-  const viaLink = /^#\/(join|login)/.test(location.hash);
+  const viaLink = /^#\/(join|login)/.test(location.hash) || justMoved();
   if (shouldOnboard() && !viaLink) showOnboarding();
   else if (!viaLink) showIntro();
   resumeGuided();

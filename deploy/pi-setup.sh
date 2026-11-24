@@ -45,8 +45,7 @@ PORT=8080
 HOST=127.0.0.1
 # Öffentliche HTTPS-Adresse des Servers (nach dem Online-Stellen eintragen), z. B. https://pi.tail1234.ts.net
 PUBLIC_URL=
-# Wo die App liegt, falls sie nicht vom Server kommt (für die Anmelde-Links der Kommandozeile)
-APP_URL=https://maxrci.github.io/gymapp
+# Die App kommt vom Server selbst und ist privat (nur nach Anmeldung). APP_PUBLIC=1 würde das abschalten.
 # Von welchen Adressen die App die API aufrufen darf (* = alle; Anmeldung läuft über Token, nicht über Cookies)
 ALLOWED_ORIGINS=*
 EOF
@@ -99,6 +98,6 @@ Fertig! Nächste Schritte:
      und: sudo systemctl restart gym
   2. Dich als Admin anlegen:
        bash deploy/cli.sh admin "Dein Name" deinname
-  3. App öffnen (https://maxrci.github.io/gymapp/) → Profil → Gruppe → anmelden
+  3. App öffnen (deine https://…ts.net-Adresse) → mit deinem Konto anmelden
      → „Gruppe verwalten“ → Freunde anlegen und Zugangsdaten verschicken.
 EOF

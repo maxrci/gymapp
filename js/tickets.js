@@ -6,6 +6,7 @@ import { overlay, icon, formDialog, confirmDialog, toast, sheet } from './ui.js'
 import { esc, fmtDate, fmtRelDay } from './utils.js';
 import { api, loggedIn, account, isAdmin } from './sync.js';
 import { APP_VERSION } from './version.js';
+import { share } from './platform.js';
 
 export const TICKET_TYPES = [['wish', 'Wunsch', 'star'], ['bug', 'Fehler', 'info']];
 export const TICKET_STATUS = [['open', 'Offen'], ['progress', 'In Arbeit'], ['done', 'Erledigt'], ['rejected', 'Abgelehnt']];
@@ -153,7 +154,8 @@ function openTicket(t, admin, reload) {
       if (e.target.closest('[data-vote]')) { await backend().vote(t.id, !t.voted); return done(); }
       if (e.target.closest('[data-share]')) {
         const text = shareText(t);
-        if (navigator.share) { try { await navigator.share({ title: 'Gym-Ticket', text }); } catch { /* abgebrochen */ } } else { await navigator.clipboard?.writeText(text); toast('Kopiert'); }
+        let shared = false; try { shared = await share({ title: 'Gym-Ticket', text }); } catch { shared = true; /* abgebrochen */ }
+        if (!shared) { await navigator.clipboard?.writeText(text); toast('Kopiert'); }
         return;
       }
       if (e.target.closest('[data-menu]')) {
