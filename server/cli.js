@@ -18,13 +18,13 @@ const server = (cfg.publicUrl || 'https://DEINE-SERVER-ADRESSE').replace(/\/$/, 
 const app = (cfg.appUrl || server).replace(/\/$/, '');
 
 function printAccess(user, username, password) {
-  const link = `${app}/#/login?${new URLSearchParams({ ...(app !== server ? { server } : {}), user: username })}`;
+  const link = cfg.privateApp ? `${server}/login?${new URLSearchParams({ user: username })}` : `${app}/#/login?${new URLSearchParams({ ...(app !== server ? { server } : {}), user: username })}`;
   console.log(`\nName:          ${user.name}${user.role === 'admin' ? ' (Admin)' : ''}`);
   console.log(`Benutzername:  ${username}`);
   console.log(`Passwort:      ${password}`);
   console.log(`Server:        ${server}`);
   console.log(`App-Link:      ${link}\n`);
-  if (!cfg.publicUrl) console.log('Tipp: PUBLIC_URL (und APP_URL, falls die App von GitHub kommt) setzen, dann stimmen Server und Link.\n');
+  if (!cfg.publicUrl) console.log('Tipp: PUBLIC_URL in /etc/gym.env setzen, dann stimmt der Link.\n');
   warnUrl();
 }
 // Häufiger Fehler: Freischalt-Link von Tailscale statt der eigentlichen .ts.net-Adresse

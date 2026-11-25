@@ -51,6 +51,8 @@ const inviteLink = (req, cfg, code) => `${publicBase(req, cfg)}/#/join/${code}`;
 // Anmelde-Link: App (z. B. GitHub Pages, APP_URL) + Server-Adresse + Benutzername
 const loginLink = (req, cfg, username) => {
   const server = publicBase(req, cfg);
+  // private App vom Server: direkt zur Login-Seite des Servers (Benutzername vorausgefüllt)
+  if (cfg.privateApp) return `${server}/login?${new URLSearchParams({ user: username || '' })}`;
   const app = (cfg.appUrl || server).replace(/\/$/, '');
   return `${app}/#/login?${new URLSearchParams({ ...(app !== server ? { server } : {}), user: username || '' })}`;
 };

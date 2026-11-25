@@ -5,7 +5,7 @@ import { overlay, icon, sheet, formDialog, confirmDialog, toast } from './ui.js'
 import { esc, fmtRelDay, fmtDate } from './utils.js';
 import {
   api, logout, syncNow, account, isAdmin, srv, loggedIn, markAllDirty, fetchGroup,
-  loginPassword, parseServerInput, sameOriginServer, serverUrl, fetchGroups,
+  loginPassword, parseServerInput, sameOriginServer, serverUrl, fetchGroups, myGroups, activeGroupId,
 } from './sync.js';
 import { circlesSection, circleHandlers } from './circles.js';
 import { VISIBILITY } from './compete.js';
@@ -93,7 +93,8 @@ function showAccess(res) {
   }
   const o = overlay('', 'key-view');
   const group = account().group || 'Gym';
-  const text = `Dein Zugang zum Gym (${group})\n\nApp: ${r.link}\nBenutzername: ${r.username}\nPasswort: ${r.password}${r.link.includes('server=') ? `\nServer: ${r.server}` : ''}\n\niPhone: Link in Safari öffnen → Teilen → „Zum Home-Bildschirm“. Dann die App öffnen und unter Profil → Gruppe anmelden${r.link.includes('server=') ? ' (Server-Adresse von oben einfügen)' : ''}. Du musst dich pro Gerät nur einmal anmelden.`;
+  const viaServer = !r.link.includes('server=');
+  const text = `Dein Zugang zum Gym (${group})\n\nApp: ${r.link}\nBenutzername: ${r.username}\nPasswort: ${r.password}${viaServer ? '' : `\nServer: ${r.server}`}\n\n${viaServer ? 'iPhone: Link in Safari öffnen → anmelden → Teilen → „Zum Home-Bildschirm“. Dann Gym vom Home-Bildschirm starten und dort einmal anmelden.' : 'iPhone: Link in Safari öffnen → Teilen → „Zum Home-Bildschirm“. Dann die App öffnen und unter Profil → Gruppen & Privacy anmelden (Server-Adresse von oben einfügen).'} Du musst dich pro Gerät nur einmal anmelden.`;
   o.innerHTML = `
     <div class="panel-head"><button class="icon-btn" data-close aria-label="Schließen">${icon('x')}</button><div class="panel-title">Zugang für ${esc(r.user.name)}</div><span style="width:40px"></span></div>
     <div class="panel-body">
@@ -149,9 +150,10 @@ export function openAdmin() {
           { name: 'username', label: 'Benutzername', placeholder: 'leer = aus dem Namen' },
           { name: 'password', label: 'Passwort (mind. 6 Zeichen)', placeholder: 'leer = zufällig, z. B. kraft-tiger-4827' },
           { name: 'role', label: 'Rolle', type: 'select', value: 'member', options: [{ value: 'member', label: 'Mitglied' }, { value: 'admin', label: 'Admin (darf Nutzer verwalten)' }] },
+          { name: 'group', label: 'In welche Gruppe?', type: 'select', value: activeGroupId(), options: [...(myGroups().groups || []).map((g) => ({ value: g.id, label: g.name })), { value: '', label: 'Keine Gruppe (tritt selbst per Code bei)' }] },
         ] });
         if (!r?.name.trim()) return;
-        const res = await api('POST', '/api/admin/users', { name: r.name.trim(), username: r.username.trim(), password: r.password, role: r.role });
+        const res = await api('POST', '/api/admin/users', { name: r.name.trim(), username: r.username.trim(), password: r.password, role: r.role, groups: r.group ? [r.group] : [] });
         showAccess(res);
         return load();
       }
